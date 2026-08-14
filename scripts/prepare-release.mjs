@@ -82,9 +82,10 @@ const manifest = {
       ? "Authenticode is valid, but the remaining product release gates below are not complete."
       : "Authenticode is blocked because no identity-validated public code-signing certificate/private key is available; the signed build path now fails closed.",
     "Signed package verification, atomic installation, repair and rollback are implemented locally; automatic replacement of the running app still requires a signed release channel and Authenticode handoff.",
-    "Real LSP/DAP executable discovery and protocol sessions exist, but diagnostics/editor and debugger control UI are not release-complete.",
-    "Durable job leases, evidence-backed DevBox API evolution tasks and explicit SSH host-key pinning exist, but a restart-resumable multi-machine remote worker scheduler and pairing protocol are not release-complete.",
-    "ConPTY has a real node-pty execution path and bounded failure-injection tests exist; this packaging turn intentionally skipped runtime smoke/soak, while multi-hour soak and clean Windows VM failure matrices remain incomplete."
+    "TypeScript/JavaScript LSP diagnostics and the Microsoft JavaScript DAP control surface are real and tested; production-grade discovery and control surfaces for additional language/debug adapters remain incomplete.",
+    "Durable job leases, one-time pairing, worker revocation, heartbeat recovery and cancellation passed a real same-machine Core API/worker E2E; physical second-machine and network-partition continuity evidence remains incomplete.",
+    "ConPTY has a real node-pty execution path and bounded failure-injection tests exist; this packaging turn intentionally skipped user-interface smoke/soak, while multi-hour soak and clean Windows VM failure matrices remain incomplete.",
+    "Third-party MCP processes are isolated child processes but not Windows AppContainer sandboxes; a hosted marketplace portal with publisher MFA/RBAC and server-side scanning is not part of this local preview."
   ]
 };
 await writeFile(path.join(stage, "release-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");

@@ -1,6 +1,6 @@
 {
   "name": "devbox",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Windows için kanıt temelli açık kaynak mühendislik masaüstü",
   "author": "Yaaertu",
@@ -23,6 +23,8 @@
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "research:generate": "node scripts/generate-research.mjs",
+    "spec:import": "node scripts/import-development-spec.mjs",
+    "spec:verify": "node scripts/verify-development-spec.mjs",
     "build:main": "tsc -p config/tsconfig.node.json",
     "build:renderer": "vite build --config config/vite.config.ts",
     "build": "pnpm clean && pnpm research:generate && pnpm build:main && pnpm build:renderer && pnpm truth:audit",
@@ -46,7 +48,7 @@
     "release:install-local": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/install-local-release.ps1 -Workspace .",
     "release:deliver": "pnpm release:prepare && pnpm release:verify && pnpm release:sync && pnpm release:source && pnpm release:install-local",
     "release:local": "pnpm package:installer && pnpm release:deliver",
-    "verify": "pnpm typecheck && pnpm test && pnpm build"
+    "verify": "pnpm spec:verify && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
     "@fastify/rate-limit": "11.2.0",

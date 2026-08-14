@@ -11,6 +11,7 @@ import {
   Globe2,
   LoaderCircle,
   Play,
+  PlugZap,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -22,9 +23,12 @@ import {
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type {
   AppSettings,
+  CatalogItem,
+  CatalogSnapshot,
   CommandResult,
   DebugResponse,
   DebugSession,
+  DurableJobSummary,
   RemoteWorker,
   WorkerPairing,
   EvolutionCampaign,
@@ -33,6 +37,79 @@ import type {
   TerminalSummary,
   Worktree
 } from "../shared/contracts";
+
+export function CatalogWorkspace(): ReactNode {
+  const [catalog, setCatalog] = useState<CatalogSnapshot | null>(null);
+  const [section, setSection] = useState<"skill" | "plugin">("skill");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(async (): Promise<void> => {
+    setError(null);
+    try { setCatalog(await window.devbox.inspectCatalog()); }
+    catch (caught) { setError(failure(caught)); }
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
+  const selectSource = async (kind: "skill" | "plugin"): Promise<void> => {
+    setBusy(`source-${kind}`); setError(null);
+    try { setCatalog(await window.devbox.selectCatalogSource(kind)); }
+    catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
+  const installPlugins = async (): Promise<void> => {
+    setBusy("install"); setError(null);
+    try { setCatalog(await window.devbox.installPortablePlugins()); }
+    catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
+  const connectPlugins = async (): Promise<void> => {
+    setBusy("connect"); setError(null);
+    try { setCatalog(await window.devbox.connectPortablePlugins()); }
+    catch (cause) { setError(failure(cause)); }
+    finally { setBusy(null); }
+  };
+  const disconnectPlugins = async (): Promise<void> => {
+    setBusy("disconnect"); setError(null);
+    try { setCatalog(await window.devbox.disconnectPortablePlugins()); }
+    catch (cause) { setError(failure(cause)); }
+    finally { setBusy(null); }
+  };
+  const visible = catalog?.items.filter((item) => item.kind === section) ?? [];
+  const verifiedPlugins = catalog?.items.some((item) => item.kind === "plugin" && ["HASH_VERIFIED", "BUNDLE_VERIFIED"].includes(item.sourceState)) ?? false;
+  const pluginsInstalled = catalog?.items.some((item) => item.kind === "plugin" && item.runtimeState === "INSTALLED") ?? false;
+  return <section className="advanced-page catalog-workspace">
+    <div className="advanced-heading"><div><span className="advanced-eyebrow">DOĞRULANMIŞ YEREL KATALOG</span><h1>Beceriler ve taşınabilir eklentiler</h1><p>Kaynak bütünlüğü, lisans, çalışma zamanı kurulumu ve MCP doktoru ayrı kanıtlanır. Yalnız gerçekten geçen durumlar “Hazır” gösterilir.</p></div><button onClick={() => void reload()} disabled={Boolean(busy)}><RefreshCw className={busy ? "spin" : ""} size={14} /> Yeniden denetle</button></div>
+    {catalog && <div className="catalog-summary"><article><strong>{catalog.counts.skills}</strong><span>yerel beceri kaynağı</span></article><article><strong>{catalog.counts.plugins}</strong><span>taşınabilir eklenti</span></article><article className="ready"><strong>{catalog.counts.installed}</strong><span>kurulu, doktoru geçti</span></article><article><strong>{catalog.counts.running}</strong><span>canlı MCP oturumu</span></article><article className={catalog.counts.blocked ? "blocked" : ""}><strong>{catalog.counts.blocked}</strong><span>bütünlük/çalışma hatası</span></article></div>}
+    <nav className="catalog-tabs" aria-label="Katalog türü"><button className={section === "skill" ? "active" : ""} onClick={() => setSection("skill")}>Beceriler</button><button className={section === "plugin" ? "active" : ""} onClick={() => setSection("plugin")}>Eklentiler ve MCP</button></nav>
+    <div className="catalog-source"><div><strong>{section === "skill" ? "Beceri kaynağı" : "Eklenti kaynağı"}</strong><span title={section === "skill" ? catalog?.skillRoot ?? "" : catalog?.pluginRoot ?? ""}>{section === "skill" ? catalog?.skillRoot ?? "Seçilmedi" : catalog?.pluginRoot ?? "Seçilmedi"}</span></div><button onClick={() => void selectSource(section)} disabled={Boolean(busy)}><Upload size={14} /> Klasör seç</button>{section === "plugin" && !pluginsInstalled && <button className="primary" onClick={() => void installPlugins()} disabled={Boolean(busy) || !verifiedPlugins}>{busy === "install" ? <LoaderCircle className="spin" size={14} /> : <ShieldCheck size={14} />}Doğrula ve kur</button>}{section === "plugin" && pluginsInstalled && (catalog?.counts.running ?? 0) < (catalog?.counts.installed ?? 0) && <button className="primary" onClick={() => void connectPlugins()} disabled={Boolean(busy)}>{busy === "connect" ? <LoaderCircle className="spin" size={14} /> : <PlugZap size={14} />}Canlı MCP bağla</button>}{section === "plugin" && (catalog?.counts.running ?? 0) > 0 && <button onClick={() => void disconnectPlugins()} disabled={Boolean(busy)}>{busy === "disconnect" ? <LoaderCircle className="spin" size={14} /> : <CircleStop size={14} />}Bağlantıyı kes</button>}</div>
+    {visible.length === 0 ? <div className="advanced-empty compact"><Activity size={22} /><strong>Doğrulanmış kayıt yok</strong><span>Kaynak klasörünü seçin; DevBox arşivleri çalıştırmadan önce SHA-256 kaydını denetler.</span></div> : <div className="catalog-grid">{visible.map((item) => <article key={`${item.kind}:${item.id}`}><header><div><strong>{item.productName}</strong><span>{item.id} · v{item.version}</span></div><span className={`catalog-state ${item.runtimeState === "RUNNING" ? "ready" : item.runtimeState === "INSTALLED" ? "installed" : item.sourceState === "HASH_FAILED" || item.runtimeState === "FAILED" ? "failed" : "source"}`}>{item.runtimeState === "RUNNING" ? "ÇALIŞIYOR" : item.runtimeState === "INSTALLED" ? "KURULU" : item.runtimeState === "SOURCE_ONLY" ? "YALNIZ KAYNAK" : item.runtimeState === "FAILED" ? "BAŞARISIZ" : "KURULU DEĞİL"}</span></header><div className={`catalog-trust ${item.trustClass.toLowerCase().replaceAll("_", "-")}`}>{item.trustClass === "MANAGED_SIGNED_CATALOG" ? "İmzalı yönetilen katalog" : item.trustClass === "LOCAL_SIDELOAD" ? "Yerel sideload · yönetici onaylı değil" : item.trustClass === "LOCAL_HASH_VERIFIED" ? "Yerel kaynak · SHA-256 doğrulandı" : "Özel lisanslı kaynak · dağıtıma kapalı"}</div><p>{item.detail}</p><dl><div><dt>Geliştirici</dt><dd>{item.publisher}</dd></div><div><dt>Lisans</dt><dd>{item.license}</dd></div><div><dt>Bütünlük</dt><dd>{item.sourceState}</dd></div><div><dt>Doktor</dt><dd>{item.doctorState}</dd></div><div><dt>Araç</dt><dd>{item.toolCount || "canlı bağlantı bekliyor"}</dd></div><div><dt>İzin</dt><dd>{item.grantedPermissions.length ? `${item.grantedPermissions.length}/${item.requestedPermissions.length}` : "host izni istemiyor"}</dd></div></dl>{item.health?.lastError && <div className="inline-error">Son çalışma hatası: {item.health.lastError}</div>}<details><summary>Kanıtları göster</summary>{item.evidence.map((line) => <code key={line}>{line}</code>)}</details>{item.runtimeState === "RUNNING" && item.tools.length > 0 && <CatalogToolRunner pluginId={item.id} tools={item.tools} />}</article>)}</div>}
+    {catalog?.issues.length ? <section className="catalog-issues"><strong>Sınırlar ve notlar</strong>{catalog.issues.map((issue) => <p key={issue}>{issue}</p>)}</section> : null}
+    {error && <div className="inline-error">{error}</div>}
+  </section>;
+}
+
+function CatalogToolRunner({ pluginId, tools }: { pluginId: string; tools: CatalogItem["tools"] }): ReactNode {
+  const [toolName, setToolName] = useState(tools[0]?.name ?? "");
+  const [argumentsText, setArgumentsText] = useState("{}");
+  const [output, setOutput] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const invoke = async (): Promise<void> => {
+    setError(null);
+    setOutput(null);
+    let parsed: unknown;
+    try { parsed = JSON.parse(argumentsText); }
+    catch { return setError("Araç girdisi geçerli JSON olmalıdır."); }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return setError("Araç girdisinin kökü bir JSON nesnesi olmalıdır.");
+    setBusy(true);
+    try {
+      const result = await window.devbox.callCatalogTool({ pluginId, toolName, arguments: parsed as Record<string, unknown> });
+      setOutput(JSON.stringify({ süreMs: result.durationMs, sonuç: result.result }, null, 2));
+    } catch (cause) { setError(failure(cause)); }
+    finally { setBusy(false); }
+  };
+  const selected = tools.find((tool) => tool.name === toolName);
+  return <details className="catalog-tool-runner"><summary>Canlı MCP aracını çalıştır</summary><label>Araç<select value={toolName} onChange={(event) => setToolName(event.target.value)}>{tools.map((tool) => <option key={tool.name} value={tool.name}>{tool.name}</option>)}</select></label>{selected?.description && <p>{selected.description}</p>}<label>JSON girdisi<textarea value={argumentsText} onChange={(event) => setArgumentsText(event.target.value)} spellCheck={false} /></label><button className="primary" onClick={() => void invoke()} disabled={busy || !toolName}>{busy ? <LoaderCircle className="spin" size={14} /> : <Play size={14} />}Onayla ve gerçekten çalıştır</button>{error && <div className="inline-error">{error}</div>}{output && <pre>{output}</pre>}</details>;
+}
 
 function failure(error: unknown): string {
   if (error instanceof Error) return error.message.replace(/^Error invoking remote method '[^']+':\s*/iu, "");
@@ -251,6 +328,8 @@ export function AutomationWorkspace({ project }: { project: ProjectSummary | nul
   const [directive, setDirective] = useState("");
   const [busy, setBusy] = useState<"reload" | "toggle" | "run" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [visibleTasks, setVisibleTasks] = useState(24);
+  const [runStatus, setRunStatus] = useState<string | null>(null);
   const reload = useCallback(async () => {
     if (!project) return setCampaign(null);
     setCampaign(await window.devbox.getEvolution(project.id));
@@ -266,10 +345,17 @@ export function AutomationWorkspace({ project }: { project: ProjectSummary | nul
   };
   const run = async (): Promise<void> => {
     if (!project) return;
-    setBusy("run"); setError(null);
-    try { setCampaign(await window.devbox.runEvolutionCycle(project.id)); }
-    catch (caught) { setError(failure(caught)); }
-    finally { setBusy(null); }
+    setBusy("run"); setError(null); setRunStatus("Codex 5.6 Sol · Yüksek için oturum ve sağlayıcı kanıtı doğrulanıyor…");
+    setCampaign((current) => current ? { ...current, isRunning: true } : current);
+    try {
+      const result = await window.devbox.runEvolutionCycle(project.id);
+      setCampaign(result);
+      setRunStatus(`Çevrim tamamlandı · ${result.lastProvider ?? "sağlayıcı kaydı yok"} · ${result.lastCycleDurationMs?.toLocaleString("tr-TR") ?? "?"} ms`);
+    } catch (caught) {
+      setError(failure(caught));
+      setRunStatus("Çevrim tamamlanamadı; görev ve hata kanıtı kalıcı geçmişe yazıldı.");
+      await reload().catch(() => undefined);
+    } finally { setBusy(null); }
   };
   const saveDirective = async (): Promise<void> => {
     if (!project || directive.trim().length < 80) return;
@@ -278,21 +364,35 @@ export function AutomationWorkspace({ project }: { project: ProjectSummary | nul
     catch (caught) { setError(failure(caught)); }
     finally { setBusy(null); }
   };
+  const shownTasks = campaign ? campaign.tasks.slice(-visibleTasks).reverse() : [];
   return <section className="advanced-page">
-    <div className="advanced-heading"><div><span className="advanced-eyebrow">GERÇEK SAĞLAYICI KANITI</span><h1>DevBox API gelişimi</h1><p>Sağlık ve oturum denetimi geçen OpenAI Codex CLI öncelikli çalışır; Codex kullanılamazsa Hermes/NVIDIA NIM’e gerçek geri dönüş yapar. Dayanıklı görev, sağlayıcı kanıtı ve kalıcı görev geçmişi olmadan ilerleme yazmaz.</p></div><div className="advanced-actions"><button onClick={() => { setBusy("reload"); void reload().catch((caught) => setError(failure(caught))).finally(() => setBusy(null)); }} disabled={!project || Boolean(busy)}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yenile</button><button className="primary" onClick={() => void run()} disabled={!project || Boolean(busy)}>{busy === "run" ? <LoaderCircle className="spin" size={14} /> : <Play size={14} />} Şimdi çalıştır</button></div></div>
+    <div className="advanced-heading evolution-heading"><div><span className="advanced-eyebrow">KALICI GELİŞİM KONTROL DÜZLEMİ · V2</span><h1>DevBox API gelişimi</h1><p>OpenAI Codex CLI, <strong>5.6 Sol</strong> ve <strong>Yüksek</strong> muhakeme düzeyiyle gerçek görev üretir. Günlük yapay kota yoktur; güvenli geri basınç, tek eşzamanlı çevrim, iptal edilebilir dayanıklı işler ve doğrulanabilir geçmiş vardır.</p></div><div className="advanced-actions"><button onClick={() => { setBusy("reload"); void reload().catch((caught) => setError(failure(caught))).finally(() => setBusy(null)); }} disabled={!project || Boolean(busy)}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yenile</button><button className="primary" onClick={() => void run()} disabled={!project || Boolean(busy)}>{busy === "run" ? <LoaderCircle className="spin" size={14} /> : <Play size={14} />} {busy === "run" ? "Codex çalışıyor" : "Şimdi çalıştır"}</button></div></div>
     {!project ? <EmptyProject /> : !campaign ? <div className="advanced-empty"><LoaderCircle className="spin" size={24} />Gerçek kampanya durumu yükleniyor…</div> : <>
       <div className="evolution-summary">
-        <div className="evolution-score"><strong>{campaign.score}</strong><span>/ 100 kanıt kapsamı</span><small>Seviye {campaign.level} · {campaign.stage}</small></div>
-        <dl><div><dt>Sağlayıcı</dt><dd>{campaign.provider}</dd></div><div><dt>Model</dt><dd>{campaign.model}</dd></div><div><dt>Başarılı / hatalı</dt><dd>{campaign.completedCycles} / {campaign.failedCycles}</dd></div><div><dt>Bugünkü kullanım</dt><dd>{campaign.cyclesToday} / {campaign.dailyCycleLimit}</dd></div><div><dt>Son çevrim</dt><dd>{readableDate(campaign.lastCycleAt)}</dd></div><div><dt>Sonraki çevrim</dt><dd>{campaign.enabled ? readableDate(campaign.nextCycleAt) : "Kapalı"}</dd></div></dl>
-        <label className="evolution-toggle"><span><strong>Uygulama açıkken sürekli araştır</strong><small>Her {campaign.intervalMinutes} dakikada bir; günde en fazla {campaign.dailyCycleLimit} gerçek sağlayıcı isteği.</small></span><button className={`automation-toggle ${campaign.enabled ? "on" : ""}`} onClick={() => void toggle()} disabled={Boolean(busy)} aria-label={`API gelişim döngüsünü ${campaign.enabled ? "kapat" : "aç"}`}><i /></button></label>
+        <div className="evolution-score"><strong>{campaign.lifetimeLevel}</strong><span>kalıcı gelişim seviyesi</span><small>{campaign.lifetimeEvidencePoints.toLocaleString("tr-TR")} tekil doğrulanmış kanıt puanı</small></div>
+        <dl><div><dt>Öncelikli sağlayıcı</dt><dd>{campaign.provider}</dd></div><div><dt>Model ve muhakeme</dt><dd>5.6 Sol · Yüksek</dd></div><div><dt>Alan kapsamı</dt><dd>%{campaign.score} · 14 mühendislik izi</dd></div><div><dt>Bugünkü gerçek çevrim</dt><dd>{campaign.cyclesToday} · günlük kota yok</dd></div><div><dt>Başarılı / hatalı</dt><dd>{campaign.completedCycles} / {campaign.failedCycles}</dd></div><div><dt>Son gerçek sağlayıcı</dt><dd>{campaign.lastProvider ? `${campaign.lastProvider} · ${campaign.lastModel ?? "model kaydı yok"}` : "Henüz çevrim yok"}</dd></div><div><dt>Son çevrim</dt><dd>{readableDate(campaign.lastCycleAt)}</dd></div><div><dt>Süre</dt><dd>{campaign.lastCycleDurationMs === null ? "—" : `${campaign.lastCycleDurationMs.toLocaleString("tr-TR")} ms`}</dd></div><div><dt>Sonraki çevrim</dt><dd>{campaign.enabled ? readableDate(campaign.nextCycleAt) : "Kapalı"}</dd></div></dl>
+        <label className="evolution-toggle"><span><strong>Uygulama açıkken sürekli ve benzersiz görev üret</strong><small>Her {campaign.intervalMinutes} dakikada bir · günlük üst sınır yok · aynı anda tek gerçek çevrim · görevler SQLite WAL’da kalıcı.</small></span><button className={`automation-toggle ${campaign.enabled ? "on" : ""}`} onClick={() => void toggle()} disabled={Boolean(busy)} aria-label={`API gelişim döngüsünü ${campaign.enabled ? "kapat" : "aç"}`}><i /></button></label>
       </div>
-      <div className="truth-notice"><ShieldCheck size={17} /><p><strong>Bu bir model eğitimi veya kendi kendine kod değiştirme değildir.</strong> Her çevrimde önce yerel OpenAI Codex CLI oturumu doğrulanır; bu yol kullanılamazsa yalnız gerçek Hermes/NVIDIA NIM çağrısına geçilir. Gösterge, tamamlanan çevrimlerin {new Set(campaign.tasks.map((item) => item.track)).size} mühendislik alanındaki kanıt kapsamını ölçer. Görevler, yönerge, sağlayıcı kimliği ve bulgular proje bazında SQLite WAL deposunda kalır; uygulama kapanınca silinmez. Kod ancak kullanıcı açıkça uyguladığında ve test kanıtı üretildiğinde ürün gelişimi sayılır.</p></div>
+      {runStatus && <div className={`evolution-run-status ${busy === "run" ? "running" : ""}`}>{busy === "run" ? <LoaderCircle className="spin" size={15} /> : <Check size={15} />}<span>{runStatus}</span></div>}
+      <div className="truth-notice"><ShieldCheck size={17} /><p><strong>Seviye artık geriye düşmez ve bir model yanıtıyla yapay olarak artmaz.</strong> Eski kayıttaki en yüksek seviye {campaign.migrationFloorLevel} geçiş tabanı olarak korunur. Yalnız uygulanmış, test edilmiş, gerileme denetimi geçmiş ve parmak iziyle tekilleştirilmiş ürün kanıtı olgunluk puanı üretir. Araştırma yanıtları ayrı kapsam ve bulgu geçmişidir. Codex kullanılamazsa gerçek fallback kimliği “son sağlayıcı” alanında açıkça görünür; fallback hiçbir zaman Codex gibi etiketlenmez.</p></div>
+      <div className="evolution-metrics"><article><span>Doğrulanmış iyileştirme</span><strong>{campaign.validatedImprovementCount}</strong></article><article><span>Kararlı terfi</span><strong>{campaign.stablePromotionCount}</strong></article><article><span>Doğrulanmış araştırma</span><strong>{campaign.verifiedResearchCount}</strong></article><article><span>Gerileme düzeltmesi</span><strong>{campaign.verifiedRegressionFixCount}</strong></article></div>
       <section className="evolution-section directive-editor"><div className="panel-title"><div><h2>Kalıcı gelişim yönergesi</h2><span>Sonraki tüm Codex-öncelikli gerçek sağlayıcı çevrimlerine eklenir · {directive.length.toLocaleString("tr-TR")} karakter</span></div><div><button onClick={() => void window.devbox.copyText(directive)} disabled={!directive.trim()} title="Yönergeyi kopyala"><Copy size={14} /> Kopyala</button><button className="primary" onClick={() => void saveDirective()} disabled={Boolean(busy) || directive.trim().length < 80 || directive === campaign.directive}>{busy === "save" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Kaydet</button></div></div><textarea value={directive} onChange={(event) => setDirective(event.target.value)} minLength={80} maxLength={64_000} spellCheck aria-label="DevBox API kalıcı gelişim yönergesi" /><small>Codex çalışma zamanı yalnız gerçekten erişebildiği proje bağlamını kullanır. Web araştırması için gerçek bir arama aracı yoksa araştırma yapılmış sayılmaz; doğrulanacak birincil kaynaklar ayrı listelenir.</small></section>
-      <section className="evolution-section"><div className="panel-title"><h2>Gerçek görev kuyruğu</h2><span>{campaign.tasks.length} kalıcı görev</span><Status value={campaign.enabled ? "RUNNING" : "DISABLED"} /></div><div className="advanced-list evolution-list">{campaign.tasks.slice(-32).map((item) => <article key={item.id}><div className="list-icon">{item.state === "SUCCEEDED" ? <Check size={16} /> : item.state === "RUNNING" ? <LoaderCircle className="spin" size={16} /> : <Activity size={16} />}</div><div><strong>{item.title}</strong><span>{item.track} · {item.provider ?? "Codex öncelikli sağlayıcı çağrısı bekliyor"}{item.model ? ` · ${item.model}` : ""}</span><small>{item.error ?? (item.evidence.length ? item.evidence.join(" · ") : "Henüz çalışma kanıtı yok")}</small></div><Status value={item.state} />{item.threadId && <button onClick={() => void window.devbox.copyText(item.threadId!)} title="Görev kimliğini kopyala"><Copy size={14} /></button>}</article>)}</div></section>
+      <section className="evolution-section"><div className="panel-title"><div><h2>Gerçek görev kuyruğu</h2><span>{campaign.tasks.length} kalıcı görev · en yeni {shownTasks.length} kayıt gösteriliyor</span></div><Status value={campaign.isRunning ? "RUNNING" : campaign.enabled ? "READY" : "DISABLED"} /></div><div className="advanced-list evolution-list" tabIndex={0}>{shownTasks.map((item) => <article key={item.id}><div className="list-icon">{item.state === "SUCCEEDED" ? <Check size={16} /> : item.state === "RUNNING" ? <LoaderCircle className="spin" size={16} /> : <Activity size={16} />}</div><div><strong>{item.title}</strong><span>{item.track} · {item.provider ?? "Codex 5.6 Sol · Yüksek çağrısı bekliyor"}{item.model ? ` · ${item.model}` : ""}</span><small>{item.error ?? (item.evidence.length ? item.evidence.join(" · ") : "Henüz çalışma kanıtı yok")}</small></div><Status value={item.state} />{item.threadId && <button onClick={() => void window.devbox.copyText(item.threadId!)} title="Görev kimliğini kopyala"><Copy size={14} /></button>}</article>)}</div>{visibleTasks < campaign.tasks.length && <button className="load-more-tasks" onClick={() => setVisibleTasks((current) => Math.min(campaign.tasks.length, current + 24))}>24 eski görevi daha göster · {campaign.tasks.length - visibleTasks} kayıt kaldı</button>}</section>
       <section className="evolution-section"><div className="panel-title"><h2>Sağlayıcı bulguları</h2><span>{campaign.learnings.length} kalıcı kayıt</span></div>{campaign.learnings.length === 0 ? <div className="advanced-empty compact"><Activity size={22} /><strong>Henüz doğrulanmış çevrim yok</strong><span>İlk başarılı gerçek Codex veya Hermes/NVIDIA çevrimi, sağlayıcı ve durable-job kanıtıyla burada görünür.</span></div> : <div className="learning-grid">{campaign.learnings.slice().reverse().slice(0, 20).map((item) => <article key={item.id}><header><strong>{item.title}</strong><span>{item.track} · {readableDate(item.learnedAt)}</span></header><p>{item.summary}</p><footer>{item.evidence.join(" · ")}</footer></article>)}</div>}</section>
     </>}
     {error && <div className="inline-error">{error}</div>}
   </section>;
+}
+
+type DapThreadView = { id: number; name: string };
+type DapStackFrameView = { id: number; name: string; line: number | null; column: number | null; sourceName: string | null; sourcePath: string | null };
+type DapScopeView = { name: string; variablesReference: number; expensive: boolean };
+type DapVariableView = { name: string; value: string; type: string | null; variablesReference: number };
+
+function debugBody(response: DebugResponse): Record<string, unknown> {
+  return response.body && typeof response.body === "object" && !Array.isArray(response.body)
+    ? response.body as Record<string, unknown>
+    : {};
 }
 
 export function IntegrationWorkspace({ project, scope = "all" }: { project: ProjectSummary | null; scope?: "all" | "github" }): ReactNode {
@@ -301,9 +401,10 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
   const [busy, setBusy] = useState<string | null>(null);
   const [target, setTarget] = useState("");
   const [platformTarget, setPlatformTarget] = useState("");
-  const [debugExecutable, setDebugExecutable] = useState("");
+  const [debugExecutable, setDebugExecutable] = useState("devbox:javascript");
   const [debugArguments, setDebugArguments] = useState("[]");
-  const [debugConfiguration, setDebugConfiguration] = useState('{\n  "program": "",\n  "cwd": ""\n}');
+  const [debugRequest, setDebugRequest] = useState<"launch" | "attach">("launch");
+  const [debugConfiguration, setDebugConfiguration] = useState('{\n  "type": "pwa-node",\n  "name": "DevBox JavaScript",\n  "program": "",\n  "cwd": "",\n  "stopOnEntry": true,\n  "console": "internalConsole"\n}');
   const [debugSession, setDebugSession] = useState<DebugSession | null>(null);
   const [debugResponse, setDebugResponse] = useState<DebugResponse | null>(null);
   const [debugThreadId, setDebugThreadId] = useState("1");
@@ -311,14 +412,19 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
   const [debugVariablesReference, setDebugVariablesReference] = useState("0");
   const [breakpointSource, setBreakpointSource] = useState("");
   const [breakpointLines, setBreakpointLines] = useState("");
+  const [debugThreads, setDebugThreads] = useState<DapThreadView[]>([]);
+  const [debugStack, setDebugStack] = useState<DapStackFrameView[]>([]);
+  const [debugScopes, setDebugScopes] = useState<DapScopeView[]>([]);
+  const [debugVariables, setDebugVariables] = useState<DapVariableView[]>([]);
   const [remoteWorkers, setRemoteWorkers] = useState<RemoteWorker[]>([]);
+  const [remoteJobs, setRemoteJobs] = useState<DurableJobSummary[]>([]);
   const [workerPairing, setWorkerPairing] = useState<WorkerPairing | null>(null);
   const [remoteJobPayload, setRemoteJobPayload] = useState('{"command":"node","args":["--version"],"cwd":"."}');
   const [workerNotice, setWorkerNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const reload = useCallback(async () => {
-    const [integrationItems, workerItems] = await Promise.all([window.devbox.inspectIntegrations(project?.id), window.devbox.listRemoteWorkers()]);
-    setStatuses(integrationItems); setRemoteWorkers(workerItems);
+    const [integrationItems, workerItems, jobItems] = await Promise.all([window.devbox.inspectIntegrations(project?.id), window.devbox.listRemoteWorkers(), window.devbox.listRemoteJobs()]);
+    setStatuses(integrationItems); setRemoteWorkers(workerItems); setRemoteJobs(jobItems);
   }, [project?.id]);
   useEffect(() => { void reload().catch((caught) => setError(failure(caught))); }, [reload]);
   const github = async (action: Parameters<typeof window.devbox.runGitHubAction>[1]): Promise<void> => {
@@ -341,6 +447,61 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
     catch (caught) { setError(failure(caught)); }
     finally { setBusy(null); }
   };
+  const applyDebugResponse = (command: string, response: DebugResponse): void => {
+    const body = debugBody(response);
+    if (command === "threads") {
+      const threads = Array.isArray(body.threads) ? body.threads.flatMap((candidate): DapThreadView[] => {
+        if (!candidate || typeof candidate !== "object") return [];
+        const item = candidate as Record<string, unknown>;
+        return typeof item.id === "number" && typeof item.name === "string" ? [{ id: item.id, name: item.name }] : [];
+      }) : [];
+      setDebugThreads(threads);
+      if (threads[0]) setDebugThreadId(String(threads[0].id));
+    }
+    if (command === "stackTrace") {
+      const frames = Array.isArray(body.stackFrames) ? body.stackFrames.flatMap((candidate): DapStackFrameView[] => {
+        if (!candidate || typeof candidate !== "object") return [];
+        const item = candidate as Record<string, unknown>;
+        if (typeof item.id !== "number" || typeof item.name !== "string") return [];
+        const source = item.source && typeof item.source === "object" && !Array.isArray(item.source) ? item.source as Record<string, unknown> : {};
+        return [{
+          id: item.id,
+          name: item.name,
+          line: typeof item.line === "number" ? item.line : null,
+          column: typeof item.column === "number" ? item.column : null,
+          sourceName: typeof source.name === "string" ? source.name : null,
+          sourcePath: typeof source.path === "string" ? source.path : null
+        }];
+      }) : [];
+      setDebugStack(frames);
+      if (frames[0]) setDebugFrameId(String(frames[0].id));
+    }
+    if (command === "scopes") {
+      const scopes = Array.isArray(body.scopes) ? body.scopes.flatMap((candidate): DapScopeView[] => {
+        if (!candidate || typeof candidate !== "object") return [];
+        const item = candidate as Record<string, unknown>;
+        return typeof item.name === "string" && typeof item.variablesReference === "number"
+          ? [{ name: item.name, variablesReference: item.variablesReference, expensive: item.expensive === true }]
+          : [];
+      }) : [];
+      setDebugScopes(scopes);
+      if (scopes[0]) setDebugVariablesReference(String(scopes[0].variablesReference));
+    }
+    if (command === "variables") {
+      const variables = Array.isArray(body.variables) ? body.variables.flatMap((candidate): DapVariableView[] => {
+        if (!candidate || typeof candidate !== "object") return [];
+        const item = candidate as Record<string, unknown>;
+        return typeof item.name === "string" && typeof item.value === "string"
+          ? [{ name: item.name, value: item.value, type: typeof item.type === "string" ? item.type : null, variablesReference: typeof item.variablesReference === "number" ? item.variablesReference : 0 }]
+          : [];
+      }) : [];
+      setDebugVariables(variables);
+    }
+  };
+  const resetDebugInspector = (): void => {
+    setDebugThreads([]); setDebugStack([]); setDebugScopes([]); setDebugVariables([]);
+    setDebugThreadId("1"); setDebugFrameId("0"); setDebugVariablesReference("0");
+  };
   const startDebugger = async (): Promise<void> => {
     if (!project || !debugExecutable.trim()) return;
     setBusy("debug-start"); setError(null);
@@ -349,8 +510,15 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
       const configuration = JSON.parse(debugConfiguration) as unknown;
       if (!Array.isArray(args) || args.some((value) => typeof value !== "string")) throw new Error("Adapter argümanları JSON string dizisi olmalıdır.");
       if (!configuration || typeof configuration !== "object" || Array.isArray(configuration)) throw new Error("Hata ayıklayıcı yapılandırması bir JSON nesnesi olmalıdır.");
-      setDebugSession(await window.devbox.startDebugSession(project.id, debugExecutable.trim(), args, "launch", configuration as Record<string, unknown>));
-      setDebugResponse(null);
+      resetDebugInspector();
+      const started = await window.devbox.startDebugSession(project.id, debugExecutable.trim(), args, debugRequest, configuration as Record<string, unknown>);
+      setDebugSession(started); setDebugResponse(null);
+      try {
+        const threads = await window.devbox.runDebugCommand(started.id, "threads", {});
+        setDebugSession(threads.session); setDebugResponse(threads); applyDebugResponse("threads", threads);
+      } catch (caught) {
+        setError(`Oturum başlatıldı; iş parçacıkları henüz alınamadı: ${failure(caught)}`);
+      }
     } catch (caught) { setError(failure(caught)); }
     finally { setBusy(null); }
   };
@@ -359,14 +527,14 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
     setBusy(`debug-${command}`); setError(null);
     try {
       const response = await window.devbox.runDebugCommand(debugSession.id, command, args);
-      setDebugSession(response.session); setDebugResponse(response);
+      setDebugSession(response.session); setDebugResponse(response); applyDebugResponse(command, response);
     } catch (caught) { setError(failure(caught)); }
     finally { setBusy(null); }
   };
   const stopDebugger = async (): Promise<void> => {
     if (!debugSession) return;
     setBusy("debug-stop");
-    try { await window.devbox.stopDebugSession(debugSession.id); setDebugSession(null); setDebugResponse(null); }
+    try { await window.devbox.stopDebugSession(debugSession.id); setDebugSession(null); setDebugResponse(null); resetDebugInspector(); }
     catch (caught) { setError(failure(caught)); }
     finally { setBusy(null); }
   };
@@ -388,6 +556,38 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
       const payload = JSON.parse(remoteJobPayload) as unknown;
       const job = await window.devbox.enqueueRemoteJob("command", payload);
       setWorkerNotice(`Uzak görev kuyruğa alındı: ${job.id} · ${job.state}`);
+      setRemoteJobs(await window.devbox.listRemoteJobs());
+    } catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
+  const inspectDebugThread = async (threadId: number): Promise<void> => {
+    setDebugThreadId(String(threadId));
+    setDebugStack([]); setDebugScopes([]); setDebugVariables([]);
+    await debugCommand("stackTrace", { threadId });
+  };
+  const inspectDebugFrame = async (frameId: number): Promise<void> => {
+    setDebugFrameId(String(frameId));
+    setDebugScopes([]); setDebugVariables([]);
+    await debugCommand("scopes", { frameId });
+  };
+  const inspectDebugVariables = async (variablesReference: number): Promise<void> => {
+    setDebugVariablesReference(String(variablesReference));
+    setDebugVariables([]);
+    await debugCommand("variables", { variablesReference });
+  };
+  const useBuiltInJavaScriptDebugger = (): void => {
+    setDebugExecutable("devbox:javascript");
+    setDebugArguments("[]");
+    setDebugRequest("launch");
+    setDebugConfiguration('{\n  "type": "pwa-node",\n  "name": "DevBox JavaScript",\n  "program": "",\n  "cwd": "",\n  "stopOnEntry": true,\n  "console": "internalConsole"\n}');
+    setError(null);
+  };
+  const cancelRemoteJob = async (jobId: string): Promise<void> => {
+    setBusy(`worker-job-cancel-${jobId}`); setError(null); setWorkerNotice(null);
+    try {
+      const job = await window.devbox.cancelRemoteJob(jobId);
+      setWorkerNotice(job.state === "CANCELLED" ? "Kuyruktaki uzak görev iptal edildi." : "İptal isteği çalışan uzak workera gönderildi.");
+      setRemoteJobs(await window.devbox.listRemoteJobs());
     } catch (caught) { setError(failure(caught)); }
     finally { setBusy(null); }
   };
@@ -396,8 +596,27 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
     <div className="advanced-heading"><div><span className="advanced-eyebrow">{scope === "github" ? "GITHUB WORKFLOW" : "TOOLS & SERVICES"}</span><h1>{scope === "github" ? "GitHub pull request’leri" : "Eklentiler ve entegrasyonlar"}</h1><p>{scope === "github" ? "PR, issue, check, CI çalışması ve release işlemleri gerçek gh CLI oturumu ve seçili Git deposu üzerinden yürütülür." : "GitHub, Vercel, SSH, LSP/DAP, imzalı toolkit ve yayın kapılarının gerçek çalışma zamanı durumu."}</p></div><button onClick={() => void reload()} disabled={Boolean(busy)}><RefreshCw className={busy === "inspect" ? "spin" : ""} size={14} /> Yeniden denetle</button></div>
     <div className="integration-grid">{visibleStatuses.map((status) => <article key={status.kind}><div className="integration-title"><span>{status.kind === "github" ? <GitBranch size={17} /> : status.kind === "vercel" ? <Globe2 size={17} /> : <ShieldCheck size={17} />}</span><div><strong>{status.kind.toLocaleUpperCase("tr-TR")}</strong><small>{status.version ?? "sürüm yok"}{status.account ? ` · ${status.account}` : ""}</small></div><Status value={status.state} /></div><p>{status.detail}</p><footer>{status.commands.join(" · ")}</footer></article>)}</div>
     {scope === "all" && <section className="integration-console platform-console"><div className="console-controls"><label><span>Yerel hedef · SSH için host:port, paket için kind/id</span><input value={platformTarget} onChange={(event) => setPlatformTarget(event.target.value)} placeholder="örn. server.example:22 veya plugin/devbox.toolkit" /></label><div><button onClick={() => void platform("protocol-discover")}><Activity size={14} /> LSP/DAP keşfet</button><button onClick={() => void platform("ssh-audit")}><ShieldCheck size={14} /> SSH pinlerini denetle</button><button onClick={() => void platform("ssh-pin")} disabled={!platformTarget.trim()}><ShieldCheck size={14} /> SSH anahtarı sabitle</button><button onClick={() => void platform("package-list")}><Activity size={14} /> Paket envanteri</button><button onClick={() => void platform("package-install")}><Upload size={14} /> İmzalı paket kur</button><button onClick={() => void platform("package-repair")} disabled={!/^(plugin|mcp|toolkit|update)\/[a-z0-9][a-z0-9._-]{1,127}$/u.test(platformTarget)}><RefreshCw size={14} /> Paketi onar</button><button onClick={() => void platform("package-rollback")} disabled={!/^(plugin|mcp|toolkit|update)\/[a-z0-9][a-z0-9._-]{1,127}$/u.test(platformTarget)}><RefreshCw size={14} /> Paketi geri al</button></div></div></section>}
-    {scope === "all" && <section className="integration-console remote-worker-console"><div className="panel-title"><div><h2>Dayanıklı uzak çalışanlar</h2><span>Tek kullanımlık eşleştirme, iptal edilebilir erişim kimliği, sağlık sinyali, süreli görev kiralaması, çökme kurtarması ve yetki iptali.</span></div><button onClick={() => void createWorkerPairing()} disabled={Boolean(busy)}><ShieldCheck size={14} /> Eşleştirme kodu</button></div>{workerPairing && <div className="worker-pairing"><strong>{workerPairing.code}</strong><span>{new Date(workerPairing.expiresAt).toLocaleString("tr-TR")} tarihine kadar bir kez kullanılabilir.</span><code>{`ssh -N -L 43110:127.0.0.1:${new URL(workerPairing.endpoint).port} <kullanıcı>@<devbox-makinesi>`}</code><code>{`$env:DEVBOX_URL='http://127.0.0.1:43110'; $env:DEVBOX_PAIRING_CODE='${workerPairing.code}'; $env:DEVBOX_WORKER_ROOT='<proje-kökü>'; node scripts/remote-worker.mjs`}</code><button onClick={() => void window.devbox.copyText(workerPairing.code)}><Copy size={13} /> Kodu kopyala</button></div>}<div className="worker-list">{remoteWorkers.length === 0 ? <span>Eşleştirilmiş uzak çalışan yok.</span> : remoteWorkers.map((worker) => <article key={worker.id}><div><strong>{worker.name}</strong><small>{worker.id} · {new Date(worker.lastSeenAt).toLocaleString("tr-TR")}</small><small>{worker.capabilities.join(" · ") || "Bildirilen yetenek yok"}</small></div><Status value={worker.status} />{worker.status !== "REVOKED" && <button className="danger" onClick={() => void revokeWorker(worker.id)}><CircleStop size={13} /> Yetkiyi kaldır</button>}</article>)}</div><label className="remote-job"><span>Uzak komut görevi · yalnız uzak çalışan izin listesindeki komutlar çalışır</span><textarea value={remoteJobPayload} onChange={(event) => setRemoteJobPayload(event.target.value)} /><button onClick={() => void enqueueRemoteJob()} disabled={remoteWorkers.every((worker) => worker.status === "REVOKED") || Boolean(busy)}><Upload size={14} /> Kuyruğa al</button></label>{workerNotice && <div className="inline-success">{workerNotice}</div>}</section>}
-    {scope === "all" && <section className="integration-console debugger-console"><div className="panel-title"><div><h2>Gerçek DAP hata ayıklayıcı</h2><span>Yalnız seçtiğiniz kurulu hata ayıklama adaptörü süreciyle konuşur; adaptör olmadan oturum başlamaz.</span></div><Status value={debugSession?.state ?? "UNAVAILABLE"} /></div><div className="debugger-grid"><label><span>Adaptör yürütülebilir dosyası</span><input value={debugExecutable} onChange={(event) => setDebugExecutable(event.target.value)} placeholder="C:\\tools\\codelldb.exe" disabled={Boolean(debugSession)} /></label><label><span>Adaptör argümanları · JSON dizisi</span><input value={debugArguments} onChange={(event) => setDebugArguments(event.target.value)} disabled={Boolean(debugSession)} /></label><label className="debug-config"><span>Başlatma yapılandırması · JSON nesnesi</span><textarea value={debugConfiguration} onChange={(event) => setDebugConfiguration(event.target.value)} disabled={Boolean(debugSession)} /></label></div>{debugSession && <div className="debugger-grid debugger-references"><label><span>İş parçacığı kimliği</span><input value={debugThreadId} onChange={(event) => setDebugThreadId(event.target.value)} inputMode="numeric" /></label><label><span>Çerçeve kimliği</span><input value={debugFrameId} onChange={(event) => setDebugFrameId(event.target.value)} inputMode="numeric" /></label><label><span>Değişken başvurusu</span><input value={debugVariablesReference} onChange={(event) => setDebugVariablesReference(event.target.value)} inputMode="numeric" /></label><label><span>Kesme noktası kaynak yolu</span><input value={breakpointSource} onChange={(event) => setBreakpointSource(event.target.value)} placeholder="C:\\project\\src\\main.ts" /></label><label><span>Kesme noktası satırları</span><input value={breakpointLines} onChange={(event) => setBreakpointLines(event.target.value)} placeholder="12, 24, 38" /></label></div>}<div className="debug-actions">{!debugSession ? <button className="primary" onClick={() => void startDebugger()} disabled={!project || !debugExecutable.trim() || Boolean(busy)}><Play size={14} /> Adaptörle başlat</button> : <><button onClick={() => void debugCommand("continue", { threadId: Number(debugThreadId) })}><Play size={14} /> Devam</button><button onClick={() => void debugCommand("pause", { threadId: Number(debugThreadId) })}><CircleStop size={14} /> Duraklat</button><button onClick={() => void debugCommand("next", { threadId: Number(debugThreadId) })}><ArrowUpRight size={14} /> Satır atla</button><button onClick={() => void debugCommand("stepIn", { threadId: Number(debugThreadId) })}><ArrowUpRight size={14} /> İçeri gir</button><button onClick={() => void debugCommand("stepOut", { threadId: Number(debugThreadId) })}><ArrowUpRight size={14} /> Dışarı çık</button><button onClick={() => void debugCommand("threads")}><Activity size={14} /> İş parçacıkları</button><button onClick={() => void debugCommand("stackTrace", { threadId: Number(debugThreadId) })}><Activity size={14} /> Çağrı yığını</button><button onClick={() => void debugCommand("scopes", { frameId: Number(debugFrameId) })}><Activity size={14} /> Kapsamlar</button><button onClick={() => void debugCommand("variables", { variablesReference: Number(debugVariablesReference) })}><Activity size={14} /> Değişkenler</button><button onClick={() => void debugCommand("setBreakpoints", { source: { path: breakpointSource }, breakpoints: breakpointLines.split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value > 0).map((line) => ({ line })) })} disabled={!breakpointSource.trim() || !breakpointLines.trim()}><Activity size={14} /> Kesme noktalarını uygula</button><button className="danger" onClick={() => void stopDebugger()}><CircleStop size={14} /> Oturumu bitir</button></>}</div>{debugResponse && <pre className="debug-response">{JSON.stringify(debugResponse.body, null, 2)}</pre>}</section>}
+    {scope === "all" && <section className="integration-console remote-worker-console"><div className="panel-title"><div><h2>Dayanıklı uzak çalışanlar</h2><span>Tek kullanımlık eşleştirme, iptal edilebilir kimlik, Windows ACL ile korunan token, 45 saniyelik lease, heartbeat iptali, süreç ağacı sonlandırma ve en fazla 60 dakikalık görev süresi.</span></div><button onClick={() => void createWorkerPairing()} disabled={Boolean(busy)}><ShieldCheck size={14} /> Eşleştirme kodu</button></div>{workerPairing && <div className="worker-pairing"><strong>{workerPairing.code}</strong><span>{new Date(workerPairing.expiresAt).toLocaleString("tr-TR")} tarihine kadar bir kez kullanılabilir.</span><code>{`ssh -N -L 43110:127.0.0.1:${new URL(workerPairing.endpoint).port} <kullanıcı>@<devbox-makinesi>`}</code><code>{`$env:DEVBOX_URL='http://127.0.0.1:43110'; $env:DEVBOX_PAIRING_CODE='${workerPairing.code}'; $env:DEVBOX_WORKER_ROOT='<proje-kökü>'; node scripts/remote-worker.mjs`}</code><button onClick={() => void window.devbox.copyText(workerPairing.code)}><Copy size={13} /> Kodu kopyala</button></div>}<div className="worker-list">{remoteWorkers.length === 0 ? <span>Eşleştirilmiş uzak çalışan yok.</span> : remoteWorkers.map((worker) => <article key={worker.id}><div><strong>{worker.name}</strong><small>{worker.id} · {new Date(worker.lastSeenAt).toLocaleString("tr-TR")}</small><small>{worker.capabilities.join(" · ") || "Bildirilen yetenek yok"}</small></div><Status value={worker.status} />{worker.status !== "REVOKED" && <button className="danger" onClick={() => void revokeWorker(worker.id)}><CircleStop size={13} /> Yetkiyi kaldır</button>}</article>)}</div><label className="remote-job"><span>Uzak komut görevi · timeoutMs verilmezse 15 dakika, üst sınır 60 dakika</span><textarea value={remoteJobPayload} onChange={(event) => setRemoteJobPayload(event.target.value)} /><button onClick={() => void enqueueRemoteJob()} disabled={remoteWorkers.every((worker) => worker.status === "REVOKED") || Boolean(busy)}><Upload size={14} /> Kuyruğa al</button></label><div className="remote-job-list"><header><strong>Kalıcı uzak görev geçmişi</strong><span>{remoteJobs.length} kayıt</span></header>{remoteJobs.length === 0 ? <span>Henüz uzak görev yok.</span> : remoteJobs.map((job) => <article key={job.id}><div><strong>{job.kind.replace(/^remote:/u, "")}</strong><small>{job.id} · {readableDate(job.updatedAt)} · deneme {job.attempt}</small></div><Status value={job.state} />{["QUEUED", "LEASED", "RUNNING"].includes(job.state) && <button className="danger" onClick={() => void cancelRemoteJob(job.id)} disabled={Boolean(busy)}><CircleStop size={13} /> İptal et</button>}</article>)}</div>{workerNotice && <div className="inline-success">{workerNotice}</div>}</section>}
+    {scope === "all" && <section className="integration-console debugger-console">
+      <div className="panel-title"><div><h2>Gerçek DAP hata ayıklayıcı</h2><span>Microsoft vscode-js-debug 1.117.0 yerleşik ve SHA-256 ile sabitlenmiştir. Harici DAP adaptörleri de açık yürütülebilir yoluyla kullanılabilir.</span></div><Status value={debugSession?.state ?? (debugExecutable === "devbox:javascript" ? "CONFIGURED" : "UNAVAILABLE")} /></div>
+      <div className="debug-presets"><button onClick={useBuiltInJavaScriptDebugger} disabled={Boolean(debugSession)}><ShieldCheck size={14} /> Yerleşik JavaScript / Node.js</button><span>Program ve çalışma dizini proje kökünün dışına çıkamaz. Boş <code>cwd</code> seçili proje kökünü kullanır.</span></div>
+      <div className="debugger-grid">
+        <label><span>İstek</span><select value={debugRequest} onChange={(event) => setDebugRequest(event.target.value as "launch" | "attach")} disabled={Boolean(debugSession)}><option value="launch">Yeni süreci başlat</option><option value="attach">Çalışan sürece bağlan</option></select></label>
+        <label><span>Adaptör · <code>devbox:javascript</code> veya gerçek yürütülebilir yol</span><input value={debugExecutable} onChange={(event) => setDebugExecutable(event.target.value)} placeholder="C:\\tools\\codelldb.exe" disabled={Boolean(debugSession)} /></label>
+        <label><span>Adaptör argümanları · JSON dizisi</span><input value={debugArguments} onChange={(event) => setDebugArguments(event.target.value)} disabled={Boolean(debugSession) || debugExecutable === "devbox:javascript"} /></label>
+        <label className="debug-config"><span>Başlatma / bağlanma yapılandırması · <code>program</code> proje köküne göre göreli olabilir</span><textarea value={debugConfiguration} onChange={(event) => setDebugConfiguration(event.target.value)} disabled={Boolean(debugSession)} /></label>
+      </div>
+      {debugSession && <div className="debugger-grid debugger-references"><label><span>İş parçacığı kimliği</span><input value={debugThreadId} onChange={(event) => setDebugThreadId(event.target.value)} inputMode="numeric" /></label><label><span>Çerçeve kimliği</span><input value={debugFrameId} onChange={(event) => setDebugFrameId(event.target.value)} inputMode="numeric" /></label><label><span>Değişken başvurusu</span><input value={debugVariablesReference} onChange={(event) => setDebugVariablesReference(event.target.value)} inputMode="numeric" /></label><label><span>Kesme noktası kaynak yolu</span><input value={breakpointSource} onChange={(event) => setBreakpointSource(event.target.value)} placeholder="C:\\project\\src\\main.ts" /></label><label><span>Kesme noktası satırları</span><input value={breakpointLines} onChange={(event) => setBreakpointLines(event.target.value)} placeholder="12, 24, 38" /></label></div>}
+      <div className="debug-actions">{!debugSession ? <button className="primary" onClick={() => void startDebugger()} disabled={!project || !debugExecutable.trim() || Boolean(busy)}><Play size={14} /> Gerçek oturumu başlat</button> : <><button onClick={() => void debugCommand("continue", { threadId: Number(debugThreadId) })}><Play size={14} /> Devam</button><button onClick={() => void debugCommand("pause", { threadId: Number(debugThreadId) })}><CircleStop size={14} /> Duraklat</button><button onClick={() => void debugCommand("next", { threadId: Number(debugThreadId) })}><ArrowUpRight size={14} /> Satır atla</button><button onClick={() => void debugCommand("stepIn", { threadId: Number(debugThreadId) })}><ArrowUpRight size={14} /> İçeri gir</button><button onClick={() => void debugCommand("stepOut", { threadId: Number(debugThreadId) })}><ArrowUpRight size={14} /> Dışarı çık</button><button onClick={() => void debugCommand("threads")}><Activity size={14} /> İş parçacıklarını yenile</button><button onClick={() => void debugCommand("setBreakpoints", { source: { path: breakpointSource }, breakpoints: breakpointLines.split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value > 0).map((line) => ({ line })) })} disabled={!breakpointSource.trim() || !breakpointLines.trim()}><Activity size={14} /> Kesme noktalarını uygula</button><button className="danger" onClick={() => void stopDebugger()}><CircleStop size={14} /> Oturumu bitir</button></>}</div>
+      {debugSession && <div className="debug-inspector-grid" aria-label="Hata ayıklayıcı denetçisi">
+        <section><header><strong>İş parçacıkları</strong><span>{debugThreads.length}</span></header><div>{debugThreads.length === 0 ? <p>“İş parçacıklarını yenile” ile adaptörden alın.</p> : debugThreads.map((thread) => <button key={thread.id} className={String(thread.id) === debugThreadId ? "selected" : ""} onClick={() => void inspectDebugThread(thread.id)}><Activity size={13} /><span>{thread.name}</span><code>#{thread.id}</code></button>)}</div></section>
+        <section><header><strong>Çağrı yığını</strong><span>{debugStack.length}</span></header><div>{debugStack.length === 0 ? <p>Bir iş parçacığı seçin.</p> : debugStack.map((frame) => <button key={frame.id} className={String(frame.id) === debugFrameId ? "selected" : ""} onClick={() => void inspectDebugFrame(frame.id)} title={frame.sourcePath ?? undefined}><span><strong>{frame.name}</strong><small>{frame.sourceName ?? "Kaynak yok"}{frame.line === null ? "" : `:${frame.line}:${frame.column ?? 1}`}</small></span><code>#{frame.id}</code></button>)}</div></section>
+        <section><header><strong>Kapsamlar</strong><span>{debugScopes.length}</span></header><div>{debugScopes.length === 0 ? <p>Bir çağrı çerçevesi seçin.</p> : debugScopes.map((scopeItem) => <button key={`${scopeItem.name}-${scopeItem.variablesReference}`} className={String(scopeItem.variablesReference) === debugVariablesReference ? "selected" : ""} onClick={() => void inspectDebugVariables(scopeItem.variablesReference)}><span>{scopeItem.name}</span><small>{scopeItem.expensive ? "isteğe bağlı" : "hazır"}</small></button>)}</div></section>
+        <section><header><strong>Değişkenler</strong><span>{debugVariables.length}</span></header><div>{debugVariables.length === 0 ? <p>Bir kapsam seçin.</p> : debugVariables.map((variable, index) => <button key={`${variable.name}-${index}`} disabled={variable.variablesReference <= 0} onClick={() => void inspectDebugVariables(variable.variablesReference)} title={variable.value}><span><strong>{variable.name}</strong><small>{variable.type ?? "tür bildirilmedi"}</small></span><code>{variable.value}</code></button>)}</div></section>
+      </div>}
+      {debugSession?.lastEvent && <div className="debug-last-event"><Activity size={13} /><span>Son adaptör olayı</span><code>{String(debugSession.lastEvent.event ?? debugSession.lastEvent.command ?? debugSession.lastEvent.type)}</code></div>}
+      {debugResponse && <details className="debug-raw"><summary>Son ham DAP yanıtını göster</summary><pre className="debug-response">{JSON.stringify(debugResponse.body, null, 2)}</pre></details>}
+    </section>}
     {project && <section className="integration-console"><div className="console-controls"><label><span>{scope === "github" ? "Hedef; PR/run numarası, issue başlığı veya release etiketi" : "Hedef; PR/run no, başlık, tag veya deployment URL"}</span><input value={target} onChange={(event) => setTarget(event.target.value)} placeholder={scope === "github" ? "örn. 42, hata başlığı veya v1.2.0" : "örn. 42, v1.2.0 veya deployment-url"} /></label><div><button onClick={() => void github("pr-list")}><GitBranch size={14} /> PR’lar</button><button onClick={() => void github("pr-create")} disabled={!target.trim()}><Upload size={14} /> PR oluştur</button><button onClick={() => void github("pr-merge")} disabled={!/^\d+$/u.test(target)}><Check size={14} /> PR birleştir</button><button onClick={() => void github("issue-list")}><GitBranch size={14} /> Issue’lar</button><button onClick={() => void github("issue-create")} disabled={!target.trim()}><Upload size={14} /> Issue oluştur</button><button onClick={() => void github("checks")}><Check size={14} /> Checks</button><button onClick={() => void github("run-list")}><Activity size={14} /> CI çalışmaları</button><button onClick={() => void github("run-log")} disabled={!/^\d+$/u.test(target)}><Activity size={14} /> CI logu</button><button onClick={() => void github("run-rerun")} disabled={!/^\d+$/u.test(target)}><RefreshCw size={14} /> CI tekrar</button><button onClick={() => void github("release-list")}><Upload size={14} /> Release’ler</button><button onClick={() => void github("release-create")} disabled={!target.trim()}><Upload size={14} /> Release oluştur</button>{scope === "all" && <><button onClick={() => void vercel("link")}><Globe2 size={14} /> Vercel bağla</button><button onClick={() => void vercel("preview")}><ArrowUpRight size={14} /> Preview</button><button onClick={() => void vercel("production")}><Upload size={14} /> Production</button><button onClick={() => void vercel("inspect")}><Globe2 size={14} /> Inspect</button><button onClick={() => void vercel("logs")}><Activity size={14} /> Logs</button><button onClick={() => void vercel("rollback")}><RefreshCw size={14} /> Rollback</button></>}</div></div></section>}
     {busy && <div className="console-busy"><LoaderCircle className="spin" size={14} /> {busy} çalışıyor…</div>}
     {result && <div className="command-evidence"><header><span>{result.commandDisplay}</span><Status value={result.exitCode === 0 ? "SUCCEEDED" : result.exitReason === "CANCELLED" ? "CANCELLED" : "FAILED"} /><button onClick={() => void window.devbox.copyText(`${result.stdout}\n${result.stderr}`)}><Copy size={13} /> Kopyala</button></header><pre>{result.stdout || result.stderr || (result.exitReason === "CANCELLED" ? "İşlem kullanıcı tarafından iptal edildi." : "Komut çıktı üretmedi.")}</pre><footer>{result.durationMs} ms · {resultReasonLabel(result.exitReason)} · çıkış {result.exitCode ?? "—"}</footer></div>}

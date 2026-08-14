@@ -1,0 +1,5 @@
+# Sabitlenmiş upstream dağıtım varlığı değiştirilmeden tutulur; upstream whitespace stili DevBox lint kapsamı değildir.
+vendor/microsoft-js-debug/** -whitespace
+vendor/microsoft-js-debug/**/*.node binary
+vendor/microsoft-js-debug/**/*.wasm binary
+vendor/microsoft-js-debug/**/*.png binary

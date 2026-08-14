@@ -31,7 +31,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $Archive = [System.IO.Compression.ZipFile]::OpenRead($NextArchive)
 try {
   $Entries = @($Archive.Entries | ForEach-Object { $_.FullName })
-  foreach ($Required in @("README.md", "CHANGELOG.md", "docs/RELEASE_NOTES.md", "LICENSE", "package.json", "pnpm-lock.yaml")) {
+  foreach ($Required in @("README.md", "CHANGELOG.md", "docs/RELEASE_NOTES.md", "docs/GELISTIRME-MD-ALIM-RAPORU.md", "specs/development/geliştirme-spec-task-graph.json", "LICENSE", "package.json", "pnpm-lock.yaml")) {
     if (-not ($Entries -contains "$Prefix$Required")) { throw "SOURCE_ARCHIVE_MISSING:$Required" }
   }
   $Forbidden = @($Entries | Where-Object { $_ -match "(^|/)(node_modules|dist|release|outputs|evidence|research|work|\.git)(/|$)" })

@@ -4,6 +4,9 @@ import type {
   AppSettings,
   Bootstrap,
   Capability,
+  CatalogSnapshot,
+  CatalogToolCallInput,
+  CatalogToolCallResult,
   CommandResult,
   EvolutionCampaign,
   FileSnapshot,
@@ -15,6 +18,7 @@ import type {
   DebugSession,
   RemoteWorker,
   WorkerPairing,
+  DurableJobSummary,
   PlatformAction,
   ProjectSummary,
   ProjectTreeNode,
@@ -31,6 +35,12 @@ import type {
 export interface DevBoxBridge {
   bootstrap(): Promise<Bootstrap>;
   inspectCapabilities(): Promise<Capability[]>;
+  inspectCatalog(): Promise<CatalogSnapshot>;
+  selectCatalogSource(kind: "skill" | "plugin"): Promise<CatalogSnapshot>;
+  installPortablePlugins(): Promise<CatalogSnapshot>;
+  connectPortablePlugins(): Promise<CatalogSnapshot>;
+  disconnectPortablePlugins(): Promise<CatalogSnapshot>;
+  callCatalogTool(input: CatalogToolCallInput): Promise<CatalogToolCallResult>;
   openProject(): Promise<ProjectSummary | null>;
   revealProject(projectId: string): Promise<void>;
   readProjectTree(projectId: string): Promise<ProjectTreeNode[]>;
@@ -50,6 +60,7 @@ export interface DevBoxBridge {
   getThread(threadId: string): Promise<ThreadDetail>;
   sendMessage(threadId: string, content: string, attachmentIds?: string[]): Promise<ThreadDetail>;
   onThreadActivity(listener: (event: ThreadActivityEvent) => void): () => void;
+  onThreadSnapshot(listener: (detail: ThreadDetail) => void): () => void;
   updateMessage(threadId: string, itemId: string, content: string): Promise<ThreadDetail>;
   regenerateMessage(threadId: string, itemId: string): Promise<ThreadDetail>;
   renameThread(threadId: string, title: string): Promise<ThreadSummary>;
@@ -96,5 +107,7 @@ export interface DevBoxBridge {
   createWorkerPairing(): Promise<WorkerPairing>;
   listRemoteWorkers(): Promise<RemoteWorker[]>;
   revokeRemoteWorker(workerId: string): Promise<RemoteWorker>;
-  enqueueRemoteJob(kind: string, payload: unknown): Promise<{ id: string; kind: string; state: string; attempt: number; createdAt: string }>;
+  enqueueRemoteJob(kind: string, payload: unknown): Promise<DurableJobSummary>;
+  listRemoteJobs(): Promise<DurableJobSummary[]>;
+  cancelRemoteJob(jobId: string): Promise<DurableJobSummary>;
 }

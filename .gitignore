@@ -16,3 +16,4 @@ test-results/
 .env.*
 !.env.example
 .devbox/
+.tmp-catalog-doctor-*/

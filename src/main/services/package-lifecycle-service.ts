@@ -1,19 +1,30 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { SignedManifestSchema, SignedManifestService, type VerifiedPackage } from "./signed-manifest-service.js";
+import { AuditLogService } from "./audit-log-service.js";
+import { RevocationListService, type RevocationStatus } from "./revocation-list-service.js";
 
 const PackageKindSchema = z.enum(["plugin", "mcp", "toolkit", "update"]);
 const SAFE_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,127}$/u;
 const TrustKeyIdSchema = z.string().regex(SAFE_ID_PATTERN);
 const MAX_MANIFEST_BYTES = 256 * 1024;
+const PackageTrustClassSchema = z.enum(["LOCAL_SIDELOAD", "MANAGED_SIGNED_CATALOG"]);
+
+const PublisherTrustRecordSchema = z.object({
+  keyId: TrustKeyIdSchema,
+  fingerprintSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  trustClass: PackageTrustClassSchema,
+  enrolledAt: z.iso.datetime()
+}).strict();
 
 const PackagePointerSchema = z.object({
   kind: PackageKindSchema,
   id: z.string().regex(SAFE_ID_PATTERN),
   version: z.string().min(1).max(64),
   publicKeyId: TrustKeyIdSchema,
+  trustClass: PackageTrustClassSchema.default("LOCAL_SIDELOAD"),
   directory: z.string().min(1).max(32_768),
   activatedAt: z.iso.datetime()
 }).strict();
@@ -25,11 +36,19 @@ const ActivationStateSchema = z.object({
 }).strict();
 
 export type PackagePointer = z.infer<typeof PackagePointerSchema>;
+export type PackageTrustClass = z.infer<typeof PackageTrustClassSchema>;
+export type PublisherTrustRecord = z.infer<typeof PublisherTrustRecordSchema>;
 export type PackageLifecycleStatus = {
   trustedPublishers: number;
+  managedCatalogPublishers: number;
   installedPackages: number;
+  localSideloadPackages: number;
+  managedCatalogPackages: number;
   activeUpdates: number;
   repairablePackages: number;
+  auditEvents: number;
+  auditIntegrity: "VERIFIED" | "FAILED";
+  revocations: RevocationStatus;
 };
 
 function versionDirectory(version: string): string {
@@ -47,17 +66,39 @@ function publisherFileName(keyId: string): string {
   return `${TrustKeyIdSchema.parse(keyId)}.pem`;
 }
 
+function publisherRecordFileName(keyId: string): string {
+  return `${TrustKeyIdSchema.parse(keyId)}.trust.json`;
+}
+
+function publicKeyFingerprint(publicKeyPem: string): string {
+  const key = createPublicKey(publicKeyPem);
+  if (key.asymmetricKeyType !== "ed25519") throw new Error("PUBLISHER_KEY_MUST_BE_ED25519");
+  return createHash("sha256").update(key.export({ format: "der", type: "spki" })).digest("hex");
+}
+
+function objectHash(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
+}
+
 export class PackageLifecycleService {
   readonly #root: string;
   readonly #packagesRoot: string;
   readonly #stateRoot: string;
   readonly #trustRoot: string;
+  readonly #audit: AuditLogService;
+  readonly #revocations: RevocationListService;
 
   public constructor(rootDirectory: string) {
     this.#root = path.resolve(rootDirectory);
     this.#packagesRoot = path.join(this.#root, "packages");
     this.#stateRoot = path.join(this.#root, "activation");
     this.#trustRoot = path.join(this.#root, "trust");
+    this.#audit = new AuditLogService(path.join(this.#root, "audit", "package-events.jsonl"));
+    this.#revocations = new RevocationListService(path.join(this.#root, "marketplace"));
+  }
+
+  public revocations(): RevocationListService {
+    return this.#revocations;
   }
 
   public async inspectCandidate(sourceDirectory: string, publicKeyPem: string): Promise<VerifiedPackage> {
@@ -69,10 +110,35 @@ export class PackageLifecycleService {
     return await new SignedManifestService(new Map([[manifest.publicKeyId, publicKeyPem]])).verifyDirectory(rootPath);
   }
 
-  public async install(sourceDirectory: string, publicKeyPem: string): Promise<PackagePointer> {
-    const candidate = await this.inspectCandidate(sourceDirectory, publicKeyPem);
+  public publisherFingerprint(publicKeyPem: string): string {
+    return publicKeyFingerprint(publicKeyPem);
+  }
+
+  public async enrollPublisher(keyId: string, publicKeyPem: string, trustClass: PackageTrustClass = "LOCAL_SIDELOAD"): Promise<PublisherTrustRecord> {
     await this.#ensureRoots();
-    await this.#trustPublisher(candidate.manifest.publicKeyId, publicKeyPem);
+    const parsedKeyId = TrustKeyIdSchema.parse(keyId);
+    const parsedTrustClass = PackageTrustClassSchema.parse(trustClass);
+    const fingerprintSha256 = publicKeyFingerprint(publicKeyPem);
+    const trustPath = assertContained(this.#trustRoot, path.join(this.#trustRoot, publisherFileName(parsedKeyId)));
+    const recordPath = assertContained(this.#trustRoot, path.join(this.#trustRoot, publisherRecordFileName(parsedKeyId)));
+    const existing = await readFile(trustPath, "utf8").catch(() => null);
+    if (existing !== null && publicKeyFingerprint(existing) !== fingerprintSha256) throw new Error("PUBLISHER_KEY_CONFLICT");
+    const record = PublisherTrustRecordSchema.parse({ keyId: parsedKeyId, fingerprintSha256, trustClass: parsedTrustClass, enrolledAt: new Date().toISOString() });
+    if (existing === null) await writeFile(trustPath, `${publicKeyPem.trim()}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    const priorRecord = await readFile(recordPath, "utf8").then((value) => PublisherTrustRecordSchema.parse(JSON.parse(value) as unknown)).catch(() => null);
+    if (priorRecord && priorRecord.trustClass !== record.trustClass) throw new Error("PUBLISHER_TRUST_CLASS_CONFLICT");
+    if (!priorRecord) await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    const enrolled = priorRecord ?? record;
+    if (!priorRecord) await this.#audit.append({ actorId: "local-user", actorRole: "OWNER", action: "publisher.enroll", targetType: "publisher", targetId: parsedKeyId, beforeHash: null, afterHash: fingerprintSha256, artifactSha256: null, correlationId: randomUUID() });
+    return enrolled;
+  }
+
+  public async install(sourceDirectory: string): Promise<PackagePointer> {
+    await this.#ensureRoots();
+    const candidate = await (await this.#verifier()).verifyDirectory(await realpath(sourceDirectory));
+    const trust = await this.#publisherTrust(candidate.manifest.publicKeyId);
+    if (!trust) throw new Error("PUBLISHER_KEY_NOT_ENROLLED");
+    await this.#revocations.assertAllowed(candidate.manifest.id, candidate.manifest.version, candidate.manifest.publicKeyId);
 
     const kindRoot = path.join(this.#packagesRoot, candidate.manifest.kind, candidate.manifest.id);
     await mkdir(kindRoot, { recursive: true });
@@ -101,6 +167,7 @@ export class PackageLifecycleService {
       id: candidate.manifest.id,
       version: candidate.manifest.version,
       publicKeyId: candidate.manifest.publicKeyId,
+      trustClass: trust.trustClass,
       directory: finalDirectory,
       activatedAt: new Date().toISOString()
     });
@@ -109,6 +176,17 @@ export class PackageLifecycleService {
       ? [state.active, ...state.history.filter((item) => item.directory !== state.active?.directory)].slice(0, 20)
       : state.history;
     await this.#writeState(pointer.kind, pointer.id, { schemaVersion: 1, active: pointer, history });
+    await this.#audit.append({
+      actorId: "local-user",
+      actorRole: "OWNER",
+      action: "package.install",
+      targetType: pointer.kind,
+      targetId: `${pointer.id}/${pointer.version}`,
+      beforeHash: state.active ? objectHash(state.active) : null,
+      afterHash: objectHash(pointer),
+      artifactSha256: createHash("sha256").update(await readFile(candidate.manifestPath)).digest("hex"),
+      correlationId: randomUUID()
+    });
     return pointer;
   }
 
@@ -136,6 +214,7 @@ export class PackageLifecycleService {
     const state = await this.#readState(parsedKind, parsedId);
     const previous = state.history[0];
     if (!state.active || !previous) throw new Error("PACKAGE_ROLLBACK_NOT_AVAILABLE");
+    await this.#revocations.assertAllowed(previous.id, previous.version, previous.publicKeyId);
     await verifier.verifyDirectory(assertContained(this.#packagesRoot, previous.directory));
     const restored = { ...previous, activatedAt: new Date().toISOString() };
     await this.#writeState(parsedKind, parsedId, {
@@ -143,7 +222,9 @@ export class PackageLifecycleService {
       active: restored,
       history: [state.active, ...state.history.slice(1).filter((item) => item.directory !== state.active?.directory)].slice(0, 20)
     });
-    return PackagePointerSchema.parse(restored);
+    const parsed = PackagePointerSchema.parse(restored);
+    await this.#audit.append({ actorId: "local-user", actorRole: "OWNER", action: "package.rollback", targetType: parsedKind, targetId: `${parsedId}/${parsed.version}`, beforeHash: objectHash(state.active), afterHash: objectHash(parsed), artifactSha256: null, correlationId: randomUUID() });
+    return parsed;
   }
 
   public async repair(kind: z.infer<typeof PackageKindSchema>, id: string): Promise<PackagePointer> {
@@ -153,12 +234,15 @@ export class PackageLifecycleService {
     if (!state.active) throw new Error("PACKAGE_ACTIVE_VERSION_NOT_FOUND");
     const verifier = await this.#verifier();
     try {
+      await this.#revocations.assertAllowed(state.active.id, state.active.version, state.active.publicKeyId);
       await verifier.verifyDirectory(assertContained(this.#packagesRoot, state.active.directory));
+      await this.#audit.append({ actorId: "local-user", actorRole: "OWNER", action: "package.repair.verify", targetType: parsedKind, targetId: `${parsedId}/${state.active.version}`, beforeHash: objectHash(state.active), afterHash: objectHash(state.active), artifactSha256: null, correlationId: randomUUID() });
       return state.active;
     } catch {
       let recoverable: PackagePointer | undefined;
       for (const pointer of state.history) {
         try {
+          await this.#revocations.assertAllowed(pointer.id, pointer.version, pointer.publicKeyId);
           await verifier.verifyDirectory(assertContained(this.#packagesRoot, pointer.directory));
           recoverable = pointer;
           break;
@@ -168,21 +252,31 @@ export class PackageLifecycleService {
       await verifier.verifyDirectory(assertContained(this.#packagesRoot, recoverable.directory));
       const restored = { ...recoverable, activatedAt: new Date().toISOString() };
       await this.#writeState(parsedKind, parsedId, { schemaVersion: 1, active: restored, history: state.history.filter((item) => item.directory !== recoverable.directory).slice(0, 20) });
-      return PackagePointerSchema.parse(restored);
+      const parsed = PackagePointerSchema.parse(restored);
+      await this.#audit.append({ actorId: "local-user", actorRole: "OWNER", action: "package.repair.restore", targetType: parsedKind, targetId: `${parsedId}/${parsed.version}`, beforeHash: objectHash(state.active), afterHash: objectHash(parsed), artifactSha256: null, correlationId: randomUUID() });
+      return parsed;
     }
   }
 
   public async status(): Promise<PackageLifecycleStatus> {
     await this.#ensureRoots();
-    const [publishers, installed] = await Promise.all([
-      readdir(this.#trustRoot, { withFileTypes: true }).then((entries) => entries.filter((entry) => entry.isFile() && entry.name.endsWith(".pem")).length),
-      this.list()
+    const [publishers, installed, revocations] = await Promise.all([
+      this.#publisherTrustRecords(),
+      this.list(),
+      this.#revocations.status()
     ]);
+    const audit = await this.#audit.listAndVerify().then((events) => ({ integrity: "VERIFIED" as const, events: events.length })).catch(() => ({ integrity: "FAILED" as const, events: 0 }));
     return {
-      trustedPublishers: publishers,
+      trustedPublishers: publishers.length,
+      managedCatalogPublishers: publishers.filter((item) => item.trustClass === "MANAGED_SIGNED_CATALOG").length,
       installedPackages: installed.length,
+      localSideloadPackages: installed.filter((item) => item.trustClass === "LOCAL_SIDELOAD").length,
+      managedCatalogPackages: installed.filter((item) => item.trustClass === "MANAGED_SIGNED_CATALOG").length,
       activeUpdates: installed.filter((item) => item.kind === "update").length,
-      repairablePackages: installed.length
+      repairablePackages: installed.length,
+      auditEvents: audit.events,
+      auditIntegrity: audit.integrity,
+      revocations
     };
   }
 
@@ -194,11 +288,33 @@ export class PackageLifecycleService {
     ]);
   }
 
-  async #trustPublisher(keyId: string, publicKeyPem: string): Promise<void> {
-    const trustPath = assertContained(this.#trustRoot, path.join(this.#trustRoot, publisherFileName(keyId)));
-    const existing = await readFile(trustPath, "utf8").catch(() => null);
-    if (existing !== null && existing.trim() !== publicKeyPem.trim()) throw new Error("PUBLISHER_KEY_CONFLICT");
-    if (existing === null) await writeFile(trustPath, `${publicKeyPem.trim()}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+  async #publisherTrust(keyId: string): Promise<PublisherTrustRecord | null> {
+    const parsedKeyId = TrustKeyIdSchema.parse(keyId);
+    const trustPath = assertContained(this.#trustRoot, path.join(this.#trustRoot, publisherFileName(parsedKeyId)));
+    const publicKeyPem = await readFile(trustPath, "utf8").catch(() => null);
+    if (publicKeyPem === null) return null;
+    const recordPath = assertContained(this.#trustRoot, path.join(this.#trustRoot, publisherRecordFileName(parsedKeyId)));
+    const recordText = await readFile(recordPath, "utf8").catch(() => null);
+    if (recordText !== null) return PublisherTrustRecordSchema.parse(JSON.parse(recordText) as unknown);
+    return PublisherTrustRecordSchema.parse({
+      keyId: parsedKeyId,
+      fingerprintSha256: publicKeyFingerprint(publicKeyPem),
+      trustClass: "LOCAL_SIDELOAD",
+      enrolledAt: new Date(0).toISOString()
+    });
+  }
+
+  async #publisherTrustRecords(): Promise<PublisherTrustRecord[]> {
+    await this.#ensureRoots();
+    const records: PublisherTrustRecord[] = [];
+    for (const entry of await readdir(this.#trustRoot, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".pem")) continue;
+      const keyId = entry.name.slice(0, -4);
+      if (!TrustKeyIdSchema.safeParse(keyId).success) continue;
+      const record = await this.#publisherTrust(keyId);
+      if (record) records.push(record);
+    }
+    return records;
   }
 
   async #verifier(): Promise<SignedManifestService> {

@@ -13,6 +13,7 @@ import { GitService } from "./git-service.js";
 import { ProjectService } from "./project-service.js";
 import { SettingsService } from "./settings-service.js";
 import { RemoteWorkerService } from "./remote-worker-service.js";
+import { LocalCatalogService } from "./local-catalog-service.js";
 
 const temporaryDirectories: string[] = [];
 const databases: StateDatabase[] = [];
@@ -46,6 +47,7 @@ describe("loopback core API", () => {
       git: new GitService(runner),
       settings,
       remoteWorkers: new RemoteWorkerService(database),
+      catalog: new LocalCatalogService(path.join(root, "catalog"), runner),
       probeCwd: root,
       appVersion: "0.1.0-test"
     });
@@ -88,8 +90,25 @@ describe("loopback core API", () => {
       method: "POST", headers: { authorization: "Bearer test-only-api-key", "content-type": "application/json" },
       body: JSON.stringify({ kind: "command", payload: { command: "node", args: ["--version"] } })
     });
+    const remoteJob = await remoteJobResponse.clone().json() as { job: { id: string } };
     const remoteLease = await fetch(`${origin}/v1/workers/agent/lease`, {
       method: "POST", headers: { authorization: `Bearer ${credential.token}`, "content-type": "application/json" }, body: "{}"
+    });
+    const remoteStart = await fetch(`${origin}/v1/workers/agent/jobs/${remoteJob.job.id}/start`, {
+      method: "POST", headers: { authorization: `Bearer ${credential.token}`, "content-type": "application/json" }, body: "{}"
+    });
+    const remoteCancel = await fetch(`${origin}/v1/workers/jobs/${remoteJob.job.id}`, {
+      method: "DELETE", headers: { authorization: "Bearer test-only-api-key" }
+    });
+    const remoteHeartbeat = await fetch(`${origin}/v1/workers/agent/jobs/${remoteJob.job.id}/heartbeat`, {
+      method: "POST", headers: { authorization: `Bearer ${credential.token}`, "content-type": "application/json" }, body: "{}"
+    });
+    const remoteSettle = await fetch(`${origin}/v1/workers/agent/jobs/${remoteJob.job.id}/settle`, {
+      method: "POST", headers: { authorization: `Bearer ${credential.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ state: "CANCELLED", result: { reason: "USER_REQUEST" } })
+    });
+    const remoteJobs = await fetch(`${origin}/v1/workers/jobs`, {
+      headers: { authorization: "Bearer test-only-api-key" }
     });
 
     expect(new URL(origin).hostname).toBe("127.0.0.1");
@@ -119,5 +138,14 @@ describe("loopback core API", () => {
     expect(remoteJobResponse.status).toBe(202);
     expect(remoteLease.status).toBe(200);
     expect(await remoteLease.json()).toMatchObject({ job: { kind: "remote:command", leaseOwner: credential.worker.id } });
+    expect(remoteStart.status).toBe(200);
+    expect(remoteCancel.status).toBe(200);
+    expect(await remoteCancel.json()).toMatchObject({ job: { state: "CANCEL_REQUESTED" } });
+    expect(remoteHeartbeat.status).toBe(200);
+    expect(await remoteHeartbeat.json()).toMatchObject({ job: { state: "CANCEL_REQUESTED" } });
+    expect(remoteSettle.status).toBe(200);
+    expect(await remoteSettle.json()).toMatchObject({ job: { state: "CANCELLED", result: { reason: "USER_REQUEST" } } });
+    expect(remoteJobs.status).toBe(200);
+    expect(await remoteJobs.json()).toMatchObject({ items: [{ id: remoteJob.job.id, state: "CANCELLED" }] });
   });
 });

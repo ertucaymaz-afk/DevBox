@@ -21,6 +21,7 @@ const base = {
   files: ["dist/**/*", "package.json"],
   asar: true,
   asarUnpack: ["node_modules/node-pty/**/*"],
+  extraResources: [{ from: "vendor/microsoft-js-debug", to: "vendor/microsoft-js-debug" }],
   nsis: {
     oneClick: false,
     perMachine: false,

@@ -1,6 +1,7 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Capability } from "../../shared/contracts.js";
-import { resolveHermesExecutable } from "./agent-service.js";
+import { CODEX_REASONING_EFFORT, DEFAULT_CODEX_MODEL, resolveCodexExecutable, resolveHermesExecutable } from "./agent-service.js";
 import type { CommandRunner } from "./command-runner.js";
 import { describeCredential, discoverNvidiaCredential } from "./environment-discovery.js";
 
@@ -9,7 +10,6 @@ type Probe = { id: string; displayName: string; executable: string; args: readon
 const BASE_PROBES: readonly Probe[] = [
   { id: "git", displayName: "Git", executable: "git", args: ["--version"] },
   { id: "node", displayName: "Node.js", executable: "node", args: ["--version"] },
-  { id: "pnpm", displayName: "pnpm", executable: "pnpm", args: ["--version"] },
   { id: "pwsh", displayName: "PowerShell", executable: "pwsh", args: ["--version"] },
   { id: "dotnet", displayName: ".NET SDK", executable: "dotnet", args: ["--version"] }
 ];
@@ -21,6 +21,23 @@ function vercelCommand(args: readonly string[]): { executable: string; args: rea
     return { executable: "node", args: [entrypoint, ...args] };
   }
   return { executable: "vercel", args };
+}
+
+function pnpmCommand(args: readonly string[]): { executable: string; args: readonly string[] } {
+  if (process.platform === "win32") {
+    for (const rawEntry of (process.env.PATH ?? "").split(path.delimiter)) {
+      const entry = rawEntry.replace(/^"|"$/gu, "").trim();
+      if (!entry) continue;
+      const nodeExecutable = path.join(entry, "node.exe");
+      const corepackCli = path.join(entry, "node_modules", "corepack", "dist", "corepack.js");
+      if (existsSync(nodeExecutable) && existsSync(corepackCli)) return { executable: nodeExecutable, args: [corepackCli, "pnpm", ...args] };
+    }
+    const bundled = process.env.USERPROFILE
+      ? path.join(process.env.USERPROFILE, ".cache", "codex-runtimes", "codex-primary-runtime", "dependencies", "bin", "fallback", "pnpm.cjs")
+      : "";
+    if (bundled && existsSync(bundled)) return { executable: "node", args: [bundled, ...args] };
+  }
+  return { executable: "pnpm", args };
 }
 
 export class CapabilityService {
@@ -116,12 +133,47 @@ export class CapabilityService {
 
   public async inspect(cwd: string): Promise<Capability[]> {
     const vercelVersion = vercelCommand(["--version"]);
+    const pnpmVersion = pnpmCommand(["--version"]);
     const executableProbes: Probe[] = [
       ...BASE_PROBES,
+      { id: "pnpm", displayName: "pnpm", ...pnpmVersion },
       { id: "hermes", displayName: "Hermes Agent", executable: resolveHermesExecutable(), args: ["--version"] },
       { id: "vercel-cli", displayName: "Vercel CLI", ...vercelVersion }
     ];
     const capabilities = await Promise.all(executableProbes.map(async (probe) => await this.#probeExecutable(probe, cwd)));
+
+    const codexExecutable = resolveCodexExecutable();
+    if (!codexExecutable) {
+      capabilities.push({
+        id: "openai-codex",
+        displayName: "OpenAI Codex",
+        state: "UNAVAILABLE",
+        version: null,
+        checkedAt: new Date().toISOString(),
+        detail: "Yerel Codex çalıştırılabilir dosyası doğrulanamadı; API gelişimi fallback dışında READY sayılamaz.",
+        remediation: "Resmî OpenAI Codex CLI kurulumunu ve ChatGPT oturumunu tamamlayın.",
+        evidence: []
+      });
+    } else {
+      const [version, auth] = await Promise.all([
+        this.#runner.run({ executable: codexExecutable, args: ["--version"], cwd, timeoutMs: 10_000, maxOutputBytes: 32 * 1024 }),
+        this.#runner.run({ executable: codexExecutable, args: ["login", "status"], cwd, timeoutMs: 15_000, maxOutputBytes: 32 * 1024 })
+      ]);
+      const installed = version.exitCode === 0;
+      const authenticated = auth.exitCode === 0 && /logged in/iu.test(`${auth.stdout}\n${auth.stderr}`);
+      capabilities.push({
+        id: "openai-codex",
+        displayName: "OpenAI Codex",
+        state: installed && authenticated ? "READY" : installed ? "DEGRADED" : "UNAVAILABLE",
+        version: installed ? `${(version.stdout.trim() || version.stderr.trim()).split(/\r?\n/u)[0]} · ${DEFAULT_CODEX_MODEL} · ${CODEX_REASONING_EFFORT}` : null,
+        checkedAt: auth.endedAt,
+        detail: installed && authenticated
+          ? `Codex CLI kimliği ve ChatGPT oturumu doğrulandı. API gelişimi ${DEFAULT_CODEX_MODEL} modelini yüksek muhakeme düzeyinde, salt-okunur ve geçici oturumla çalıştırır.`
+          : installed ? "Codex CLI kurulu ancak kimliği doğrulanmış ChatGPT oturumu bulunamadı." : "Codex CLI sürüm sorgusuna yanıt vermedi.",
+        remediation: installed && authenticated ? null : "Codex CLI ile güvenli biçimde oturum açıp tanılamayı yeniden çalıştırın.",
+        evidence: [version.runId, auth.runId]
+      });
+    }
     this.#nvidiaProbe ??= this.#probeNvidia();
     capabilities.push(await this.#nvidiaProbe);
 

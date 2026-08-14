@@ -1,8 +1,10 @@
+import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import type { DebugResponse, DebugSession, EditorDiagnostic, LanguageDiagnosticsResult } from "../../shared/contracts.js";
+import { resolveExistingPathWithinRoot } from "../security/path-boundary.js";
 import type { ProjectService } from "./project-service.js";
 import { ProtocolSession, type ProtocolMessage } from "./protocol-service.js";
 
@@ -107,7 +109,24 @@ export class LanguageService {
   }
 }
 
-type ManagedDebugSession = { protocol: ProtocolSession; snapshot: DebugSession };
+type ManagedDebugSession = { protocol: ProtocolSession; snapshot: DebugSession; projectRoot: string; builtIn: boolean };
+
+export const BUILTIN_JAVASCRIPT_DEBUG_ADAPTER = "devbox:javascript";
+
+export function builtInJavaScriptAdapterFiles(): { proxy: string; server: string } {
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const roots = [
+    process.env.DEVBOX_JS_DEBUG_ROOT,
+    resourcesPath ? path.join(resourcesPath, "vendor", "microsoft-js-debug") : undefined,
+    path.resolve(process.cwd(), "vendor", "microsoft-js-debug")
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  const root = roots.find((candidate) => existsSync(path.join(candidate, "devbox-stdio-proxy.mjs")) && existsSync(path.join(candidate, "src", "dapDebugServer.js")));
+  if (!root) throw new Error("BUILTIN_JAVASCRIPT_DEBUG_ADAPTER_NOT_FOUND");
+  return {
+    proxy: path.join(root, "devbox-stdio-proxy.mjs"),
+    server: path.join(root, "src", "dapDebugServer.js")
+  };
+}
 
 export class DebugService {
   readonly #projects: ProjectService;
@@ -125,11 +144,38 @@ export class DebugService {
     configuration: Record<string, unknown>;
   }): Promise<DebugSession> {
     const project = this.#projects.get(input.projectId);
-    const executable = path.resolve(input.executable);
-    await access(executable);
-    const protocol = new ProtocolSession("dap", executable, input.arguments, project.rootPath, { ...process.env });
-    const snapshot: DebugSession = { id: protocol.id, state: "STARTING", adapter: executable, capabilities: {}, lastEvent: null };
-    const managed: ManagedDebugSession = { protocol, snapshot };
+    const builtIn = input.executable === BUILTIN_JAVASCRIPT_DEBUG_ADAPTER;
+    const executable = builtIn ? process.execPath : path.resolve(input.executable);
+    const files = builtIn ? builtInJavaScriptAdapterFiles() : null;
+    await Promise.all([access(executable), ...(files ? [access(files.proxy), access(files.server)] : [])]);
+    const adapterArguments = files ? [files.proxy, files.server] : input.arguments;
+    const configuration = { ...input.configuration };
+    if (builtIn && input.request === "launch") {
+      const suppliedProgram = typeof configuration.program === "string" ? configuration.program.trim() : "";
+      if (!suppliedProgram) throw new Error("JAVASCRIPT_DEBUG_PROGRAM_REQUIRED");
+      const program = path.isAbsolute(suppliedProgram) ? path.normalize(suppliedProgram) : path.resolve(project.rootPath, suppliedProgram);
+      const relativeProgram = path.relative(project.rootPath, program);
+      if (relativeProgram.startsWith("..") || path.isAbsolute(relativeProgram)) throw new Error("JAVASCRIPT_DEBUG_PROGRAM_OUTSIDE_PROJECT");
+      const suppliedCwd = typeof configuration.cwd === "string" ? configuration.cwd.trim() : "";
+      const cwd = suppliedCwd ? (path.isAbsolute(suppliedCwd) ? path.normalize(suppliedCwd) : path.resolve(project.rootPath, suppliedCwd)) : project.rootPath;
+      const relativeCwd = path.relative(project.rootPath, cwd);
+      if (relativeCwd.startsWith("..") || path.isAbsolute(relativeCwd)) throw new Error("JAVASCRIPT_DEBUG_CWD_OUTSIDE_PROJECT");
+      await Promise.all([access(program), access(cwd)]);
+      Object.assign(configuration, {
+        type: "pwa-node",
+        name: typeof configuration.name === "string" && configuration.name.trim() ? configuration.name.trim() : "DevBox JavaScript",
+        program,
+        cwd,
+        console: "internalConsole"
+      });
+    }
+    const protocol = new ProtocolSession("dap", executable, adapterArguments, project.rootPath, {
+      ...process.env,
+      ...(builtIn ? { ELECTRON_RUN_AS_NODE: "1" } : {})
+    });
+    const adapterName = builtIn ? "Microsoft vscode-js-debug 1.117.0" : executable;
+    const snapshot: DebugSession = { id: protocol.id, state: "STARTING", adapter: adapterName, capabilities: {}, lastEvent: null };
+    const managed: ManagedDebugSession = { protocol, snapshot, projectRoot: project.rootPath, builtIn };
     let launchPromise: Promise<ProtocolMessage> | null = null;
     this.#sessions.set(snapshot.id, managed);
     protocol.onMessage((message) => {
@@ -139,18 +185,9 @@ export class DebugService {
       if (message.type === "event" && (message.event === "terminated" || message.event === "exited")) managed.snapshot = { ...managed.snapshot, state: "STOPPED" };
     });
     try {
-      const initialized = await protocol.request("initialize", {
-        clientID: "devbox",
-        clientName: "DevBox",
-        adapterID: path.basename(executable),
-        pathFormat: "path",
-        linesStartAt1: true,
-        columnsStartAt1: true,
-        supportsVariableType: true,
-        supportsRunInTerminalRequest: false
-      });
-      const capabilities = initialized.body && typeof initialized.body === "object" ? initialized.body as Record<string, unknown> : {};
-      managed.snapshot = { ...managed.snapshot, capabilities };
+      // Some adapters emit `initialized` in the same transport chunk as the
+      // initialize response. Register before sending initialize so the event
+      // cannot be lost between dispatch and the promise continuation.
       const adapterInitialized = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           unsubscribe();
@@ -164,9 +201,21 @@ export class DebugService {
           resolve();
         });
       });
+      const initialized = await protocol.request("initialize", {
+        clientID: "devbox",
+        clientName: "DevBox",
+        adapterID: builtIn ? "pwa-node" : path.basename(executable),
+        pathFormat: "path",
+        linesStartAt1: true,
+        columnsStartAt1: true,
+        supportsVariableType: true,
+        supportsRunInTerminalRequest: false
+      });
+      const capabilities = initialized.body && typeof initialized.body === "object" ? initialized.body as Record<string, unknown> : {};
+      managed.snapshot = { ...managed.snapshot, capabilities };
       // DAP launch/attach responses may deliberately wait for configurationDone. Start the
       // request first, wait for the adapter's initialized event, then close configuration.
-      launchPromise = protocol.request(input.request, { ...input.configuration, request: input.request }, 45_000);
+      launchPromise = protocol.request(input.request, { ...configuration, request: input.request }, 45_000);
       await adapterInitialized;
       if (capabilities.supportsConfigurationDoneRequest !== false) {
         await protocol.request("configurationDone", {}, 15_000);
@@ -186,7 +235,18 @@ export class DebugService {
   public async command(sessionId: string, command: string, args: Record<string, unknown>): Promise<DebugResponse> {
     const managed = this.#sessions.get(sessionId);
     if (!managed) throw new Error("DEBUG_SESSION_NOT_FOUND");
-    const response = await managed.protocol.request(command, args);
+    let boundedArgs = args;
+    if (managed.builtIn && command === "setBreakpoints") {
+      const source = args.source;
+      if (!source || typeof source !== "object" || Array.isArray(source)) throw new Error("DEBUG_BREAKPOINT_SOURCE_REQUIRED");
+      const sourceRecord = source as Record<string, unknown>;
+      const suppliedPath = typeof sourceRecord.path === "string" ? sourceRecord.path.trim() : "";
+      if (!suppliedPath) throw new Error("DEBUG_BREAKPOINT_SOURCE_REQUIRED");
+      const relativePath = path.isAbsolute(suppliedPath) ? path.relative(managed.projectRoot, suppliedPath) : suppliedPath;
+      const boundedPath = await resolveExistingPathWithinRoot(managed.projectRoot, relativePath);
+      boundedArgs = { ...args, source: { ...sourceRecord, path: boundedPath } };
+    }
+    const response = await managed.protocol.request(command, boundedArgs);
     // The adapter's stopped/continued events are authoritative. Step requests resume the
     // debuggee until the adapter reports the next stopped event; a pause request does not
     // become PAUSED merely because the request was accepted.

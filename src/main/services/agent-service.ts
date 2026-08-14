@@ -6,8 +6,9 @@ import { discoverNvidiaCredential } from "./environment-discovery.js";
 
 const PROVIDER = "nvidia";
 const MODEL = "nvidia/nemotron-3-super-120b-a12b";
-const CODEX_PROVIDER = "OpenAI Codex CLI";
-const DEFAULT_CODEX_MODEL = "gpt-5.6-sol";
+export const CODEX_PROVIDER = "OpenAI Codex CLI";
+export const DEFAULT_CODEX_MODEL = "gpt-5.6-sol";
+export const CODEX_REASONING_EFFORT = "high";
 const MAX_HISTORY_CHARACTERS = 32_000;
 
 type ExportedMessage = { role?: unknown; content?: unknown };
@@ -242,6 +243,7 @@ export class AgentService {
       executable,
       args: [
         "--ask-for-approval", "never",
+        "--config", `model_reasoning_effort=\"${CODEX_REASONING_EFFORT}\"`,
         "exec",
         "--ephemeral",
         "--sandbox", "read-only",

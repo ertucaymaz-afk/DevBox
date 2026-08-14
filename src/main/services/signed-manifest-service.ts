@@ -2,6 +2,7 @@ import { createHash, verify as verifySignature } from "node:crypto";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { PluginManifestV2Schema, type PluginManifestV2 } from "../../shared/plugin-contracts.js";
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const SAFE_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,127}$/u;
@@ -9,7 +10,7 @@ const MAX_MANIFEST_BYTES = 256 * 1024;
 const MAX_FILE_BYTES = 300 * 1024 * 1024;
 const MAX_PACKAGE_BYTES = 1_024 * 1024 * 1024;
 
-export const SignedManifestSchema = z.object({
+export const SignedManifestV1Schema = z.object({
   schemaVersion: z.literal(1),
   kind: z.enum(["plugin", "mcp", "toolkit", "update"]),
   id: z.string().regex(SAFE_ID_PATTERN),
@@ -26,7 +27,9 @@ export const SignedManifestSchema = z.object({
   signature: z.string().min(40).max(1024)
 }).strict();
 
-export type SignedManifest = z.infer<typeof SignedManifestSchema>;
+export const SignedManifestSchema = z.discriminatedUnion("schemaVersion", [SignedManifestV1Schema, PluginManifestV2Schema]);
+export type SignedManifestV1 = z.infer<typeof SignedManifestV1Schema>;
+export type SignedManifest = SignedManifestV1 | PluginManifestV2;
 export type VerifiedPackage = {
   manifest: SignedManifest;
   manifestPath: string;
@@ -43,7 +46,7 @@ function canonicalize(value: unknown): unknown {
     .map(([key, nested]) => [key, canonicalize(nested)]));
 }
 
-export function signedManifestPayload(manifest: Omit<SignedManifest, "signature"> | SignedManifest): Buffer {
+export function signedManifestPayload(manifest: Omit<SignedManifestV1, "signature"> | Omit<PluginManifestV2, "signature"> | SignedManifest): Buffer {
   const { signature: _signature, ...payload } = manifest as SignedManifest;
   return Buffer.from(JSON.stringify(canonicalize(payload)), "utf8");
 }
@@ -109,8 +112,11 @@ export class SignedManifestService {
       if (digest !== file.sha256) throw new Error("SIGNED_PACKAGE_HASH_MISMATCH");
     }
 
-    if (manifest.entrypoint && !seen.has(manifest.entrypoint.replaceAll("\\", "/").toLocaleLowerCase("en-US"))) {
-      throw new Error("SIGNED_PACKAGE_ENTRYPOINT_UNDECLARED");
+    const entrypoints = manifest.schemaVersion === 1
+      ? [manifest.entrypoint].filter((value): value is string => Boolean(value))
+      : Object.values(manifest.entrypoints).filter((value): value is string => Boolean(value));
+    for (const entrypoint of entrypoints) {
+      if (!seen.has(entrypoint.replaceAll("\\", "/").toLocaleLowerCase("en-US"))) throw new Error("SIGNED_PACKAGE_ENTRYPOINT_UNDECLARED");
     }
     const inventory = await inventoryPackage(rootPath);
     const unexpected = inventory.find((relativePath) => relativePath.toLocaleLowerCase("en-US") !== manifestName.toLocaleLowerCase("en-US")

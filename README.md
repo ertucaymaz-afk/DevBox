@@ -2,7 +2,7 @@
 
 > Windows üzerinde proje, sohbet, Git, terminal ve kanıt akışını tek yerde toplayan açık kaynak mühendislik masaüstü.
 
-[![En güncel sürüm](https://img.shields.io/github/v/release/ertucaymaz-afk/DevBox?include_prereleases&label=sürüm&color=2ecf9f)](https://github.com/ertucaymaz-afk/DevBox/releases/tag/v0.1.3)
+[![En güncel sürüm](https://img.shields.io/github/v/release/ertucaymaz-afk/DevBox?include_prereleases&label=sürüm&color=2ecf9f)](https://github.com/ertucaymaz-afk/DevBox/releases/tag/v0.1.4)
 [![DevBox doğrulama](https://github.com/ertucaymaz-afk/DevBox/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ertucaymaz-afk/DevBox/actions/workflows/ci.yml)
 [![Lisans: Apache 2.0](https://img.shields.io/badge/lisans-Apache--2.0-6b7280)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows-3b82f6)](https://github.com/ertucaymaz-afk/DevBox/releases)
@@ -13,7 +13,7 @@ DevBox; yerel projeyle konuşmayı, dosyaları incelemeyi, değişiklikleri izle
 
 ## 🚀 Son sürüm ve yenilikler
 
-Güncel işlevsel önizleme **[DevBox v0.1.3 — Türkçe yenilikler ve doğru sürüm yönlendirmesi](https://github.com/ertucaymaz-afk/DevBox/releases/tag/v0.1.3)** adıyla yayımlandı. Bu sayfada Windows kurucusu, taşınabilir ZIP, düşük boyutlu açık kaynak ZIP’i, SHA-256 sağlama toplamları, SBOM ve dürüst imza durumu birlikte bulunur. Önceki sürümler ve değişiklik geçmişi için [tüm yayınları](https://github.com/ertucaymaz-afk/DevBox/releases) veya [ayrıntılı sürüm notlarını](docs/RELEASE_NOTES.md) açabilirsiniz.
+Güncel işlevsel önizleme **[DevBox v0.1.4 — gerçek eklenti yaşam döngüsü, DAP denetçisi ve dayanıklı uzak görevler](https://github.com/ertucaymaz-afk/DevBox/releases/tag/v0.1.4)** adıyla yayımlandı. Bu sayfada Windows kurucusu, taşınabilir ZIP, düşük boyutlu açık kaynak ZIP’i, SHA-256 sağlama toplamları, SBOM ve dürüst imza durumu birlikte bulunur. Önceki sürümler ve değişiklik geçmişi için [tüm yayınları](https://github.com/ertucaymaz-afk/DevBox/releases) veya [ayrıntılı sürüm notlarını](docs/RELEASE_NOTES.md) açabilirsiniz.
 
 DevBox içindeki **Yenilikler** alanı da kurulu gerçek sürümün notlarını animasyonlu olarak gösterir. Okundu bilgisi yalnız cihazınızda saklanır; uzaktaki bir servis güncelleme varmış gibi taklit edilmez.
 
@@ -28,7 +28,7 @@ DevBox içindeki **Yenilikler** alanı da kurulu gerçek sürümün notlarını 
 - Sabit konuşmalar, arşiv, okunma durumu, otomatik başlıklar ve kalıcı SQLite geçmişi
 - GitHub PR / issue / check / CI / release ve Vercel komut yolları
 - Worktree yaşam döngüsü, dayanıklı görevler, lease ve yeniden başlatma kurtarması
-- Gerçek TypeScript/JavaScript LSP tanıları ve seçilebilir hata ayıklama adaptörü üzerinden DAP kontrol yüzeyi
+- Gerçek TypeScript/JavaScript LSP tanıları; yerleşik Microsoft `vscode-js-debug` ile iş parçacığı, stack, scope, değişken, stepping ve breakpoint içeren DAP kontrol yüzeyi
 - Tek kullanımlık eşleştirme, iptal edilebilir kimlik, sağlık sinyali ve çökme kurtarması kullanan uzak çalışan protokolü
 - Yerel geri döngü adresinde erişim anahtarıyla kimlik doğrulayan DevBox v1 API’si
 - Sağlık ve oturum denetimi geçen Codex CLI öncelikli API gelişim araştırması; yalnızca gerçek çağrı başarısız olursa yapılandırılmış Hermes/NVIDIA NIM geri dönüşü
@@ -40,6 +40,8 @@ DevBox’ta demo yanıt, sahte entegrasyon sonucu, simüle edilmiş ilerleme ya 
 ![DevBox API gelişimi](docs/images/devbox-api-evolution.png)
 
 API gelişimi ekranı bir modelin kendi kendine eğitim gördüğünü iddia etmez. Gerçek sağlayıcı çağrılarından gelen araştırma sonucu, görev kimliği, zaman, sağlayıcı ve hata kanıtı SQLite WAL veritabanında saklanır. Uygulama kapatıldığında geçmiş kaybolmaz. Otomatik çevrimler güvenli araştırma ve backlog üretir; kaynak kodu kullanıcı onayı olmadan değiştirmez.
+
+51.468 satırlık `geliştirme.md` şartnamesinin 22 fazı ve 3.362 benzersiz atomik görevi de sürüm kontrollü görev grafiğine alınmıştır. İçe aktarma hiçbir görevi kendiliğinden tamamlanmış saymaz: ayrıntılar için [`geliştirme.md` işleme kaydını](docs/GELISTIRME-MD-ISLEME.md), güncel sayıları [alım raporunu](docs/GELISTIRME-MD-ALIM-RAPORU.md) ve makine-okunur durumu [`specs/development`](specs/development/geliştirme-spec-task-graph.json) altında inceleyebilirsiniz.
 
 ![DevBox terminal görünümü](docs/images/devbox-terminal.png)
 
@@ -82,7 +84,7 @@ Uzak çalışan yalnız `git`, `node`, `pnpm`, `npm`, `pwsh` ve `dotnet` komutla
 
 ## 🔐 Gizlilik ve güvenlik
 
-DevBox reklam telemetrisi veya ürün analitiği göndermez. Yerel proje, sohbet, ayar, ek ve kanıt verileri; kullanıcı dış sağlayıcı ya da entegrasyon çağrısını açıkça başlatmadıkça makineden çıkmaz. Ayrıntılar [gizlilik](docs/policies/PRIVACY.md), [güvenlik](.github/SECURITY.md) ve [kod imzalama](docs/policies/CODE_SIGNING_POLICY.md) belgelerinde bulunur.
+DevBox reklam telemetrisi veya ürün analitiği göndermez. Yerel proje, sohbet, ayar, ek ve kanıt verileri; kullanıcı dış sağlayıcı ya da entegrasyon çağrısını açıkça başlatmadıkça makineden çıkmaz. Ayrıntılar [gizlilik](docs/policies/PRIVACY.md), [güvenlik](.github/SECURITY.md), [kod imzalama](docs/policies/CODE_SIGNING_POLICY.md) ve [evrensel entegrasyonun gerçek uygulama durumu](docs/EVRENSEL-ENTEGRASYON-DURUMU.md) belgelerinde bulunur.
 
 SignPath Foundation açık kaynak başvurusu proje geliştiricisi tarafından **14 Ağustos 2026 tarihinde gönderildi**. Başvuru şu anda dış inceleme ve projeyi kabul sürecindedir. SignPath onayı ve gerçek güven kökü gelene kadar yayımlanan Windows dosyaları `İMZASIZ (NOT_SIGNED)` olarak işaretlenir; kendinden imzalı bir sertifika yayın kimliği gibi sunulmaz.
 

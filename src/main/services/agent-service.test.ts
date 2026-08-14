@@ -88,6 +88,7 @@ describe("AgentService", () => {
     expect(run).toHaveBeenCalledTimes(2);
     const args = run.mock.calls[1]?.[0]?.args as string[];
     expect(args).toEqual(expect.arrayContaining(["exec", "--ephemeral", "--sandbox", "read-only", "--json", "--ignore-rules"]));
+    expect(args).toEqual(expect.arrayContaining(["--model", "gpt-5.6-sol", "--config", 'model_reasoning_effort="high"']));
     expect(args).not.toContain("--dangerously-bypass-approvals-and-sandbox");
   });
 });

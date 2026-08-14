@@ -44,9 +44,13 @@ describe("signed package lifecycle", () => {
     const versionOne = await signedPackage(privateKey, "1.0.0", "export const version = 1;\n");
     const versionTwo = await signedPackage(privateKey, "2.0.0", "export const version = 2;\n");
 
-    const first = await service.install(versionOne, publicPem);
-    const second = await service.install(versionTwo, publicPem);
-    expect((await service.list())[0]).toMatchObject({ version: "2.0.0", publicKeyId: "publisher.lifecycle" });
+    await expect(service.install(versionOne)).rejects.toThrow("SIGNED_MANIFEST_KEY_UNTRUSTED");
+    const trust = await service.enrollPublisher("publisher.lifecycle", publicPem, "LOCAL_SIDELOAD");
+    expect(trust).toMatchObject({ keyId: "publisher.lifecycle", trustClass: "LOCAL_SIDELOAD" });
+    expect(trust.fingerprintSha256).toMatch(/^[a-f0-9]{64}$/u);
+    const first = await service.install(versionOne);
+    const second = await service.install(versionTwo);
+    expect((await service.list())[0]).toMatchObject({ version: "2.0.0", publicKeyId: "publisher.lifecycle", trustClass: "LOCAL_SIDELOAD" });
 
     const rolledBack = await service.rollback("plugin", "lifecycle.plugin");
     expect(rolledBack.version).toBe("1.0.0");
@@ -56,6 +60,6 @@ describe("signed package lifecycle", () => {
     expect(repaired.version).toBe("2.0.0");
     expect(repaired.directory).toBe(second.directory);
     expect(first.directory).not.toBe(second.directory);
-    await expect(service.status()).resolves.toMatchObject({ trustedPublishers: 1, installedPackages: 1, repairablePackages: 1 });
+    await expect(service.status()).resolves.toMatchObject({ trustedPublishers: 1, managedCatalogPublishers: 0, installedPackages: 1, localSideloadPackages: 1, managedCatalogPackages: 0, repairablePackages: 1, auditEvents: 5, auditIntegrity: "VERIFIED" });
   });
 });
