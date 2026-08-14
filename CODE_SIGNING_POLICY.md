@@ -4,7 +4,7 @@ Free code signing provided by [SignPath.io](https://signpath.io/), certificate b
 
 ## Status
 
-The SignPath Foundation application dossier is prepared and the project is publishing the unsigned release required by the Foundation's eligibility conditions. Submission, review, onboarding and certificate availability are separate external states; none is represented as complete without evidence from SignPath. Current public preview artifacts are unsigned and their `release-manifest.json` files state `NOT_SIGNED`. No self-signed certificate is represented as a public release identity.
+The project maintainer submitted the SignPath Foundation open-source application on 2026-08-14. SignPath review, identity validation, onboarding and certificate availability are separate external states and remain pending until SignPath provides confirmation. Current public preview artifacts are unsigned and their `release-manifest.json` files state `NOT_SIGNED`. No self-signed certificate is represented as a public release identity.
 
 ## Roles
 

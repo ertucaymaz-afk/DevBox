@@ -41,4 +41,20 @@ describe("bounded command runner", () => {
     expect(result.truncated).toBe(true);
     expect(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr)).toBeLessThanOrEqual(64);
   });
+
+  it("cancels owned child processes during application shutdown", async () => {
+    const runner = new CommandRunner();
+    const pending = runner.run({
+      executable: process.execPath,
+      args: ["-e", "setInterval(() => undefined, 1000)"],
+      cwd: process.cwd(),
+      timeoutMs: 30_000
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await runner.close();
+    const result = await pending;
+    expect(result.exitReason).toBe("CANCELLED");
+    await expect(runner.run({ executable: process.execPath, args: ["--version"], cwd: process.cwd() })).rejects.toThrow("COMMAND_RUNNER_CLOSED");
+  });
 });

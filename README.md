@@ -1,42 +1,50 @@
 # DevBox
 
-DevBox is a Windows-first, evidence-backed engineering desktop for local projects, chat-driven agent tasks, Git work, real ConPTY terminals, durable job history, provider-backed engineering research, and explicit integrations.
+> Windows üzerinde proje, sohbet, Git, terminal ve kanıt akışını tek yerde toplayan açık kaynak mühendislik masaüstü.
 
-The project is being developed in public. It does not use demo responses, simulated integrations, fake progress, or placeholder success states. A capability is reported as ready only when the runtime can discover and exercise its real implementation; unavailable capabilities remain visibly unavailable.
+![DevBox sohbet görünümü](docs/images/devbox-chat-ui.png)
 
-## Current release
+DevBox; yerel projeyle konuşmayı, dosyaları incelemeyi, değişiklikleri izlemeyi ve gerçek araçları çalıştırmayı aynı çalışma alanında buluşturur. Bir özellik makinede gerçekten hazır değilse yeşil bir “başarılı” rozeti göstermez: neden kullanılamadığını açıkça söyler.
 
-The current `0.1.x` line is a functional preview, not a declaration that every long-term release gate is complete. The source tree includes:
+## ✨ Neler var?
 
-- an Electron/React Windows desktop shell with a conversation-first layout;
-- real local project selection, bounded file access, Git status/diff, editable messages, clipboard/context-menu actions, and file drag-and-drop;
-- an application-native conversation menu with pin, rename, archive, unread, project reveal, path/session copy, deep-link copy, and permanent-delete actions;
-- persisted, provider-backed activity events that show real command/provider/evidence progress without fabricating or exposing private chain-of-thought;
-- a live Git change capsule backed by `git status` and `git diff --numstat`, including per-file additions/deletions and honest unknown/binary states;
-- file attachments up to 300 MiB each, stored locally with SHA-256 identity and no archive execution;
-- a real `node-pty`/ConPTY interactive terminal path;
-- a loopback-only, bearer-authenticated DevBox v1 HTTP API;
-- SQLite-backed threads, settings, evidence, durable jobs, leases, recovery, and worktree lifecycle operations;
-- real NVIDIA NIM/Hermes provider calls when the user supplies credentials and permits network access;
-- GitHub, Vercel, SSH, LSP/DAP discovery, and signed-package lifecycle command paths that fail closed when prerequisites are absent;
-- reproducible TypeScript build, unit/contract tests, packaging checks, release manifest, SHA-256 inventory, and CycloneDX SBOM generation.
+- Sohbet odaklı, koyu ve sıkı bir Windows arayüzü
+- Mesaj gönderme, düzenleme, kopyalama, yapıştırma, alıntılama ve yeniden oluşturma kontrolleri
+- Kes / Kopyala / Yapıştır içeren yerel sağ tık menüleri
+- Her dosya için en fazla 300 MiB sürükle-bırak eki ve SHA-256 içerik kimliği
+- Gerçek `node-pty` / Windows ConPTY terminal oturumları
+- Gerçek Git durum, diff ve dosya bazlı ekleme/silme sayacı
+- Sabit konuşmalar, arşiv, okunma durumu, otomatik başlıklar ve kalıcı SQLite geçmişi
+- GitHub PR / issue / check / CI / release ve Vercel komut yolları
+- Worktree yaşam döngüsü, dayanıklı görevler, lease ve yeniden başlatma kurtarması
+- Loopback üzerinde bearer kimlik doğrulamalı DevBox v1 API
+- Sağlık ve oturum denetimi geçen Codex CLI öncelikli API gelişim araştırması; yalnızca gerçek çağrı başarısız olursa yapılandırılmış Hermes/NVIDIA NIM geri dönüşü
 
-The release manifest shipped with each download is the authoritative machine-readable statement of signing state and remaining gates. An unsigned artifact is explicitly labelled `NOT_SIGNED`; it is never presented as Authenticode-signed.
+DevBox’ta demo yanıt, sahte entegrasyon sonucu, simüle edilmiş ilerleme ya da uydurma “hazır” durumu bulunmaz. Çalışmayan bir yol, kanıt üretmek yerine hata durumuna geçer.
 
-## Install and uninstall
+## 🧭 Çalışma alanı
 
-Download `DevBox-Setup.exe` or `devbox.zip` from the [GitHub Releases page](https://github.com/ertucaymaz-afk/DevBox/releases). Verify the SHA-256 value from `SHA256SUMS.txt` before installing. The installer is per-user and creates a Start menu entry and desktop shortcut.
+![DevBox API gelişimi](docs/images/devbox-api-evolution.png)
 
-Uninstall DevBox from **Windows Settings → Apps → Installed apps → DevBox → Uninstall**. Uninstallation leaves user data in the per-user application data directory so that an accidental uninstall does not destroy task history. Users can remove that data manually after exporting anything they need.
+API gelişimi ekranı bir modelin kendi kendine eğitim gördüğünü iddia etmez. Gerçek sağlayıcı çağrılarından gelen araştırma sonucu, görev kimliği, zaman, sağlayıcı ve hata kanıtı SQLite WAL veritabanında saklanır. Uygulama kapatıldığında geçmiş kaybolmaz. Otomatik çevrimler güvenli araştırma ve backlog üretir; kaynak kodu kullanıcı onayı olmadan değiştirmez.
 
-## Build from source
+![DevBox terminal görünümü](docs/images/devbox-terminal.png)
 
-Prerequisites:
+Terminal görünümü Windows pseudo-console üzerinde çift yönlüdür. Giriş, çıkış, yeniden boyutlandırma ve sonlandırma yaşam döngüsü gerçek süreçle bağlıdır; hem “Sohbete dön” hem de görünür kapatma düğmesi vardır.
 
-- Windows 11 or a supported Windows environment;
-- Node.js 24 or newer;
-- pnpm 11.19.0;
-- Git.
+## 📦 Kurulum
+
+En güncel `DevBox-Setup.exe`, `devbox.zip`, sağlama toplamları ve sürüm manifesti için [GitHub Releases](https://github.com/ertucaymaz-afk/DevBox/releases) sayfasını kullanın.
+
+1. `SHA256SUMS.txt` içindeki özeti indirdiğiniz dosyayla karşılaştırın.
+2. `DevBox-Setup.exe` dosyasını çalıştırın.
+3. Kurulum Başlat menüsüne ve masaüstüne DevBox kısayolu ekler.
+
+Kaldırmak için **Windows Ayarları → Uygulamalar → Yüklü uygulamalar → DevBox → Kaldır** yolunu kullanın. Yanlışlıkla kaldırmanın sohbet geçmişini yok etmemesi için kullanıcı verileri otomatik silinmez.
+
+## 🛠️ Kaynaktan derleme
+
+Gerekenler: Windows 11, Node.js 24+, pnpm 11.19.0 ve Git.
 
 ```powershell
 corepack enable
@@ -44,34 +52,30 @@ corepack prepare pnpm@11.19.0 --activate
 pnpm install --frozen-lockfile
 pnpm verify
 pnpm package:installer
-pnpm release:prepare
-pnpm release:verify
 ```
 
-`pnpm verify` runs type checking, tests, the production build, and the product-truth audit. Packaging uses Electron Builder/NSIS. The signed packaging path, `pnpm package:signed`, fails closed unless a real, usable Authenticode identity is configured.
+`pnpm verify`; TypeScript denetimini, birim/sözleşme testlerini, üretim derlemesini ve ürün-doğruluk denetimini çalıştırır. İmzalı paket yolu olan `pnpm package:signed`, kullanılabilir gerçek bir Authenticode kimliği yoksa bilinçli olarak başarısız olur.
 
-## Privacy and security
+## 🔐 Gizlilik ve güvenlik
 
-DevBox has no product analytics or advertising telemetry. **This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.** Local project data, conversations, settings, attachments, and evidence remain on the machine unless a user explicitly invokes an external provider or integration. Provider and integration behavior, including the policies of optional NVIDIA, OpenAI/Codex, GitHub and Vercel services, is documented in [PRIVACY.md](PRIVACY.md). Vulnerability reporting and supported security controls are documented in [SECURITY.md](SECURITY.md).
+DevBox reklam telemetrisi veya ürün analitiği göndermez. Yerel proje, sohbet, ayar, ek ve kanıt verileri; kullanıcı dış sağlayıcı ya da entegrasyon çağrısını açıkça başlatmadıkça makineden çıkmaz. Ayrıntılar [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md) ve [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) dosyalarında bulunur.
 
-## Code signing policy
+SignPath Foundation açık kaynak başvurusu proje geliştiricisi tarafından **14 Ağustos 2026 tarihinde gönderildi**. Başvuru şu anda dış inceleme/onboarding aşamasındadır. SignPath onayı ve gerçek güven kökü gelene kadar yayımlanan Windows dosyaları `NOT_SIGNED` olarak işaretlenir; self-signed bir sertifika yayın kimliği gibi sunulmaz.
 
-Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+## 👤 Geliştirici
 
-DevBox has prepared its SignPath Foundation open-source application and is publishing the unsigned release required for eligibility. An application or certificate is not represented as approved until SignPath provides external confirmation. Until approval and repository onboarding are complete, release metadata will continue to state `NOT_SIGNED`. After onboarding, only artifacts built from this public repository by the protected GitHub Actions release workflow, submitted through the official SignPath integration, and approved under the release signing policy will be distributed as signed DevBox releases.
+DevBox, **Yaaertu** tarafından geliştiriliyor.
 
-Project roles:
+- GitHub ve depo sahibi: [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
+- Instagram: [@yaaertu](https://www.instagram.com/yaaertu/)
+- Ürün/geliştirici imzası: **devbox by yaaertu**
 
-- Author: [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
-- Reviewer: [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
-- Signing approver: [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
+`yaaertu` ürün ve sosyal medya kimliğidir. GitHub’da doğrulanmış mevcut hesap ve bu deponun gerçek sahibi `ertucaymaz-afk` olduğu için CODEOWNERS ve yayın kaynağı bu hesapta tutulur. Geliştirici, sorumluluk ve iletişim ayrıntıları için [DEVELOPERS.md](DEVELOPERS.md) dosyasına bakın.
 
-As the project grows, author, reviewer, and signing-approver duties will be separated across maintainers. Every signed release will require a manual approval and a source-origin-verifiable build. See [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md).
+## 🤝 Katkı
 
-## Contributing
+Katkılar Apache-2.0 kapsamında açıktır. Başlamadan önce [CONTRIBUTING.md](CONTRIBUTING.md) ve [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) dosyalarını okuyun. Kimlik bilgisi, özel kullanıcı verisi, yerel veritabanı, derleme klasörü veya doğrulanmamış başarı iddiası göndermeyin.
 
-Contributions are welcome under the Apache License 2.0. Start with [CONTRIBUTING.md](CONTRIBUTING.md), follow the [Code of Conduct](CODE_OF_CONDUCT.md), and do not submit credentials, private user data, generated release directories, or unverified claims.
+## 📄 Lisans
 
-## License
-
-Copyright 2026 DevBox contributors. Licensed under the [Apache License 2.0](LICENSE).
+Copyright 2026 DevBox contributors. [Apache License 2.0](LICENSE) ile lisanslanmıştır.

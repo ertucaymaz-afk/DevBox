@@ -1,9 +1,9 @@
 {
   "name": "devbox",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Windows-first, evidence-backed autonomous engineering desktop",
-  "author": "DevBox",
+  "author": "Yaaertu",
   "type": "module",
   "main": "dist/main/main/main.js",
   "license": "Apache-2.0",
