@@ -39,4 +39,4 @@ Data remains on the device until the user deletes tasks/attachments or removes t
 
 ## Security reports and questions
 
-Use the private vulnerability-reporting process described in [SECURITY.md](SECURITY.md). For non-sensitive privacy questions, open a GitHub issue without including personal data, credentials, private repository contents, or logs containing secrets.
+Use the private vulnerability-reporting process described in [SECURITY.md](../../.github/SECURITY.md). For non-sensitive privacy questions, open a GitHub issue without including personal data, credentials, private repository contents, or logs containing secrets.

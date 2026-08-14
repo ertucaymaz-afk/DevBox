@@ -16,7 +16,7 @@ Projenin şu an tek bakımcısı bulunduğu için yazar, inceleyen ve yayın ona
 
 ## İletişim ve katkı
 
-Hata ve özellik önerileri için GitHub Issues kullanılmalıdır. Güvenlik sorunları herkese açık issue olarak paylaşılmamalı; [SECURITY.md](SECURITY.md) içindeki özel bildirim yolu izlenmelidir. Sosyal medya hesabı proje güncellemeleri ve geliştirici kimliği içindir; güvenlik veya veri kaybı bildiriminin resmî kanalı değildir.
+Hata ve özellik önerileri için GitHub Issues kullanılmalıdır. Güvenlik sorunları herkese açık issue olarak paylaşılmamalı; [SECURITY.md](../.github/SECURITY.md) içindeki özel bildirim yolu izlenmelidir. Sosyal medya hesabı proje güncellemeleri ve geliştirici kimliği içindir; güvenlik veya veri kaybı bildiriminin resmî kanalı değildir.
 
 ## Tasarım ve doğruluk ilkesi
 

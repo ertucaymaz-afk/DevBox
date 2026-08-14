@@ -8,8 +8,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@shared": fileURLToPath(new URL("./src/shared", import.meta.url)),
-      "@renderer": fileURLToPath(new URL("./src/renderer", import.meta.url))
+      "@shared": fileURLToPath(new URL("../src/shared", import.meta.url)),
+      "@renderer": fileURLToPath(new URL("../src/renderer", import.meta.url))
     }
   },
   server: {
@@ -24,4 +24,3 @@ export default defineConfig({
     target: "chrome142"
   }
 });
-

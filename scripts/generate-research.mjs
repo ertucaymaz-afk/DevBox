@@ -290,7 +290,7 @@ const implementationEvidence = {
     runtimeEvidence: ["safe codex-theme-v1-compatible data import and a user-confirmed signed plugin/MCP/toolkit install, inventory, repair and rollback host are implemented"]
   },
   "DEVBOX-BROWSER-001": {
-    sourceFiles: ["tests/e2e/app.spec.ts", "playwright.config.ts"],
+    sourceFiles: ["tests/e2e/app.spec.ts", "config/playwright.config.ts"],
     testIds: ["E2E-SECURE-SHELL", "E2E-PROJECT-FLOW"],
     securityChecks: ["hidden Electron only; no global input injection or user desktop capture"],
     runtimeEvidence: ["2 Playwright Electron tests passed"]
@@ -335,7 +335,7 @@ const implementationEvidence = {
     performanceChecks: ["combined process output bound", "timeouts", "bounded repository traversal"]
   },
   "DEVBOX-REL-001": {
-    sourceFiles: ["electron-builder.yml", "scripts/verify-packaged.mjs"],
+    sourceFiles: ["config/electron-builder.yml", "scripts/verify-packaged.mjs"],
     testIds: ["PACKAGED-RUNTIME-CHECK"],
     runtimeEvidence: ["Windows x64 NSIS installer and unpacked DevBox.exe are build targets; the packaged executable exposes a fixed 49-method bridge without a runtime test mode; signed package/update staging, repair and rollback remain blocked from public release until a trusted publisher certificate and signed channel exist"],
     artifacts: ["release/DevBox-Setup.exe", "release/win-unpacked/DevBox.exe"]

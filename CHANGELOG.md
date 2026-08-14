@@ -14,6 +14,7 @@ All notable DevBox changes are recorded here. DevBox follows semantic versioning
 
 ### Değiştirildi
 
+- GitHub kök görünümü sadeleştirildi: topluluk sağlık dosyaları `.github/`, ayrıntılı ürün ve imzalama belgeleri `docs/`, araç yapılandırmaları `config/` altında toplandı; bütün komutlar, bağlantılar ve kaynak arşivi doğrulaması yeni yollarla güncellendi.
 - GitHub Actions `checkout`, `setup-node` ve `upload-artifact` kullanımları Node 24 tabanlı resmî v6 sürümlerine taşındı.
 - DevBox durum veritabanı şeması v5’e çıkarıldı; eşleştirme sırları ve worker token’ları düz metin yerine SHA-256 kimlikleriyle saklanır.
 - DAP oturum durumu, kabul edilen komuttan tahmin edilmek yerine adapter’ın gerçek `stopped`, `continued`, `terminated` ve `exited` olaylarından güncellenir.

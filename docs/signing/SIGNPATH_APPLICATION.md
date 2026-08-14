@@ -21,11 +21,11 @@ The current `0.1.x` line is a functional preview. It is published under Apache-2
 
 ## Governance and security
 
-- Public contribution guide: `CONTRIBUTING.md`
-- Public code of conduct: `CODE_OF_CONDUCT.md`
-- Public vulnerability policy: `SECURITY.md`
-- Public privacy/data-flow policy: `PRIVACY.md`
-- Signing roles and incident response: `CODE_SIGNING_POLICY.md`
+- Public contribution guide: `.github/CONTRIBUTING.md`
+- Public code of conduct: `.github/CODE_OF_CONDUCT.md`
+- Public vulnerability policy: `.github/SECURITY.md`
+- Public privacy/data-flow policy: `docs/policies/PRIVACY.md`
+- Signing roles and incident response: `docs/policies/CODE_SIGNING_POLICY.md`
 - License: `LICENSE`
 - Build and verification workflow: `.github/workflows/ci.yml`
 - Public release and documented download/uninstall path: `README.md` and the `v0.1.1` GitHub release

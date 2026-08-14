@@ -71,7 +71,7 @@ Worker yalnız `git`, `node`, `pnpm`, `npm`, `pwsh` ve `dotnet` komutlarını `s
 
 ## 🔐 Gizlilik ve güvenlik
 
-DevBox reklam telemetrisi veya ürün analitiği göndermez. Yerel proje, sohbet, ayar, ek ve kanıt verileri; kullanıcı dış sağlayıcı ya da entegrasyon çağrısını açıkça başlatmadıkça makineden çıkmaz. Ayrıntılar [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md) ve [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) dosyalarında bulunur.
+DevBox reklam telemetrisi veya ürün analitiği göndermez. Yerel proje, sohbet, ayar, ek ve kanıt verileri; kullanıcı dış sağlayıcı ya da entegrasyon çağrısını açıkça başlatmadıkça makineden çıkmaz. Ayrıntılar [gizlilik](docs/policies/PRIVACY.md), [güvenlik](.github/SECURITY.md) ve [kod imzalama](docs/policies/CODE_SIGNING_POLICY.md) belgelerinde bulunur.
 
 SignPath Foundation açık kaynak başvurusu proje geliştiricisi tarafından **14 Ağustos 2026 tarihinde gönderildi**. Başvuru şu anda dış inceleme/onboarding aşamasındadır. SignPath onayı ve gerçek güven kökü gelene kadar yayımlanan Windows dosyaları `NOT_SIGNED` olarak işaretlenir; self-signed bir sertifika yayın kimliği gibi sunulmaz.
 
@@ -83,11 +83,13 @@ DevBox, **Yaaertu** tarafından geliştiriliyor.
 - Instagram: [@yaaertu](https://www.instagram.com/yaaertu/)
 - Ürün/geliştirici imzası: **devbox by yaaertu**
 
-`yaaertu` ürün ve sosyal medya kimliğidir. GitHub’da doğrulanmış mevcut hesap ve bu deponun gerçek sahibi `ertucaymaz-afk` olduğu için CODEOWNERS ve yayın kaynağı bu hesapta tutulur. Geliştirici, sorumluluk ve iletişim ayrıntıları için [DEVELOPERS.md](DEVELOPERS.md) dosyasına bakın.
+`yaaertu` ürün ve sosyal medya kimliğidir. GitHub’da doğrulanmış mevcut hesap ve bu deponun gerçek sahibi `ertucaymaz-afk` olduğu için CODEOWNERS ve yayın kaynağı bu hesapta tutulur. Geliştirici, sorumluluk ve iletişim ayrıntıları için [geliştirici belgesine](docs/DEVELOPERS.md) bakın.
 
 ## 🤝 Katkı
 
-Katkılar Apache-2.0 kapsamında açıktır. Başlamadan önce [CONTRIBUTING.md](CONTRIBUTING.md) ve [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) dosyalarını okuyun. Kimlik bilgisi, özel kullanıcı verisi, yerel veritabanı, derleme klasörü veya doğrulanmamış başarı iddiası göndermeyin.
+Katkılar Apache-2.0 kapsamında açıktır. Başlamadan önce [katkı rehberini](.github/CONTRIBUTING.md) ve [davranış kurallarını](.github/CODE_OF_CONDUCT.md) okuyun. Kimlik bilgisi, özel kullanıcı verisi, yerel veritabanı, derleme klasörü veya doğrulanmamış başarı iddiası göndermeyin.
+
+Ürün, sürüm, gizlilik ve kod imzalama belgelerinin kompakt dizini için [docs/README.md](docs/README.md) sayfasını kullanın. Derleme ve test araçlarının ayrıntılı ayarları kök listeyi kalabalıklaştırmamak için `config/` altında tutulur.
 
 ## 📄 Lisans
 

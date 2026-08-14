@@ -31,7 +31,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $Archive = [System.IO.Compression.ZipFile]::OpenRead($NextArchive)
 try {
   $Entries = @($Archive.Entries | ForEach-Object { $_.FullName })
-  foreach ($Required in @("README.md", "CHANGELOG.md", "RELEASE_NOTES.md", "LICENSE", "package.json", "pnpm-lock.yaml")) {
+  foreach ($Required in @("README.md", "CHANGELOG.md", "docs/RELEASE_NOTES.md", "LICENSE", "package.json", "pnpm-lock.yaml")) {
     if (-not ($Entries -contains "$Prefix$Required")) { throw "SOURCE_ARCHIVE_MISSING:$Required" }
   }
   $Forbidden = @($Entries | Where-Object { $_ -match "(^|/)(node_modules|dist|release|outputs|evidence|research|work|\.git)(/|$)" })
@@ -56,4 +56,3 @@ if ($OutputHash -ne $DesktopHash) { throw "SOURCE_ARCHIVE_DESKTOP_HASH_MISMATCH"
   SHA256 = $OutputHash
   Commit = (& git -C $Workspace rev-parse HEAD).Trim()
 } | ConvertTo-Json -Depth 3
-

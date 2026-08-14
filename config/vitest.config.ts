@@ -4,8 +4,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      "@shared": fileURLToPath(new URL("./src/shared", import.meta.url)),
-      "@main": fileURLToPath(new URL("./src/main", import.meta.url))
+      "@shared": fileURLToPath(new URL("../src/shared", import.meta.url)),
+      "@main": fileURLToPath(new URL("../src/main", import.meta.url))
     }
   },
   test: {
@@ -17,4 +17,3 @@ export default defineConfig({
     }
   }
 });
-

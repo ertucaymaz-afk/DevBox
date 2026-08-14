@@ -43,4 +43,4 @@ Uzak worker yalnız uygulama içinden onayla üretilen tek kullanımlık kodla e
 
 Geliştirici SignPath Foundation açık kaynak başvurusunu 14 Ağustos 2026 tarihinde gönderdi. İnceleme, kimlik doğrulama, proje onboarding’i ve sertifika tahsisi SignPath’in dış sürecidir ve henüz tamamlanmış sayılmaz. Bu nedenle installer yalnızca `release-manifest.json` açıkça `VALID` diyorsa imzalı kabul edilmelidir; mevcut v0.1.2 önizlemesi `NOT_SIGNED` olarak yayımlanır. DevBox self-signed sertifikayı genel yayın kimliği gibi sunmaz.
 
-Ayrıntılar için [CHANGELOG.md](CHANGELOG.md), [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md), [SECURITY.md](SECURITY.md) ve [DEVELOPERS.md](DEVELOPERS.md) dosyalarına bakın.
+Ayrıntılar için [CHANGELOG.md](../CHANGELOG.md), [kod imzalama politikası](policies/CODE_SIGNING_POLICY.md), [SECURITY.md](../.github/SECURITY.md) ve [DEVELOPERS.md](DEVELOPERS.md) dosyalarına bakın.
