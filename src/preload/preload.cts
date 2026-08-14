@@ -8,7 +8,9 @@ const { contextBridge, ipcRenderer, webUtils } = electron;
 // while the main process and renderer remain ESM. Type-only imports are erased.
 const CHANNELS = Object.freeze({
   bootstrap: "devbox:v1:bootstrap",
+  capabilityInspect: "devbox:v1:capability:inspect",
   projectOpen: "devbox:v1:project:open",
+  projectReveal: "devbox:v1:project:reveal",
   projectTree: "devbox:v1:project:tree",
   fileRead: "devbox:v1:file:read",
   fileWrite: "devbox:v1:file:write",
@@ -25,9 +27,13 @@ const CHANNELS = Object.freeze({
   threadCreate: "devbox:v1:thread:create",
   threadGet: "devbox:v1:thread:get",
   threadMessage: "devbox:v1:thread:message",
+  threadActivity: "devbox:v1:thread:activity",
   threadMessageUpdate: "devbox:v1:thread:message-update",
   threadMessageRegenerate: "devbox:v1:thread:message-regenerate",
   threadRename: "devbox:v1:thread:rename",
+  threadPin: "devbox:v1:thread:pin",
+  threadArchive: "devbox:v1:thread:archive",
+  threadUnread: "devbox:v1:thread:unread",
   threadDelete: "devbox:v1:thread:delete",
   attachmentSelect: "devbox:v1:attachment:select",
   attachmentListDraft: "devbox:v1:attachment:list-draft",
@@ -61,7 +67,9 @@ const CHANNELS = Object.freeze({
 
 const bridge: DevBoxBridge = Object.freeze({
   bootstrap: async () => await ipcRenderer.invoke(CHANNELS.bootstrap),
+  inspectCapabilities: async () => await ipcRenderer.invoke(CHANNELS.capabilityInspect),
   openProject: async () => await ipcRenderer.invoke(CHANNELS.projectOpen),
+  revealProject: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.projectReveal, { projectId }),
   readProjectTree: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.projectTree, { projectId }),
   readFile: async (projectId: string, relativePath: string) => await ipcRenderer.invoke(CHANNELS.fileRead, { projectId, relativePath }),
   writeFile: async (projectId: string, relativePath: string, expectedSha256: string, content: string) => await ipcRenderer.invoke(CHANNELS.fileWrite, { projectId, relativePath, expectedSha256, content }),
@@ -78,9 +86,17 @@ const bridge: DevBoxBridge = Object.freeze({
   createThread: async (projectId: string, title = "Yeni görev") => await ipcRenderer.invoke(CHANNELS.threadCreate, { projectId, title }),
   getThread: async (threadId: string) => await ipcRenderer.invoke(CHANNELS.threadGet, { threadId }),
   sendMessage: async (threadId: string, content: string, attachmentIds: string[] = []) => await ipcRenderer.invoke(CHANNELS.threadMessage, { threadId, content, attachmentIds }),
+  onThreadActivity: (listener: Parameters<DevBoxBridge["onThreadActivity"]>[0]) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown): void => listener(payload as Parameters<typeof listener>[0]);
+    ipcRenderer.on(CHANNELS.threadActivity, handler);
+    return () => ipcRenderer.removeListener(CHANNELS.threadActivity, handler);
+  },
   updateMessage: async (threadId: string, itemId: string, content: string) => await ipcRenderer.invoke(CHANNELS.threadMessageUpdate, { threadId, itemId, content }),
   regenerateMessage: async (threadId: string, itemId: string) => await ipcRenderer.invoke(CHANNELS.threadMessageRegenerate, { threadId, itemId }),
   renameThread: async (threadId: string, title: string) => await ipcRenderer.invoke(CHANNELS.threadRename, { threadId, title }),
+  setThreadPinned: async (threadId: string, value: boolean) => await ipcRenderer.invoke(CHANNELS.threadPin, { threadId, value }),
+  setThreadArchived: async (threadId: string, value: boolean) => await ipcRenderer.invoke(CHANNELS.threadArchive, { threadId, value }),
+  setThreadUnread: async (threadId: string, value: boolean) => await ipcRenderer.invoke(CHANNELS.threadUnread, { threadId, value }),
   deleteThread: async (threadId: string) => await ipcRenderer.invoke(CHANNELS.threadDelete, { threadId }),
   selectAttachments: async (threadId: string) => await ipcRenderer.invoke(CHANNELS.attachmentSelect, { threadId }),
   listDraftAttachments: async (threadId: string) => await ipcRenderer.invoke(CHANNELS.attachmentListDraft, { threadId }),
@@ -89,7 +105,7 @@ const bridge: DevBoxBridge = Object.freeze({
     return await ipcRenderer.invoke(CHANNELS.attachmentImport, { threadId, filePaths });
   },
   removeAttachment: async (threadId: string, attachmentId: string) => await ipcRenderer.invoke(CHANNELS.attachmentRemove, { threadId, attachmentId }),
-  showContextMenu: async (kind: "editable" | "selection" | "file" | "directory" | "thread" | "terminal" | "blank", hasSelection = false, canPaste = false) => await ipcRenderer.invoke(CHANNELS.contextMenu, { kind, hasSelection, canPaste }),
+  showContextMenu: async (kind: "editable" | "selection" | "file" | "directory" | "terminal" | "blank", hasSelection = false, canPaste = false) => await ipcRenderer.invoke(CHANNELS.contextMenu, { kind, hasSelection, canPaste }),
   showAppMenu: async (menu: "file" | "edit" | "view" | "help") => await ipcRenderer.invoke(CHANNELS.appMenu, { menu }),
   copyText: async (text: string) => await ipcRenderer.invoke(CHANNELS.textCopy, { text }),
   getSettings: async () => await ipcRenderer.invoke(CHANNELS.settingsGet),

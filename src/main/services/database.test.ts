@@ -30,7 +30,7 @@ describe("state database", () => {
 
     database.upsertProject({ id: "project-12345678", name: "sample", rootPath: directory, isGitRepository: true, createdAt: now, updatedAt: now });
 
-    expect(database.integrityCheck()).toEqual({ ok: true, detail: "ok", schemaVersion: 3 });
+    expect(database.integrityCheck()).toEqual({ ok: true, detail: "ok", schemaVersion: 4 });
     expect(database.listProjects()).toHaveLength(1);
     expect(database.getProject("project-12345678")).toMatchObject({ name: "sample", rootPath: directory, isGitRepository: true });
     expect(database.listThreads()).toEqual([]);
@@ -47,6 +47,10 @@ describe("state database", () => {
     expect(regenerated.items[1]?.content).toBe("Yeni doğrulanmış yanıt");
     expect(database.listThreads("project-12345678")).toHaveLength(1);
     expect(database.renameThread(thread.thread.id, "Kalıcı görev").title).toBe("Kalıcı görev");
+    expect(database.setThreadFlag(thread.thread.id, "pinned", true)).toMatchObject({ pinned: true, archived: false, unread: false });
+    expect(database.setThreadFlag(thread.thread.id, "unread", true)).toMatchObject({ pinned: true, archived: false, unread: true });
+    expect(database.setThreadFlag(thread.thread.id, "archived", true)).toMatchObject({ pinned: true, archived: true, unread: true });
+    expect(database.listThreads("project-12345678")[0]).toMatchObject({ pinned: true, archived: true, unread: true });
     const automation = database.createAutomation({
       projectId: "project-12345678",
       name: "Sabah kontrolü",

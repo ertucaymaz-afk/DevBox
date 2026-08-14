@@ -10,6 +10,9 @@ The current `0.1.x` line is a functional preview, not a declaration that every l
 
 - an Electron/React Windows desktop shell with a conversation-first layout;
 - real local project selection, bounded file access, Git status/diff, editable messages, clipboard/context-menu actions, and file drag-and-drop;
+- an application-native conversation menu with pin, rename, archive, unread, project reveal, path/session copy, deep-link copy, and permanent-delete actions;
+- persisted, provider-backed activity events that show real command/provider/evidence progress without fabricating or exposing private chain-of-thought;
+- a live Git change capsule backed by `git status` and `git diff --numstat`, including per-file additions/deletions and honest unknown/binary states;
 - file attachments up to 300 MiB each, stored locally with SHA-256 identity and no archive execution;
 - a real `node-pty`/ConPTY interactive terminal path;
 - a loopback-only, bearer-authenticated DevBox v1 HTTP API;
@@ -49,13 +52,13 @@ pnpm release:verify
 
 ## Privacy and security
 
-DevBox has no product analytics or advertising telemetry. Local project data, conversations, settings, attachments, and evidence remain on the machine unless a user explicitly invokes an external provider or integration. Provider and integration behavior is documented in [PRIVACY.md](PRIVACY.md). Vulnerability reporting and supported security controls are documented in [SECURITY.md](SECURITY.md).
+DevBox has no product analytics or advertising telemetry. **This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.** Local project data, conversations, settings, attachments, and evidence remain on the machine unless a user explicitly invokes an external provider or integration. Provider and integration behavior, including the policies of optional NVIDIA, OpenAI/Codex, GitHub and Vercel services, is documented in [PRIVACY.md](PRIVACY.md). Vulnerability reporting and supported security controls are documented in [SECURITY.md](SECURITY.md).
 
 ## Code signing policy
 
 Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
-DevBox is applying to the SignPath Foundation open-source program. Until the application is approved and the repository is connected to the SignPath trust root, release metadata will continue to state `NOT_SIGNED`. After onboarding, only artifacts built from this public repository by the protected GitHub Actions release workflow, submitted through the official SignPath integration, and approved under the release signing policy will be distributed as signed DevBox releases.
+DevBox has prepared its SignPath Foundation open-source application and is publishing the unsigned release required for eligibility. An application or certificate is not represented as approved until SignPath provides external confirmation. Until approval and repository onboarding are complete, release metadata will continue to state `NOT_SIGNED`. After onboarding, only artifacts built from this public repository by the protected GitHub Actions release workflow, submitted through the official SignPath integration, and approved under the release signing policy will be distributed as signed DevBox releases.
 
 Project roles:
 

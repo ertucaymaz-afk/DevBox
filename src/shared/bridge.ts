@@ -3,6 +3,7 @@ import type {
   AttachmentImportResult,
   AppSettings,
   Bootstrap,
+  Capability,
   CommandResult,
   EvolutionCampaign,
   FileSnapshot,
@@ -14,6 +15,7 @@ import type {
   ProjectTreeNode,
   SettingsPatchInput,
   ThreadDetail,
+  ThreadActivityEvent,
   ThreadSummary,
   TaskPreset
   ,TerminalEvent
@@ -23,7 +25,9 @@ import type {
 
 export interface DevBoxBridge {
   bootstrap(): Promise<Bootstrap>;
+  inspectCapabilities(): Promise<Capability[]>;
   openProject(): Promise<ProjectSummary | null>;
+  revealProject(projectId: string): Promise<void>;
   readProjectTree(projectId: string): Promise<ProjectTreeNode[]>;
   readFile(projectId: string, relativePath: string): Promise<FileSnapshot>;
   writeFile(projectId: string, relativePath: string, expectedSha256: string, content: string): Promise<FileSnapshot>;
@@ -40,15 +44,23 @@ export interface DevBoxBridge {
   createThread(projectId: string, title?: string): Promise<ThreadDetail>;
   getThread(threadId: string): Promise<ThreadDetail>;
   sendMessage(threadId: string, content: string, attachmentIds?: string[]): Promise<ThreadDetail>;
+  onThreadActivity(listener: (event: ThreadActivityEvent) => void): () => void;
   updateMessage(threadId: string, itemId: string, content: string): Promise<ThreadDetail>;
   regenerateMessage(threadId: string, itemId: string): Promise<ThreadDetail>;
   renameThread(threadId: string, title: string): Promise<ThreadSummary>;
+  setThreadPinned(threadId: string, value: boolean): Promise<ThreadSummary>;
+  setThreadArchived(threadId: string, value: boolean): Promise<ThreadSummary>;
+  setThreadUnread(threadId: string, value: boolean): Promise<ThreadSummary>;
   deleteThread(threadId: string): Promise<boolean>;
   selectAttachments(threadId: string): Promise<AttachmentImportResult>;
   listDraftAttachments(threadId: string): Promise<Attachment[]>;
   importDroppedAttachments(threadId: string, files: readonly File[]): Promise<AttachmentImportResult>;
   removeAttachment(threadId: string, attachmentId: string): Promise<void>;
-  showContextMenu(kind: "editable" | "selection" | "file" | "directory" | "thread" | "terminal" | "blank", hasSelection?: boolean, canPaste?: boolean): Promise<string | null>;
+  showContextMenu(
+    kind: "editable" | "selection" | "file" | "directory" | "terminal" | "blank",
+    hasSelection?: boolean,
+    canPaste?: boolean
+  ): Promise<string | null>;
   showAppMenu(menu: "file" | "edit" | "view" | "help"): Promise<string | null>;
   copyText(text: string): Promise<void>;
   getSettings(): Promise<AppSettings>;

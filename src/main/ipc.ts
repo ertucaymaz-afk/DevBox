@@ -10,6 +10,7 @@ import {
   AttachmentSchema,
   AttachmentRemoveInputSchema,
   BootstrapSchema,
+  CapabilitySchema,
   CommandResultSchema,
   ContextMenuInputSchema,
   EvolutionCampaignSchema,
@@ -42,7 +43,9 @@ import {
   TerminalWriteInputSchema,
   ThemeImportInputSchema,
   ThreadCreateInputSchema,
+  ThreadActivityEventSchema,
   ThreadDetailSchema,
+  ThreadFlagInputSchema,
   ThreadIdInputSchema,
   ThreadItemInputSchema,
   ThreadItemUpdateInputSchema,
@@ -194,9 +197,15 @@ export function registerIpcHandlers(services: IpcServices): () => void {
       },
       core: { state: "READY" as const, origin: services.coreApi.origin, apiVersion: "v1" as const },
       projects: services.projects.list(),
-      capabilities: await services.capabilities.inspect(services.probeCwd)
+      // Live provider probes can take seconds or wait on the network. They are
+      // intentionally decoupled from the local shell bootstrap below.
+      capabilities: []
     };
     return BootstrapSchema.parse(bootstrap);
+  });
+
+  registerHandler(IPC_CHANNELS.capabilityInspect, services.rendererWebContentsId, async () => {
+    return CapabilitySchema.array().parse(await services.capabilities.inspect(services.probeCwd));
   });
 
   registerHandler(IPC_CHANNELS.projectOpen, services.rendererWebContentsId, async () => {
@@ -207,6 +216,11 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     });
     if (result.canceled || !result.filePaths[0]) return null;
     return ProjectSummarySchema.parse(await services.projects.open(result.filePaths[0]));
+  });
+
+  registerHandler(IPC_CHANNELS.projectReveal, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ProjectIdInputSchema.parse(unknownInput);
+    services.projects.revealProject(input.projectId);
   });
 
   registerHandler(IPC_CHANNELS.projectTree, services.rendererWebContentsId, async (unknownInput) => {
@@ -306,13 +320,20 @@ export function registerIpcHandlers(services: IpcServices): () => void {
   registerHandler(IPC_CHANNELS.threadMessage, services.rendererWebContentsId, async (unknownInput, event) => {
     const input = ThreadMessageInputSchema.parse(unknownInput);
     const current = services.database.getThread(input.threadId);
+    const activities: Array<{ message: string; createdAt: string }> = [];
+    const publishActivity = (activity: { kind: "provider" | "command" | "evidence" | "failure"; message: string; createdAt: string }): void => {
+      const payload = ThreadActivityEventSchema.parse({ threadId: input.threadId, ...activity });
+      activities.push({ message: payload.message, createdAt: payload.createdAt });
+      if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadActivity, payload);
+    };
     await enforcePermissionPolicy(event, services, { title: "NVIDIA ajan isteği", message: "Bu görev Hermes üzerinden NVIDIA NIM sağlayıcısına gönderilsin mi?", detail: "DevBox, son görev metnini ve sınırlandırılmış sohbet bağlamını gönderir; ortam gizli değerini renderer'a taşımaz.", risky: false });
     const attachmentContext = await services.attachments.buildAgentContext(input.threadId, input.attachmentIds);
     const agentPrompt = `${input.content || "Ekli dosyaları incele."}${attachmentContext}`;
-    const assistantContent = await services.agent.respond(agentPrompt, services.projects.get(current.thread.projectId).rootPath, current.items)
+    const assistantContent = await services.agent.respond(agentPrompt, services.projects.get(current.thread.projectId).rootPath, current.items, publishActivity)
       .then((response) => response.content)
       .catch((error: unknown) => {
         const code = error instanceof Error ? error.message : "AGENT_UNKNOWN_FAILURE";
+        publishActivity({ kind: "failure", message: `Ajan çalıştırması başarısız oldu · ${code}.`, createdAt: new Date().toISOString() });
         const remediation = code === "NVIDIA_CREDENTIAL_UNAVAILABLE"
           ? "Windows ortamına NVIDIA_API_KEY ekleyip DevBox'ı yeniden başlatın."
           : code === "HERMES_EXECUTION_FAILED"
@@ -320,7 +341,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
             : "Hermes yanıtı güvenli biçimde doğrulanıp ayrıştırılamadı. Ham çıktı, iç muhakeme ve sistem istemi güvenlik gereği gösterilmedi.";
         return `Ajan yanıtı üretilemedi (**${code}**). ${remediation}`;
       });
-    return ThreadDetailSchema.parse(services.database.appendMessage(input.threadId, input.content, assistantContent, input.attachmentIds));
+    return ThreadDetailSchema.parse(services.database.appendMessage(input.threadId, input.content, assistantContent, input.attachmentIds, activities));
   });
 
   registerHandler(IPC_CHANNELS.threadMessageUpdate, services.rendererWebContentsId, async (unknownInput) => {
@@ -349,20 +370,23 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     return ThreadSummarySchema.parse(services.database.renameThread(input.threadId, input.title));
   });
 
-  registerHandler(IPC_CHANNELS.threadDelete, services.rendererWebContentsId, async (unknownInput, event) => {
+  registerHandler(IPC_CHANNELS.threadPin, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThreadFlagInputSchema.parse(unknownInput);
+    return ThreadSummarySchema.parse(services.database.setThreadFlag(input.threadId, "pinned", input.value));
+  });
+
+  registerHandler(IPC_CHANNELS.threadArchive, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThreadFlagInputSchema.parse(unknownInput);
+    return ThreadSummarySchema.parse(services.database.setThreadFlag(input.threadId, "archived", input.value));
+  });
+
+  registerHandler(IPC_CHANNELS.threadUnread, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThreadFlagInputSchema.parse(unknownInput);
+    return ThreadSummarySchema.parse(services.database.setThreadFlag(input.threadId, "unread", input.value));
+  });
+
+  registerHandler(IPC_CHANNELS.threadDelete, services.rendererWebContentsId, async (unknownInput) => {
     const input = ThreadIdInputSchema.parse(unknownInput);
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (!window) throw new Error("WINDOW_NOT_FOUND");
-    const confirmation = await dialog.showMessageBox(window, {
-      type: "warning",
-      title: "DevBox — Görevi sil",
-      message: "Bu görev ve tüm yerel mesaj geçmişi silinsin mi?",
-      buttons: ["Vazgeç", "Sil"],
-      defaultId: 0,
-      cancelId: 0,
-      noLink: true
-    });
-    if (confirmation.response !== 1) return false;
     services.database.deleteThread(input.threadId);
     await services.attachments.purgeThreadFiles(input.threadId);
     return true;
@@ -414,7 +438,6 @@ export function registerIpcHandlers(services: IpcServices): () => void {
       selection: [{ id: "copySelection", label: "Seçileni kopyala", accelerator: "Ctrl+C", enabled: input.hasSelection }],
       file: [{ id: "open", label: "Aç" }, separator, { id: "copy", label: "Kopyala" }, { id: "copyPath", label: "Yolu kopyala" }, { id: "copyRelativePath", label: "Göreli yolu kopyala" }, separator, { id: "rename", label: "Yeniden adlandır", accelerator: "F2" }, { id: "duplicate", label: "Çoğalt" }, { id: "reveal", label: "Dosya Gezgini'nde göster" }, separator, { id: "trash", label: "Geri Dönüşüm Kutusu'na taşı" }],
       directory: [{ id: "newFile", label: "Yeni dosya" }, { id: "newDirectory", label: "Yeni klasör" }, separator, { id: "copyPath", label: "Yolu kopyala" }, { id: "copyRelativePath", label: "Göreli yolu kopyala" }, { id: "reveal", label: "Dosya Gezgini'nde göster" }, separator, { id: "rename", label: "Yeniden adlandır", accelerator: "F2" }, { id: "duplicate", label: "Çoğalt" }, { id: "trash", label: "Geri Dönüşüm Kutusu'na taşı" }],
-      thread: [{ id: "rename", label: "Yeniden adlandır" }, { id: "copyTitle", label: "Başlığı kopyala" }, separator, { id: "delete", label: "Görevi sil" }],
       terminal: [{ id: "copyOutput", label: "Çıktıyı kopyala", enabled: input.hasSelection }, { label: "Tümünü seç", role: "selectAll", accelerator: "Ctrl+A" }, separator, { id: "clear", label: "Çıktıyı temizle" }],
       blank: [{ id: "newTask", label: "Yeni görev" }, { id: "openProject", label: "Proje klasörü aç" }, separator, { label: "Yapıştır", role: "paste", enabled: input.canPaste }]
     };

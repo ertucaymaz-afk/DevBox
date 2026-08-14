@@ -1,6 +1,7 @@
 import {
   Activity,
   AlertTriangle,
+  Archive,
   ArrowLeft,
   ArrowRight,
   Box,
@@ -30,6 +31,7 @@ import {
   Paperclip,
   PanelRight,
   Pencil,
+  Pin,
   Play,
   Plug,
   Plus,
@@ -65,6 +67,7 @@ import type {
   ProjectTreeNode,
   TaskPreset,
   ThreadDetail,
+  ThreadActivityEvent,
   ThreadItem,
   ThreadSummary,
   AppSettings,
@@ -87,6 +90,15 @@ type PromptState = {
   confirmLabel: string;
   onConfirm: (value: string) => Promise<void>;
 };
+type ConfirmState = {
+  title: string;
+  message: string;
+  detail: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<void>;
+};
+type ThreadMenuAction = "pin" | "rename" | "archive" | "unread" | "revealProject" | "copyWorkingDirectory" | "copySessionId" | "copyTitle" | "delete";
+type ThreadMenuState = { summary: ThreadSummary; x: number; y: number };
 
 const TASKS: readonly { id: TaskPreset; label: string; detail: string; icon: ReactNode }[] = [
   { id: "git-status", label: "Git durumu", detail: "Makine-okunur çalışma ağacı özeti", icon: <GitBranch size={16} /> },
@@ -167,6 +179,22 @@ function DevBoxWordmark(): ReactNode {
   );
 }
 
+function LaunchIntro({ ready, reducedMotion, onSkip, onNever }: { ready: boolean; reducedMotion: boolean; onSkip: () => void; onNever: () => void }): ReactNode {
+  return (
+    <div className={`launch-intro ${ready ? "ready" : ""} ${reducedMotion ? "reduced-motion" : ""}`} role="status" aria-live="polite">
+      <div className="launch-ambient" aria-hidden="true"><i /><i /><i /></div>
+      <div className="launch-content">
+        <div className="launch-brand"><DevBoxWordmark /></div>
+        <p className="launch-kicker">AUTONOMOUS ENGINEERING DESKTOP</p>
+        <h1>Fikri, çalışan yazılıma dönüştürün.</h1>
+        <p className="launch-copy">Yerel projeleriniz, görevleriniz ve mühendislik araçlarınız tek, kalıcı çalışma alanında.</p>
+        <div className="launch-state"><span aria-hidden="true" /><strong>{ready ? "Yerel çalışma alanı hazır" : "Yerel çalışma alanı hazırlanıyor"}</strong></div>
+      </div>
+      <div className="launch-actions"><button onClick={onNever}>Bir daha gösterme</button><button className="primary" onClick={onSkip}>DevBox’ı aç</button></div>
+    </div>
+  );
+}
+
 function InlineMarkdown({ text }: { text: string }): ReactNode {
   const pieces = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/gu);
   return pieces.map((piece, index) => {
@@ -223,6 +251,54 @@ function PromptDialog({ prompt, onClose }: { prompt: PromptState; onClose: () =>
         <div className="dialog-heading"><div><strong id="prompt-title">{prompt.title}</strong><span>{prompt.label}</span></div><button onClick={onClose} aria-label="Pencereyi kapat"><X size={16} /></button></div>
         <input autoFocus value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void submit(); if (event.key === "Escape") onClose(); }} onContextMenu={(event) => { event.preventDefault(); void window.devbox.showContextMenu("editable", window.getSelection()?.toString().length !== 0, true); }} />
         <div className="dialog-actions"><button onClick={onClose}>Vazgeç</button><button className="primary" disabled={!value.trim() || busy} onClick={() => void submit()}>{busy && <LoaderCircle className="spin" size={14} />}{prompt.confirmLabel}</button></div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDialog({ confirmation, onClose }: { confirmation: ConfirmState; onClose: () => void }): ReactNode {
+  const [busy, setBusy] = useState(false);
+  const confirm = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await confirmation.onConfirm();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose} onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}>
+      <div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-detail" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="confirm-icon" aria-hidden="true"><AlertTriangle size={21} /></div>
+        <div className="confirm-copy"><strong id="confirm-title">{confirmation.title}</strong><p>{confirmation.message}</p><small id="confirm-detail">{confirmation.detail}</small></div>
+        <button className="dialog-close" onClick={onClose} aria-label="Onay penceresini kapat"><X size={16} /></button>
+        <div className="dialog-actions"><button autoFocus disabled={busy} onClick={onClose}>Vazgeç</button><button className="danger" disabled={busy} onClick={() => void confirm()}>{busy ? <LoaderCircle className="spin" size={14} /> : <Trash2 size={14} />}{confirmation.confirmLabel}</button></div>
+      </div>
+    </div>
+  );
+}
+
+function ThreadContextMenu({ menu, hasProject, onAction, onClose }: { menu: ThreadMenuState; hasProject: boolean; onAction: (action: ThreadMenuAction) => Promise<void>; onClose: () => void }): ReactNode {
+  const run = (action: ThreadMenuAction): void => {
+    onClose();
+    void onAction(action);
+  };
+  return (
+    <div className="thread-menu-layer" role="presentation" onMouseDown={onClose}>
+      <div className="thread-context-menu" role="menu" aria-label={`${menu.summary.title} sohbet eylemleri`} style={{ left: menu.x, top: menu.y }} onMouseDown={(event) => event.stopPropagation()}>
+        <button autoFocus role="menuitem" onClick={() => run("pin")}><Pin size={14} /><span>{menu.summary.pinned ? "Sohbetin sabitlemesini kaldır" : "Sohbeti sabitle"}</span></button>
+        <button role="menuitem" onClick={() => run("rename")}><Pencil size={14} /><span>Sohbeti yeniden adlandır</span></button>
+        <button role="menuitem" onClick={() => run("archive")}><Archive size={14} /><span>{menu.summary.archived ? "Sohbeti arşivden çıkar" : "Sohbeti arşivle"}</span></button>
+        <button role="menuitem" onClick={() => run("unread")}><CircleDot size={14} /><span>{menu.summary.unread ? "Okundu olarak işaretle" : "Okunmadı olarak işaretle"}</span></button>
+        <div className="menu-separator" role="separator" />
+        <button role="menuitem" disabled={!hasProject} onClick={() => run("revealProject")}><FolderOpen size={14} /><span>Dosya Gezgini’nde aç</span></button>
+        <button role="menuitem" disabled={!hasProject} onClick={() => run("copyWorkingDirectory")}><Copy size={14} /><span>Çalışma dizinini kopyala</span></button>
+        <button role="menuitem" onClick={() => run("copySessionId")}><Copy size={14} /><span>Oturum kimliğini kopyala</span></button>
+        <button role="menuitem" onClick={() => run("copyTitle")}><Copy size={14} /><span>Sohbet başlığını kopyala</span></button>
+        <div className="menu-separator" role="separator" />
+        <button className="danger" role="menuitem" onClick={() => run("delete")}><Trash2 size={14} /><span>Sohbeti kalıcı olarak sil</span></button>
       </div>
     </div>
   );
@@ -291,7 +367,7 @@ function Message({ item, busy, onEdit, onRegenerate, onCopy, onQuote }: {
       // The pressed state still reflects the current session if persistent storage is unavailable.
     }
   };
-  if (item.role === "activity") return <div className="activity-line"><LoaderCircle size={13} /><span>{item.content}</span></div>;
+  if (item.role === "activity") return <div className="activity-line completed"><CheckCircle2 size={13} /><span>{item.content}</span><time title={exactDateTime(item.createdAt)}>{new Date(item.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time></div>;
   return (
     <article className={`message ${item.role}`} onContextMenu={(event) => {
       event.preventDefault();
@@ -316,6 +392,17 @@ function Message({ item, busy, onEdit, onRegenerate, onCopy, onQuote }: {
       </div>
     </article>
   );
+}
+
+function LiveActivity({ event }: { event: ThreadActivityEvent }): ReactNode {
+  const icon = event.kind === "command"
+    ? <SquareTerminal size={13} />
+    : event.kind === "evidence"
+      ? <CheckCircle2 size={13} />
+      : event.kind === "failure"
+        ? <XCircle size={13} />
+        : <LoaderCircle className="spin" size={13} />;
+  return <div className={`activity-line live ${event.kind}`} aria-live="polite">{icon}<span>{event.message}</span><time title={exactDateTime(event.createdAt)}>{new Date(event.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time></div>;
 }
 
 export function App(): ReactNode {
@@ -343,11 +430,19 @@ export function App(): ReactNode {
   const [notice, setNotice] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [prompt, setPrompt] = useState<PromptState | null>(null);
+  const [confirmation, setConfirmation] = useState<ConfirmState | null>(null);
+  const [threadMenu, setThreadMenu] = useState<ThreadMenuState | null>(null);
+  const [settingsResolved, setSettingsResolved] = useState(false);
+  const [introVisible, setIntroVisible] = useState(false);
+  const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
+  const [liveActivities, setLiveActivities] = useState<ThreadActivityEvent[]>([]);
+  const [changeSummaryOpen, setChangeSummaryOpen] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const terminalRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
+  const introStartedAt = useRef(0);
 
   const updateThreads = useCallback(async (): Promise<ThreadSummary[]> => {
     const next = await window.devbox.listThreads();
@@ -378,10 +473,14 @@ export function App(): ReactNode {
     setBusy("thread");
     try {
       const detail = await window.devbox.getThread(threadId);
-      setThread(detail);
+      const opened = detail.thread.unread
+        ? { ...detail, thread: await window.devbox.setThreadUnread(threadId, false) }
+        : detail;
+      setThread(opened);
+      if (detail.thread.unread) setThreads((current) => current.map((item) => item.id === threadId ? opened.thread : item));
       setDraftAttachments(await window.devbox.listDraftAttachments(threadId));
       setView("thread");
-      const project = bootstrap?.projects.find((item) => item.id === detail.thread.projectId);
+      const project = bootstrap?.projects.find((item) => item.id === opened.thread.projectId);
       if (project && selectedProject?.id !== project.id) await loadProject(project);
       if (pushHistory) {
         setHistory((current) => {
@@ -404,13 +503,23 @@ export function App(): ReactNode {
     let active = true;
     void (async () => {
       try {
-        const boot = await window.devbox.bootstrap();
+        const [boot, loadedSettings] = await Promise.all([window.devbox.bootstrap(), window.devbox.getSettings()]);
         if (!active) return;
         setBootstrap(boot);
-        const loadedSettings = await window.devbox.getSettings();
-        if (!active) return;
         setAppSettings(loadedSettings);
         setPermission(loadedSettings.permissionProfile);
+        const shouldShowIntro = loadedSettings.launchIntroMode === "always"
+          || (loadedSettings.launchIntroMode === "once" && !loadedSettings.launchIntroSeen);
+        if (shouldShowIntro) introStartedAt.current = Date.now();
+        setIntroVisible(shouldShowIntro);
+        setSettingsResolved(true);
+        void window.devbox.inspectCapabilities().then((capabilities) => {
+          if (active) setBootstrap((current) => current ? { ...current, capabilities } : current);
+        }).catch((error) => {
+          if (active) setNotice(`Sistem kabiliyetleri denetlenemedi: ${errorMessage(error)}`);
+        }).finally(() => {
+          if (active) setCapabilitiesLoading(false);
+        });
         // DevBox has one task flow. Project tools open from the same task shell;
         // there is no separate Chat/Work product mode.
         setView("thread");
@@ -419,8 +528,9 @@ export function App(): ReactNode {
         setThreads(nextThreads);
         const firstProject = boot.projects[0] ?? null;
         if (firstProject) await loadProject(firstProject);
-        if (nextThreads[0]) {
-          const detail = await window.devbox.getThread(nextThreads[0].id);
+        const initialThread = nextThreads.find((item) => !item.archived);
+        if (initialThread) {
+          const detail = await window.devbox.getThread(initialThread.id);
           if (active) {
             setThread(detail);
             setDraftAttachments(await window.devbox.listDraftAttachments(detail.thread.id));
@@ -429,13 +539,40 @@ export function App(): ReactNode {
           }
         }
       } catch (error) {
-        if (active) setNotice(errorMessage(error));
+        if (active) {
+          setSettingsResolved(true);
+          setCapabilitiesLoading(false);
+          setNotice(errorMessage(error));
+        }
       } finally {
         if (active) setBusy(null);
       }
     })();
     return () => { active = false; };
   }, [loadProject]);
+
+  const dismissIntro = useCallback(async (neverAgain = false): Promise<void> => {
+    setIntroVisible(false);
+    if (!appSettings) return;
+    const patch = neverAgain
+      ? { launchIntroMode: "never" as const, launchIntroSeen: true }
+      : appSettings.launchIntroMode === "once" && !appSettings.launchIntroSeen
+        ? { launchIntroSeen: true }
+        : null;
+    if (!patch) return;
+    try {
+      setAppSettings(await window.devbox.patchSettings(patch));
+    } catch (error) {
+      setNotice(`Başlangıç tercihi kaydedilemedi: ${errorMessage(error)}`);
+    }
+  }, [appSettings]);
+
+  useEffect(() => {
+    if (!introVisible || !bootstrap) return;
+    const remaining = Math.max(0, 2_100 - (Date.now() - introStartedAt.current));
+    const timer = window.setTimeout(() => { void dismissIntro(false); }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [bootstrap, dismissIntro, introVisible]);
 
   const chooseProject = useCallback(async (): Promise<ProjectSummary | null> => {
     setBusy("open-project");
@@ -483,6 +620,7 @@ export function App(): ReactNode {
     const activeThread = thread ?? await createThread();
     if (!activeThread) return;
     setComposer("");
+    setLiveActivities((current) => current.filter((activity) => activity.threadId !== activeThread.thread.id));
     setBusy("message");
     try {
       const detail = await window.devbox.sendMessage(activeThread.thread.id, content, draftAttachments.map((attachment) => attachment.id));
@@ -496,9 +634,31 @@ export function App(): ReactNode {
       setComposer(content);
       setNotice(errorMessage(error));
     } finally {
+      setLiveActivities((current) => current.filter((activity) => activity.threadId !== activeThread.thread.id));
       setBusy(null);
     }
   }, [composer, createThread, draftAttachments, thread, updateThreads]);
+
+  useEffect(() => window.devbox.onThreadActivity((activity) => {
+    setLiveActivities((current) => [...current, activity].slice(-80));
+    requestAnimationFrame(() => {
+      if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+    });
+  }), []);
+
+  useEffect(() => {
+    if (!selectedProject?.isGitRepository) return;
+    let active = true;
+    const refresh = (): void => {
+      void window.devbox.getGitStatus(selectedProject.id).then((status) => {
+        if (active) setGitStatus(status);
+      }).catch(() => {
+        // The explicit Git view exposes command errors; passive polling stays unobtrusive.
+      });
+    };
+    const timer = window.setInterval(refresh, 5_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [selectedProject]);
 
   const applyAttachmentResult = useCallback((result: Awaited<ReturnType<typeof window.devbox.selectAttachments>>): void => {
     if (result.attachments.length > 0) {
@@ -696,26 +856,59 @@ export function App(): ReactNode {
     }
   }, [file?.relativePath, openFile, selectedProject]);
 
-  const deleteThread = useCallback(async (summary: ThreadSummary): Promise<void> => {
+  const performDeleteThread = useCallback(async (summary: ThreadSummary): Promise<void> => {
     try {
       const deleted = await window.devbox.deleteThread(summary.id);
       if (!deleted) return;
       const wasOpen = thread?.thread.id === summary.id;
       const next = await updateThreads();
       if (wasOpen) setThread(null);
-      if (next[0] && wasOpen) await openThread(next[0].id);
+      const nextActive = next.find((item) => !item.archived);
+      if (nextActive && wasOpen) await openThread(nextActive.id);
       setNotice(`“${summary.title}” görevi ve yerel geçmişi silindi.`);
     } catch (error) {
       setNotice(errorMessage(error));
     }
   }, [openThread, thread?.thread.id, updateThreads]);
 
-  const threadContext = useCallback(async (summary: ThreadSummary): Promise<void> => {
-    const action = await window.devbox.showContextMenu("thread");
-    if (action === "copyTitle") await window.devbox.copyText(summary.title);
-    if (action === "rename") setPrompt({ title: "Görevi yeniden adlandır", label: "Başlık", value: summary.title, confirmLabel: "Kaydet", onConfirm: async (value) => { const renamed = await window.devbox.renameThread(summary.id, value); setThreads((current) => current.map((item) => item.id === renamed.id ? renamed : item)); setThread((current) => current?.thread.id === renamed.id ? { ...current, thread: renamed } : current); } });
-    if (action === "delete") await deleteThread(summary);
-  }, [deleteThread]);
+  const requestDeleteThread = useCallback((summary: ThreadSummary): void => {
+    setConfirmation({
+      title: "Sohbeti kalıcı olarak sil",
+      message: `“${summary.title}” silinsin mi?`,
+      detail: "Bu işlem sohbeti, mesaj geçmişini ve bu sohbete alınmış yerel ek dosya kopyalarını kalıcı olarak kaldırır. Geri alınamaz.",
+      confirmLabel: "Kalıcı olarak sil",
+      onConfirm: async () => await performDeleteThread(summary)
+    });
+  }, [performDeleteThread]);
+
+  const executeThreadAction = useCallback(async (summary: ThreadSummary, action: ThreadMenuAction): Promise<void> => {
+    try {
+      const project = bootstrap?.projects.find((item) => item.id === summary.projectId);
+      const replaceSummary = (updated: ThreadSummary): void => {
+        setThreads((current) => current.map((item) => item.id === updated.id ? updated : item));
+        setThread((current) => current?.thread.id === updated.id ? { ...current, thread: updated } : current);
+      };
+      if (action === "copyTitle") await window.devbox.copyText(summary.title);
+      if (action === "copySessionId") await window.devbox.copyText(summary.id);
+      if (action === "copyWorkingDirectory" && project) await window.devbox.copyText(project.rootPath);
+      if (action === "revealProject" && project) await window.devbox.revealProject(project.id);
+      if (action === "pin") { replaceSummary(await window.devbox.setThreadPinned(summary.id, !summary.pinned)); await updateThreads(); }
+      if (action === "unread") replaceSummary(await window.devbox.setThreadUnread(summary.id, !summary.unread));
+      if (action === "archive") {
+        replaceSummary(await window.devbox.setThreadArchived(summary.id, !summary.archived));
+        const next = await updateThreads();
+        if (!summary.archived && thread?.thread.id === summary.id) {
+          setThread(null);
+          const nextActive = next.find((item) => !item.archived);
+          if (nextActive) await openThread(nextActive.id);
+        }
+      }
+      if (action === "rename") setPrompt({ title: "Sohbeti yeniden adlandır", label: "Başlık", value: summary.title, confirmLabel: "Kaydet", onConfirm: async (value) => { const renamed = await window.devbox.renameThread(summary.id, value); replaceSummary(renamed); } });
+      if (action === "delete") requestDeleteThread(summary);
+    } catch (error) {
+      setNotice(errorMessage(error));
+    }
+  }, [bootstrap?.projects, openThread, requestDeleteThread, thread?.thread.id, updateThreads]);
 
   const handleMenu = useCallback(async (menu: "file" | "edit" | "view" | "help"): Promise<void> => {
     const action = await window.devbox.showAppMenu(menu);
@@ -745,7 +938,7 @@ export function App(): ReactNode {
       else if (ctrl && event.key.toLocaleLowerCase("tr-TR") === "o") { event.preventDefault(); void chooseProject(); }
       else if (ctrl && event.key.toLocaleLowerCase("tr-TR") === "s") { event.preventDefault(); void saveFile(); }
       else if (ctrl && event.key === "`") { event.preventDefault(); selectedProject ? (setView("terminal"), setTerminalOpen(false)) : setTerminalOpen((value) => !value); }
-      else if (event.key === "Escape") { setPaletteOpen(false); setPrompt(null); setPermissionMenuOpen(false); }
+      else if (event.key === "Escape") { setPaletteOpen(false); setPrompt(null); setConfirmation(null); setPermissionMenuOpen(false); setThreadMenu(null); }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -767,6 +960,32 @@ export function App(): ReactNode {
   const vercelCli = capabilities.find((item) => item.id === "vercel-cli");
   const vercelAccount = capabilities.find((item) => item.id === "vercel-account");
   const dirty = file !== null && editorText !== file.content;
+  const activeThreads = threads.filter((item) => !item.archived);
+  const archivedThreads = threads.filter((item) => item.archived);
+  const gitTotals = useMemo(() => (gitStatus?.stats ?? []).reduce((totals, stat) => ({
+    additions: totals.additions + (stat.additions ?? 0),
+    deletions: totals.deletions + (stat.deletions ?? 0),
+    unknown: totals.unknown + (stat.additions === null || stat.deletions === null ? 1 : 0)
+  }), { additions: 0, deletions: 0, unknown: 0 }), [gitStatus?.stats]);
+  const renderThreadEntry = (summary: ThreadSummary): ReactNode => (
+    <div key={summary.id} className={`thread-entry ${thread?.thread.id === summary.id && view === "thread" ? "selected" : ""} ${summary.unread ? "unread" : ""}`} onContextMenu={(event) => {
+      event.preventDefault();
+      const width = 254;
+      const height = 366;
+      setThreadMenu({
+        summary,
+        x: Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8)),
+        y: Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8))
+      });
+    }}>
+      <button className="thread-row" onClick={() => void openThread(summary.id)} title={`${summary.title}\n${exactDateTime(summary.updatedAt)}`}>
+        <span className="thread-title">{summary.pinned && <Pin size={10} aria-label="Sabitlendi" />}<b>{summary.title}</b></span>
+        <time dateTime={summary.updatedAt}>{formatThreadTime(summary.updatedAt)}</time>
+        {summary.unread ? <i className="unread-dot" title="Okunmadı" /> : !["IDLE", "COMPLETED"].includes(summary.state) && <i className={stateClass(summary.state)} title={summary.state} />}
+      </button>
+      <button className="thread-delete" onClick={() => requestDeleteThread(summary)} aria-label={`${summary.title} görevini sil`} title="Sohbeti sil"><Trash2 size={13} /></button>
+    </div>
+  );
   const title = view === "thread" ? thread?.thread.title ?? "Yeni sohbet"
     : view === "files" ? file?.relativePath ?? selectedProject?.name ?? "Dosyalar"
       : view === "git" ? "Git ve değişiklikler"
@@ -779,7 +998,9 @@ export function App(): ReactNode {
                     : view === "integrations" ? "Eklentiler ve entegrasyonlar"
                       : "Ayarlar";
 
-  if (!bootstrap && busy === "bootstrap" && !notice) return <div className="boot-screen"><Box size={30} /><strong>DevBox</strong><span>Yerel çekirdek ve durum deposu doğrulanıyor…</span></div>;
+  if (!settingsResolved) return <div className="launch-blank" aria-label="DevBox başlatılıyor" />;
+  if (introVisible) return <LaunchIntro ready={Boolean(bootstrap)} reducedMotion={appSettings?.reduceMotion ?? false} onSkip={() => void dismissIntro(false)} onNever={() => void dismissIntro(true)} />;
+  if (!bootstrap) return <div className="boot-error" role="alert"><AlertTriangle size={24} /><strong>DevBox yerel çalışma alanını açamadı</strong><span>{notice ?? "Başlangıç verisi alınamadı."}</span></div>;
 
   return (
     <div style={themeStyle(appSettings)} className={`app-shell ${sidebarVisible ? "" : "sidebar-hidden"} ${inspectorVisible ? "inspector-visible" : ""} ${appSettings?.reduceMotion ? "reduced-motion" : ""} ${appSettings?.theme.contrast === "high" ? "high-contrast" : ""}`}>
@@ -799,9 +1020,10 @@ export function App(): ReactNode {
           </nav>
           <div className="sidebar-scroll">
             <section className="sidebar-section"><div className="section-label"><span>Projeler</span><button onClick={() => void chooseProject()} aria-label="Proje ekle"><Plus size={14} /></button></div>{bootstrap?.projects.length ? bootstrap.projects.map((project) => <button key={project.id} className={`project-row ${selectedProject?.id === project.id ? "selected" : ""}`} onClick={() => { void loadProject(project); setView("thread"); }} title={project.rootPath}><Folder size={15} /><span>{project.name}</span>{project.isGitRepository && <GitBranch size={12} />}</button>) : <p className="empty-label">Proje yok</p>}</section>
-            <section className="sidebar-section recent-section"><div className="section-label"><span>Yakın zamanlar</span></div>{threads.length ? threads.map((summary) => <div key={summary.id} className={`thread-entry ${thread?.thread.id === summary.id && view === "thread" ? "selected" : ""}`} onContextMenu={(event) => { event.preventDefault(); void threadContext(summary); }}><button className="thread-row" onClick={() => void openThread(summary.id)} title={`${summary.title}\n${exactDateTime(summary.updatedAt)}`}><span>{summary.title}</span><time dateTime={summary.updatedAt}>{formatThreadTime(summary.updatedAt)}</time>{!["IDLE", "COMPLETED"].includes(summary.state) && <i className={stateClass(summary.state)} title={summary.state} />}</button><button className="thread-delete" onClick={() => void deleteThread(summary)} aria-label={`${summary.title} görevini sil`} title="Görevi sil"><Trash2 size={13} /></button></div>) : <p className="empty-label">Henüz görev yok</p>}</section>
+            <section className="sidebar-section recent-section"><div className="section-label"><span>Yakın zamanlar</span></div>{activeThreads.length ? activeThreads.map(renderThreadEntry) : <p className="empty-label">Henüz görev yok</p>}</section>
+            {archivedThreads.length > 0 && <details className="archived-section"><summary><span><Archive size={12} />Arşivlenenler</span><b>{archivedThreads.length}</b></summary><div>{archivedThreads.map(renderThreadEntry)}</div></details>}
           </div>
-          <div className="account-row"><span className="account-avatar">DB</span><span><strong>Yerel kullanıcı</strong><small>{readyCount}/{capabilities.length} READY</small></span><button onClick={() => setView("settings")} aria-label="Ayarlar"><Settings size={15} /></button></div>
+          <div className="account-row"><span className="account-avatar">DB</span><span><strong>Yerel kullanıcı</strong><small>{capabilitiesLoading ? "Sistem denetleniyor…" : `${readyCount}/${capabilities.length} READY`}</small></span><button onClick={() => setView("settings")} aria-label="Ayarlar"><Settings size={15} /></button></div>
         </aside>}
 
         <main className="main-stage" onContextMenu={(event) => { if (event.target === event.currentTarget) { event.preventDefault(); void window.devbox.showContextMenu("blank", false, true).then((action) => { if (action === "newTask") void createThread(); if (action === "openProject") void chooseProject(); }); } }}>
@@ -816,14 +1038,15 @@ export function App(): ReactNode {
                   {thread ? <>
                     {thread.items.length === 0 && <div className="thread-empty thread-ready"><Sparkles size={30} /><h1>Ne oluşturalım?</h1><p>{selectedProject ? `${selectedProject.name} projesi bu göreve bağlı.` : "Bir proje seçebilir veya doğrudan görevinizi yazabilirsiniz."}</p></div>}
                     {thread.items.map((item) => <Message key={item.id} item={item} busy={busy?.startsWith("message") ?? false} onEdit={updateMessage} onRegenerate={regenerateMessage} onCopy={copyMessage} onQuote={quoteMessage} />)}
-                    {busy === "message" && <div className="activity-line running"><LoaderCircle className="spin" size={14} /><span>Görev zaman çizelgesi güncelleniyor…</span></div>}
+                    {busy === "message" && liveActivities.filter((activity) => activity.threadId === thread.thread.id).map((activity, index) => <LiveActivity key={`${activity.createdAt}:${index}`} event={activity} />)}
+                    {busy === "message" && !liveActivities.some((activity) => activity.threadId === thread.thread.id) && <div className="activity-line running"><LoaderCircle className="spin" size={14} /><span>İstek izin ve ek bağlam kontrollerinden geçiyor…</span></div>}
                   </> : <div className="thread-empty thread-ready"><Sparkles size={30} /><h1>Ne oluşturalım?</h1><p>{selectedProject ? `${selectedProject.name} projesinde yeni bir görev başlatın.` : "Bir proje seçin veya görevinizi yazarak proje seçimine geçin."}</p></div>}
                 </div>
               </div>
-              <div className="composer-wrap"><button className="composer-project" onClick={() => void chooseProject()} title={selectedProject?.rootPath ?? "Yerel proje klasörü seçin"}><FolderOpen size={14} /><span>{selectedProject?.name ?? "Proje seç"}</span></button><div className={`composer ${busy === "message" ? "busy" : ""}`}>
+              <div className="composer-wrap">{gitStatus?.available && gitStatus.changes.length > 0 && <div className={`change-summary-wrap ${changeSummaryOpen ? "open" : ""}`}><button className="change-summary-button" aria-haspopup="dialog" aria-expanded={changeSummaryOpen} onClick={() => setChangeSummaryOpen((value) => !value)} title={gitTotals.unknown > 0 ? `${gitTotals.unknown} dosyanın satır sayısı Git numstat tarafından ölçülemedi.` : "Gerçek Git numstat özeti"}><span className="change-state-dot" /><span>{gitStatus.changes.length} dosya değiştirildi</span><b className="additions">+{gitTotals.additions}</b><b className="deletions">-{gitTotals.deletions}</b><ChevronDown size={13} /></button>{changeSummaryOpen && <div className="change-summary-popover" role="dialog" aria-label="Değiştirilen dosyalar"><header><strong>Çalışma ağacı</strong><button onClick={() => { setChangeSummaryOpen(false); setView("git"); }}><GitBranch size={13} /> Git’i aç</button></header><div>{gitStatus.stats.map((stat) => <div className="change-stat-row" key={stat.path} title={stat.binary ? "İkili dosya; satır sayısı uygulanamaz." : stat.additions === null || stat.deletions === null ? "Git numstat bu dosya için satır sayısı sağlamadı." : stat.path}><span>{stat.path}</span><b className="additions">{stat.additions === null ? "—" : `+${stat.additions}`}</b><b className="deletions">{stat.deletions === null ? "—" : `-${stat.deletions}`}</b></div>)}</div><footer>{gitTotals.unknown > 0 ? `${gitTotals.unknown} dosya ölçülemeyen veya henüz izlenmeyen içerik içeriyor.` : "Tüm sayılar Git numstat çıktısından alındı."}</footer></div>}</div>}<button className="composer-project" onClick={() => void chooseProject()} title={selectedProject?.rootPath ?? "Yerel proje klasörü seçin"}><FolderOpen size={14} /><span>{selectedProject?.name ?? "Proje seç"}</span></button><div className={`composer ${busy === "message" ? "busy" : ""}`}>
                 {draftAttachments.length > 0 && <div className="composer-attachments" aria-label="Gönderilecek dosyalar">{draftAttachments.map((attachment) => <span key={attachment.id}><AttachmentGlyph attachment={attachment} /><span><strong>{attachment.name}</strong><small>{formatBytes(attachment.size)} · {attachment.extension || attachment.kind}</small></span><button onClick={() => void removeAttachment(attachment)} aria-label={`${attachment.name} ekini kaldır`} title="Eki kaldır"><X size={13} /></button></span>)}</div>}
                 <textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} placeholder="DevBox'a bir görev verin" disabled={busy === "message"} rows={1} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void sendMessage(); } }} onContextMenu={(event) => { event.preventDefault(); const target = event.currentTarget; void window.devbox.showContextMenu("editable", target.selectionStart !== target.selectionEnd, true); }} />
-                <div className="composer-toolbar"><div><button onClick={() => void selectAttachments()} disabled={busy === "attachment"} title="Dosya ekle — tüm uzantılar, en fazla 300 MB"><Plus size={18} /></button><div className="permission-control"><button className={`permission-button ${permission === "Tam erişim" ? "full" : ""}`} onClick={() => setPermissionMenuOpen((value) => !value)} aria-haspopup="menu" aria-expanded={permissionMenuOpen} disabled={busy === "permission"}><ShieldCheck size={14} /><span>{permissionLabel(permission)}</span><ChevronDown size={12} /></button>{permissionMenuOpen && <div className="permission-menu" role="menu" aria-label="İzin profili">{PERMISSION_OPTIONS.map((option) => <button key={option.value} className={`${permission === option.value ? "selected" : ""} ${option.value === "Tam erişim" ? "full" : ""}`} role="menuitemradio" aria-checked={permission === option.value} onClick={() => void applyPermission(option.value)}><span className="permission-menu-icon"><ShieldCheck size={15} /></span><span><strong>{option.label}</strong><small>{option.detail}</small></span>{permission === option.value && <Check size={15} />}</button>)}</div>}</div></div><div><button className="model-button" onClick={() => setView("capabilities")} title={agentReady ? "Hermes + NVIDIA canlı doğrulandı — kanıtları aç" : "Ajan sağlayıcısı doğrulanmadı — tanılamayı aç"}><span>{agentReady ? "Hermes · NVIDIA" : "Sağlayıcı yok"}</span><small>{agentReady ? "READY" : "DOĞRULANMADI"}</small><ChevronDown size={13} /></button><button className="send-button" onClick={() => void sendMessage()} disabled={(!composer.trim() && draftAttachments.length === 0) || busy === "message"} aria-label="Gönder"><Send size={17} /></button></div></div>
+                <div className="composer-toolbar"><div><button onClick={() => void selectAttachments()} disabled={busy === "attachment"} title="Dosya ekle — tüm uzantılar, en fazla 300 MB"><Plus size={18} /></button><div className="permission-control"><button className={`permission-button ${permission === "Tam erişim" ? "full" : ""}`} onClick={() => setPermissionMenuOpen((value) => !value)} aria-haspopup="menu" aria-expanded={permissionMenuOpen} disabled={busy === "permission"}><ShieldCheck size={14} /><span>{permissionLabel(permission)}</span><ChevronDown size={12} /></button>{permissionMenuOpen && <div className="permission-menu" role="menu" aria-label="İzin profili">{PERMISSION_OPTIONS.map((option) => <button key={option.value} className={`${permission === option.value ? "selected" : ""} ${option.value === "Tam erişim" ? "full" : ""}`} role="menuitemradio" aria-checked={permission === option.value} onClick={() => void applyPermission(option.value)}><span className="permission-menu-icon"><ShieldCheck size={15} /></span><span><strong>{option.label}</strong><small>{option.detail}</small></span>{permission === option.value && <Check size={15} />}</button>)}</div>}</div></div><div><button className="model-button" onClick={() => setView("capabilities")} title={capabilitiesLoading ? "Gerçek sağlayıcılar denetleniyor" : agentReady ? "Hermes + NVIDIA canlı doğrulandı — kanıtları aç" : "Ajan sağlayıcısı doğrulanmadı — tanılamayı aç"}><span>{capabilitiesLoading ? "Denetleniyor" : agentReady ? "Hermes · NVIDIA" : "Sağlayıcı yok"}</span><small>{capabilitiesLoading ? "CANLI KONTROL" : agentReady ? "READY" : "DOĞRULANMADI"}</small><ChevronDown size={13} /></button><button className="send-button" onClick={() => void sendMessage()} disabled={(!composer.trim() && draftAttachments.length === 0) || busy === "message"} aria-label="Gönder"><Send size={17} /></button></div></div>
               </div><div className="composer-hint"><kbd>Enter</kbd> gönderir · <kbd>Shift+Enter</kbd> yeni satır · Dosyaları sürükleyip bırakın · Dosya başına 300 MB</div></div>
             </section>}
 
@@ -838,7 +1061,7 @@ export function App(): ReactNode {
 
             {view === "sites" && <section className="page-scroll"><div className="page-heading"><div><p className="eyebrow">VERCEL / SITES</p><h1>Vercel ve Siteler</h1><p>Yalnız bu makinede gerçekten keşfedilen Vercel CLI, hesap ve seçili proje bilgisi gösterilir.</p></div><StateBadge state={vercelAccount?.state ?? vercelCli?.state ?? "UNAVAILABLE"} /></div><div className="facts-grid"><div><span>Vercel CLI</span><strong>{vercelCli?.version ?? "Bulunamadı"}</strong></div><div><span>Hesap doğrulaması</span><strong>{vercelAccount?.state ?? "UNAVAILABLE"}</strong></div><div><span>Seçili proje</span><strong>{selectedProject?.name ?? "Seçilmedi"}</strong></div><div><span>Proje kökü</span><strong title={selectedProject?.rootPath}>{selectedProject?.rootPath ?? "—"}</strong></div></div><section className="content-panel"><div className="panel-title"><h2>Gerçek Vercel komutları</h2><StateBadge state={selectedProject && vercelCli?.state === "INSTALLED" ? (vercelAccount?.state ?? "UNAVAILABLE") : "UNAVAILABLE"} /></div><p>Bağlama, preview, production deploy, inspect, log ve rollback yalnız Vercel CLI gerçekten kuruluysa çalıştırılır. Her sonuç gerçek komutun çıkış kodu, stdout/stderr ve süresiyle kanıtlanır; doğrulanmamış Functions, Cron, Sandbox, Workflow, Queues, Blob veya AI Gateway yeteneği burada varmış gibi gösterilmez.</p><div className="deployment-actions"><button disabled={!selectedProject || vercelCli?.state !== "INSTALLED"} onClick={() => setView("integrations")}><Globe2 size={15} /> Vercel komuta merkezini aç</button></div></section></section>}
 
-            {view === "capabilities" && <section className="page-scroll"><div className="page-heading"><div><p className="eyebrow">RUNTIME TRUTH</p><h1>Sistem kabiliyetleri</h1><p>READY yalnızca kimlik, yapılandırma, sağlık ve minimum canlı işlem kanıtı birlikte sağlandığında kullanılır.</p></div><StateBadge state={bootstrap?.core.state ?? "FAILED"} /></div><div className="capability-grid">{capabilities.map((capability) => <article key={capability.id}><div><span className="cap-icon">{capability.state === "READY" ? <Check size={16} /> : <Activity size={16} />}</span><div><strong>{capability.displayName}</strong><small>{capability.version ?? "Sürüm doğrulanmadı"}</small></div><StateBadge state={capability.state} /></div><p>{capability.detail}</p>{capability.remediation && <footer>{capability.remediation}</footer>}</article>)}</div></section>}
+            {view === "capabilities" && <section className="page-scroll"><div className="page-heading"><div><p className="eyebrow">RUNTIME TRUTH</p><h1>Sistem kabiliyetleri</h1><p>READY yalnızca kimlik, yapılandırma, sağlık ve minimum canlı işlem kanıtı birlikte sağlandığında kullanılır.</p></div><StateBadge state={bootstrap?.core.state ?? "FAILED"} /></div>{capabilitiesLoading && capabilities.length === 0 ? <div className="empty-panel large"><LoaderCircle className="spin" size={26} /><strong>Gerçek sağlayıcılar denetleniyor</strong><span>Kimlik, yürütülebilir dosya ve canlı bağlantı kanıtları arka planda kontrol ediliyor.</span></div> : <div className="capability-grid">{capabilities.map((capability) => <article key={capability.id}><div><span className="cap-icon">{capability.state === "READY" ? <Check size={16} /> : <Activity size={16} />}</span><div><strong>{capability.displayName}</strong><small>{capability.version ?? "Sürüm doğrulanmadı"}</small></div><StateBadge state={capability.state} /></div><p>{capability.detail}</p>{capability.remediation && <footer>{capability.remediation}</footer>}</article>)}</div>}</section>}
 
             {view === "terminal" && <TerminalWorkspace project={selectedProject} />}
             {view === "worktrees" && <WorktreeWorkspace project={selectedProject} />}
@@ -854,6 +1077,8 @@ export function App(): ReactNode {
       {terminalOpen && <section className="terminal-pane" aria-label="Görev çıktısı"><div className="terminal-heading"><div><SquareTerminal size={14} /><strong>GÖREV ÇIKTISI</strong>{busy?.startsWith("task:") && <LoaderCircle className="spin" size={13} />}</div><div>{terminalResult && <span>{terminalResult.durationMs} ms · çıkış {terminalResult.exitCode ?? terminalResult.exitReason}</span>}<button onClick={() => setTerminalResult(null)}>Temizle</button><button onClick={() => setTerminalOpen(false)} aria-label="Kapat"><X size={14} /></button></div></div><div className="terminal-output" tabIndex={0} ref={terminalRef} onContextMenu={(event) => { event.preventDefault(); const selection = window.getSelection()?.toString() ?? ""; void window.devbox.showContextMenu("terminal", selection.length > 0).then((action) => { if (action === "copyOutput") void window.devbox.copyText(selection); if (action === "clear") setTerminalResult(null); }); }}>{terminalResult ? <><div><span className="prompt">PS&gt;</span> {terminalResult.commandDisplay}</div>{terminalResult.stdout && <pre>{terminalResult.stdout}</pre>}{terminalResult.stderr && <pre className="stderr">{terminalResult.stderr}</pre>}<div className={terminalResult.exitCode === 0 ? "exit-ok" : "exit-bad"}>Süreç {terminalResult.exitReason} · {terminalResult.durationMs} ms{terminalResult.truncated ? " · çıktı kesildi" : ""}</div></> : <p>Test, tür denetimi veya derleme çalıştırıldığında gerçek süreç çıktısı burada görünür.</p>}</div></section>}
 
       {notice && <div className="toast" role="status"><AlertTriangle size={16} /><span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Bildirimi kapat"><X size={14} /></button></div>}
+      {threadMenu && <ThreadContextMenu menu={threadMenu} hasProject={bootstrap.projects.some((project) => project.id === threadMenu.summary.projectId)} onAction={async (action) => await executeThreadAction(threadMenu.summary, action)} onClose={() => setThreadMenu(null)} />}
+      {confirmation && <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} />}
       {prompt && <PromptDialog prompt={prompt} onClose={() => setPrompt(null)} />}
       {paletteOpen && <div className="palette-backdrop" onMouseDown={() => setPaletteOpen(false)}><div className="palette" role="dialog" aria-modal="true" aria-label="Komut paleti" onMouseDown={(event) => event.stopPropagation()}><div className="palette-input"><Command size={16} /><input autoFocus placeholder="Komut, görev veya dosya ara…" onKeyDown={(event) => { if (event.key === "Escape") setPaletteOpen(false); }} /><kbd>Esc</kbd></div><div className="palette-group"><span>HIZLI EYLEMLER</span><button onClick={() => { setPaletteOpen(false); void createThread(); }}><MessageSquarePlus size={16} /><div><strong>Yeni görev</strong><small>Kalıcı bir görev zaman çizelgesi oluştur</small></div></button><button onClick={() => { setPaletteOpen(false); void chooseProject(); }}><FolderOpen size={16} /><div><strong>Proje klasörü aç</strong><small>Canonical sınırla yerel klasör seç</small></div></button>{selectedProject && TASKS.map((task) => <button key={task.id} onClick={() => { setPaletteOpen(false); void runTask(task.id); }}>{task.icon}<div><strong>{task.label}</strong><small>{task.detail}</small></div></button>)}</div></div></div>}
     </div>

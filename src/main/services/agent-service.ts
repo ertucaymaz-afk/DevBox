@@ -22,6 +22,18 @@ export type AgentResponse = {
   evidence: string[];
 };
 
+export type AgentProgressEvent = {
+  kind: "provider" | "command" | "evidence" | "failure";
+  message: string;
+  createdAt: string;
+};
+
+export type AgentProgressListener = (event: AgentProgressEvent) => void;
+
+function report(listener: AgentProgressListener | undefined, kind: AgentProgressEvent["kind"], message: string): void {
+  listener?.({ kind, message, createdAt: new Date().toISOString() });
+}
+
 type CodexEvent = {
   type?: unknown;
   thread_id?: unknown;
@@ -142,7 +154,7 @@ export class AgentService {
     }
   }
 
-  public async respond(prompt: string, cwd: string, history: readonly ThreadItem[]): Promise<AgentResponse> {
+  public async respond(prompt: string, cwd: string, history: readonly ThreadItem[], onProgress?: AgentProgressListener): Promise<AgentResponse> {
     const credential = discoverNvidiaCredential();
     if (!credential) throw new Error("NVIDIA_CREDENTIAL_UNAVAILABLE");
 
@@ -153,6 +165,8 @@ export class AgentService {
     if (process.env.HERMES_GIT_BASH_PATH) environment.HERMES_GIT_BASH_PATH = process.env.HERMES_GIT_BASH_PATH;
 
     const started = performance.now();
+    report(onProgress, "provider", "Hermes aracılığıyla NVIDIA NIM oturumu başlatıldı.");
+    report(onProgress, "command", "hermes chat güvenli modda çalıştırılıyor.");
     const chat = await this.#runner.run({
       executable,
       args: [
@@ -173,10 +187,12 @@ export class AgentService {
       maxOutputBytes: 2 * 1024 * 1024
     });
     if (chat.exitCode !== 0 || chat.timedOut || chat.truncated) throw new Error("HERMES_EXECUTION_FAILED");
+    report(onProgress, "evidence", `Hermes çalıştırması tamamlandı · ${chat.durationMs} ms · çıkış ${chat.exitCode}.`);
 
     const sessionId = findSessionId(chat.stdout, chat.stderr);
     if (!sessionId) throw new Error("HERMES_SESSION_ID_MISSING");
 
+    report(onProgress, "command", "Sağlayıcı oturumu redakte edilmiş JSONL olarak dışa aktarılıyor.");
     const exported = await this.#runner.run({
       executable,
       args: ["sessions", "export", "-", "--format", "jsonl", "--session-id", sessionId, "--yes", "--redact"],
@@ -186,9 +202,11 @@ export class AgentService {
       maxOutputBytes: 8 * 1024 * 1024
     });
     if (exported.exitCode !== 0 || exported.timedOut || exported.truncated) throw new Error("HERMES_EXPORT_FAILED");
+    report(onProgress, "evidence", `Redakte edilmiş oturum çıktısı doğrulandı · ${exported.durationMs} ms.`);
 
     const content = parseExportedAnswer(exported.stdout);
     if (!content) throw new Error("HERMES_RESPONSE_PARSE_FAILED");
+    report(onProgress, "evidence", `Yanıt ayrıştırıldı · oturum ${sessionId.slice(0, 12)}…`);
 
     return {
       content,

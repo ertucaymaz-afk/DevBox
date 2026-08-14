@@ -41,6 +41,10 @@ describe("git service", () => {
       expect.objectContaining({ worktreeStatus: "M", path: "tracked.txt" }),
       expect.objectContaining({ path: "new file.txt" })
     ]));
+    expect(status.stats).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: "tracked.txt", additions: 1, deletions: 1, binary: false }),
+      expect.objectContaining({ path: "new file.txt", additions: null, deletions: null, binary: false })
+    ]));
     expect(diff.unstaged).toContain("-first");
     expect(diff.unstaged).toContain("+second");
     expect(diff.baseline.head).toBe(status.head);

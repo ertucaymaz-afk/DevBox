@@ -16,6 +16,10 @@ All notable DevBox changes are recorded here. DevBox follows semantic versioning
 - GitHub, Vercel, SSH host-key pinning, LSP/DAP discovery, worktree and signed-package lifecycle command paths that report unavailable prerequisites instead of inventing success.
 - Windows NSIS packaging, release manifest, SHA-256 inventory, CycloneDX SBOM, third-party notices and a fail-closed Authenticode build path.
 - Apache-2.0 licensing, contribution/security/privacy policies, public CI and SignPath Foundation application material.
+- Application-native conversation context menu with pin, rename, archive, read state, project reveal, path/session/deep-link copy and permanent deletion.
+- Persisted provider activity events for real command, provider, evidence and failure progress without fabricated chain-of-thought.
+- Expandable live Git change capsule with actual per-file `git diff --numstat` additions/deletions and explicit unknown/binary states.
+- Original animated DevBox launch introduction with once, always and never display preferences.
 
 ### Changed
 
@@ -27,6 +31,8 @@ All notable DevBox changes are recorded here. DevBox follows semantic versioning
 - Changed task deletion to a result-bearing IPC contract: cancelling the native confirmation leaves the task intact, while confirming deletes both SQLite data and the visible row.
 - Converted message operations to compact icon controls while keeping accessible labels and real clipboard/edit/quote/regenerate/feedback behavior.
 - Migrated legacy API Evolution campaigns from 4 daily cycles and 360-minute intervals to 24 daily cycles and 60-minute intervals, while filling all fourteen missing tracks without erasing earlier results.
+- Moved provider capability inspection off the blocking startup path and made initial readiness visibly indeterminate until real inspection completes.
+- Replaced the native Windows delete prompt with an accessible dark in-product confirmation dialog and a result-bearing permanent-delete flow.
 
 ### Verification
 
@@ -40,4 +46,3 @@ All notable DevBox changes are recorded here. DevBox follows semantic versioning
 - The current installer is Authenticode `NotSigned` until SignPath Foundation approves the open-source application and provisions its trust root.
 - Full editor diagnostics/debugger UI for LSP/DAP, restart-resumable multi-machine worker scheduling, signed marketplace hosting, signed automatic update/repair/rollback, clean-VM mutation tests and multi-hour failure/soak matrices are not release-complete.
 - This release intentionally does not claim that a SignPath application, certificate, signature or third-party service mutation succeeded unless its external system provides evidence.
-
