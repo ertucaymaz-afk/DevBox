@@ -2,7 +2,7 @@
 
 > Windows üzerinde proje, sohbet, Git, terminal ve kanıt akışını tek yerde toplayan açık kaynak mühendislik masaüstü.
 
-[![En güncel sürüm](https://img.shields.io/github/v/release/ertucaymaz-afk/DevBox?include_prereleases&label=sürüm&color=2ecf9f)](https://github.com/ertucaymaz-afk/DevBox/releases/latest)
+[![En güncel sürüm](https://img.shields.io/github/v/release/ertucaymaz-afk/DevBox?include_prereleases&label=sürüm&color=2ecf9f)](https://github.com/ertucaymaz-afk/DevBox/releases/tag/v0.1.2)
 [![DevBox doğrulama](https://github.com/ertucaymaz-afk/DevBox/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ertucaymaz-afk/DevBox/actions/workflows/ci.yml)
 [![Lisans: Apache 2.0](https://img.shields.io/badge/lisans-Apache--2.0-6b7280)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows-3b82f6)](https://github.com/ertucaymaz-afk/DevBox/releases)
@@ -13,7 +13,7 @@ DevBox; yerel projeyle konuşmayı, dosyaları incelemeyi, değişiklikleri izle
 
 ## 🚀 Son sürüm ve yenilikler
 
-Yeni sürümler; kurucu, taşınabilir ZIP, SHA-256 sağlama toplamları, SBOM ve dürüst imza durumuyla birlikte [GitHub Releases](https://github.com/ertucaymaz-afk/DevBox/releases/latest) sayfasında yayımlanır. Önceki sürümler ve değişiklik geçmişi için [tüm yayınları](https://github.com/ertucaymaz-afk/DevBox/releases) veya [ayrıntılı sürüm notlarını](docs/RELEASE_NOTES.md) açabilirsiniz.
+Güncel işlevsel önizleme **[DevBox v0.1.2 — Türkçe yenilikler ve gerçek çalışma yüzeyleri](https://github.com/ertucaymaz-afk/DevBox/releases/tag/v0.1.2)** adıyla yayımlandı. Bu sayfada Windows kurucusu, taşınabilir ZIP, düşük boyutlu açık kaynak ZIP’i, SHA-256 sağlama toplamları, SBOM ve dürüst imza durumu birlikte bulunur. Önceki sürümler ve değişiklik geçmişi için [tüm yayınları](https://github.com/ertucaymaz-afk/DevBox/releases) veya [ayrıntılı sürüm notlarını](docs/RELEASE_NOTES.md) açabilirsiniz.
 
 DevBox içindeki **Yenilikler** alanı da kurulu gerçek sürümün notlarını animasyonlu olarak gösterir. Okundu bilgisi yalnız cihazınızda saklanır; uzaktaki bir servis güncelleme varmış gibi taklit edilmez.
 
