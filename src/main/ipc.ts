@@ -11,6 +11,10 @@ import {
   AttachmentRemoveInputSchema,
   BootstrapSchema,
   CapabilitySchema,
+  CatalogSnapshotSchema,
+  CatalogSourceInputSchema,
+  CatalogToolCallInputSchema,
+  CatalogToolCallResultSchema,
   CommandResultSchema,
   DebugCommandInputSchema,
   DebugResponseSchema,
@@ -41,6 +45,7 @@ import {
   ProjectSummarySchema,
   ProjectTreeNodeSchema,
   RemoteJobInputSchema,
+  RemoteJobIdInputSchema,
   RemoteWorkerIdInputSchema,
   RemoteWorkerSchema,
   WorkerPairingSchema,
@@ -77,6 +82,7 @@ import type { AttachmentService } from "./services/attachment-service.js";
 import type { CoreApi } from "./services/core-api.js";
 import type { GitService } from "./services/git-service.js";
 import type { IntegrationService } from "./services/integration-service.js";
+import type { LocalCatalogService } from "./services/local-catalog-service.js";
 import type { DebugService, LanguageService } from "./services/language-debug-service.js";
 import type { PackageLifecycleService } from "./services/package-lifecycle-service.js";
 import type { ProjectService } from "./services/project-service.js";
@@ -100,6 +106,7 @@ type IpcServices = {
   terminals: TerminalService;
   worktrees: WorktreeService;
   integrations: IntegrationService;
+  catalog: LocalCatalogService;
   packages: PackageLifecycleService;
   sshTrust: SshTrustService;
   language: LanguageService;
@@ -225,6 +232,55 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     return CapabilitySchema.array().parse(await services.capabilities.inspect(services.probeCwd));
   });
 
+  registerHandler(IPC_CHANNELS.catalogInspect, services.rendererWebContentsId, async () => {
+    return CatalogSnapshotSchema.parse(await services.catalog.inspect());
+  });
+
+  registerHandler(IPC_CHANNELS.catalogSourceSelect, services.rendererWebContentsId, async (raw) => {
+    const input = CatalogSourceInputSchema.parse(raw);
+    const selection = await dialog.showOpenDialog({
+      title: input.kind === "skill" ? "DevBox — Beceriler kaynak klasörü" : "DevBox — Eklentiler kaynak klasörü",
+      properties: ["openDirectory"]
+    });
+    if (selection.canceled || !selection.filePaths[0]) return CatalogSnapshotSchema.parse(await services.catalog.inspect());
+    return CatalogSnapshotSchema.parse(await services.catalog.setSource(input.kind, selection.filePaths[0]));
+  });
+
+  registerHandler(IPC_CHANNELS.catalogInstallPlugins, services.rendererWebContentsId, async (_raw, event) => {
+    await enforcePermissionPolicy(event, services, {
+      title: "Taşınabilir eklentileri etkinleştir",
+      message: "SHA-256 ile doğrulanan 12 MIT eklentisi DevBox yerel çalışma alanına kurulsun mu?",
+      detail: "Arşiv yolları denetlenir, ayrı bir alana çıkarılır ve her MCP sunucusunun doktoru yeniden çalıştırılır. Bir kontrol geçmezse kurulum etkinleşmez.",
+      risky: true
+    });
+    return CatalogSnapshotSchema.parse(await services.catalog.installPortablePlugins());
+  });
+
+  registerHandler(IPC_CHANNELS.catalogConnectPlugins, services.rendererWebContentsId, async (_raw, event) => {
+    await enforcePermissionPolicy(event, services, {
+      title: "Yerel MCP sunucularını bağla",
+      message: "Kurulu 12 MIT eklentisinin MCP sunucuları ayrı işlemlerde başlatılsın mı?",
+      detail: "DevBox her süreçle gerçek MCP initialize ve tools/list görüşmesi yapar. Alt süreçlere API anahtarı aktarılmaz; başarısız süreç çalışıyor olarak gösterilmez.",
+      risky: true
+    });
+    return CatalogSnapshotSchema.parse(await services.catalog.connectPortablePlugins());
+  });
+
+  registerHandler(IPC_CHANNELS.catalogDisconnectPlugins, services.rendererWebContentsId, async () => {
+    return CatalogSnapshotSchema.parse(await services.catalog.disconnectPortablePlugins());
+  });
+
+  registerHandler(IPC_CHANNELS.catalogCallTool, services.rendererWebContentsId, async (raw, event) => {
+    const input = CatalogToolCallInputSchema.parse(raw);
+    await enforcePermissionPolicy(event, services, {
+      title: "Eklenti aracını çalıştır",
+      message: `${input.pluginId} eklentisindeki “${input.toolName}” aracı çalıştırılsın mı?`,
+      detail: "Araç ayrı bir MCP alt sürecinde çalışır. DevBox giriş ve çıkış boyutunu sınırlar ve API anahtarlarını alt sürece aktarmaz; bu sürüm Windows AppContainer düzeyinde dosya/ağ sandbox'ı sağlamaz.",
+      risky: true
+    });
+    return CatalogToolCallResultSchema.parse(await services.catalog.callPortablePluginTool(input.pluginId, input.toolName, input.arguments));
+  });
+
   registerHandler(IPC_CHANNELS.projectOpen, services.rendererWebContentsId, async () => {
     const result = await dialog.showOpenDialog({
       title: "DevBox — Proje aç",
@@ -337,18 +393,21 @@ export function registerIpcHandlers(services: IpcServices): () => void {
   registerHandler(IPC_CHANNELS.threadMessage, services.rendererWebContentsId, async (unknownInput, event) => {
     const input = ThreadMessageInputSchema.parse(unknownInput);
     const current = services.database.getThread(input.threadId);
-    const activities: Array<{ message: string; createdAt: string }> = [];
+    await enforcePermissionPolicy(event, services, { title: "NVIDIA ajan isteği", message: "Bu görev Hermes üzerinden NVIDIA NIM sağlayıcısına gönderilsin mi?", detail: "DevBox, son görev metnini ve sınırlandırılmış sohbet bağlamını gönderir; ortam gizli değerini renderer'a taşımaz.", risky: false });
+    const started = services.database.beginMessage(input.threadId, input.content, input.attachmentIds);
+    if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadSnapshot, ThreadDetailSchema.parse(started.detail));
     const publishActivity = (activity: { kind: "provider" | "command" | "evidence" | "failure"; message: string; createdAt: string }): void => {
       const payload = ThreadActivityEventSchema.parse({ threadId: input.threadId, ...activity });
-      activities.push({ message: payload.message, createdAt: payload.createdAt });
+      services.database.appendTurnActivity(input.threadId, started.turnId, payload.message, payload.createdAt);
       if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadActivity, payload);
     };
-    await enforcePermissionPolicy(event, services, { title: "NVIDIA ajan isteği", message: "Bu görev Hermes üzerinden NVIDIA NIM sağlayıcısına gönderilsin mi?", detail: "DevBox, son görev metnini ve sınırlandırılmış sohbet bağlamını gönderir; ortam gizli değerini renderer'a taşımaz.", risky: false });
-    const attachmentContext = await services.attachments.buildAgentContext(input.threadId, input.attachmentIds);
-    const agentPrompt = `${input.content || "Ekli dosyaları incele."}${attachmentContext}`;
-    const assistantContent = await services.agent.respond(agentPrompt, services.projects.get(current.thread.projectId).rootPath, current.items, publishActivity)
-      .then((response) => response.content)
-      .catch((error: unknown) => {
+    let assistantContent: string;
+    try {
+      const attachmentContext = await services.attachments.buildAgentContext(input.threadId, input.attachmentIds, false);
+      const agentPrompt = `${input.content || "Ekli dosyaları incele."}${attachmentContext}`;
+      assistantContent = await services.agent.respond(agentPrompt, services.projects.get(current.thread.projectId).rootPath, current.items, publishActivity)
+        .then((response) => response.content);
+    } catch (error: unknown) {
         const code = error instanceof Error ? error.message : "AGENT_UNKNOWN_FAILURE";
         publishActivity({ kind: "failure", message: `Ajan çalıştırması başarısız oldu · ${code}.`, createdAt: new Date().toISOString() });
         const remediation = code === "NVIDIA_CREDENTIAL_UNAVAILABLE"
@@ -356,9 +415,9 @@ export function registerIpcHandlers(services: IpcServices): () => void {
           : code === "HERMES_EXECUTION_FAILED"
             ? "Hermes/NVIDIA çalıştırması başarısız oldu. Sistem kabiliyetlerini ve sağlayıcı erişimini denetleyin."
             : "Hermes yanıtı güvenli biçimde doğrulanıp ayrıştırılamadı. Ham çıktı, iç muhakeme ve sistem istemi güvenlik gereği gösterilmedi.";
-        return `Ajan yanıtı üretilemedi (**${code}**). ${remediation}`;
-      });
-    return ThreadDetailSchema.parse(services.database.appendMessage(input.threadId, input.content, assistantContent, input.attachmentIds, activities));
+        assistantContent = `Ajan yanıtı üretilemedi (**${code}**). ${remediation}`;
+    }
+    return ThreadDetailSchema.parse(services.database.completeMessage(input.threadId, started.turnId, assistantContent));
   });
 
   registerHandler(IPC_CHANNELS.threadMessageUpdate, services.rendererWebContentsId, async (unknownInput) => {
@@ -551,7 +610,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
   registerHandler(IPC_CHANNELS.evolutionToggle, services.rendererWebContentsId, async (unknownInput, event) => {
     const input = EvolutionToggleInputSchema.parse(unknownInput);
     if (input.enabled) {
-      await enforcePermissionPolicy(event, services, { title: "DevBox API gelişim döngüsü", message: "Arka plandaki gerçek NVIDIA araştırma/gelişim döngüsü etkinleştirilsin mi?", detail: "Uygulama açıkken en fazla günde dört sağlayıcı isteği yürütür. Yanıtlar kanıt kimliğiyle yerel görev geçmişine kaydedilir; model ağırlıkları eğitilmez ve kod otomatik değiştirilmez.", risky: true });
+      await enforcePermissionPolicy(event, services, { title: "DevBox API gelişim döngüsü", message: "Durdurulabilir ve kalıcı Codex gelişim kuyruğu etkinleştirilsin mi?", detail: "Yapay bir günlük kota uygulanmaz. Tek eşzamanlı görev, güvenli geri basınç ve iptal edilebilir dayanıklı işler kullanılır. Sonuçlar kanıt kimliğiyle yerel geçmişe kaydedilir; model ağırlıkları eğitilmez ve kod kullanıcı onayı olmadan değiştirilmez.", risky: true });
     }
     return EvolutionCampaignSchema.parse(services.evolution.setEnabled(input.projectId, input.enabled));
   });
@@ -640,6 +699,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
       if (!keyStat.isFile() || keyStat.isSymbolicLink() || keyStat.size > 64 * 1024) throw new Error("PUBLISHER_KEY_FILE_INVALID");
       const publicKeyPem = await readFile(keySelection.filePaths[0], "utf8");
       const candidate = await services.packages.inspectCandidate(packageSelection.filePaths[0], publicKeyPem);
+      const publisherFingerprint = services.packages.publisherFingerprint(publicKeyPem);
       const confirmation = await dialog.showMessageBox(parent, {
         type: "warning",
         buttons: ["Doğrulandı, kur", "İptal"],
@@ -648,10 +708,11 @@ export function registerIpcHandlers(services: IpcServices): () => void {
         noLink: true,
         title: "İmzalı paketi kur",
         message: `${candidate.manifest.kind}/${candidate.manifest.id} · ${candidate.manifest.version}`,
-        detail: `Yayıncı: ${candidate.manifest.publicKeyId}\nDosya: ${candidate.verifiedFiles}\nBoyut: ${candidate.totalBytes} bayt\nİzinler: ${candidate.manifest.permissions.join(", ") || "yok"}\n\nPublic key güven köküne kaydedilecek; paket yeniden doğrulanıp atomik olarak etkinleştirilecek.`
+        detail: `Yayıncı: ${candidate.manifest.publicKeyId}\nEd25519 SHA-256 parmak izi: ${publisherFingerprint}\nDosya: ${candidate.verifiedFiles}\nBoyut: ${candidate.totalBytes} bayt\nİzinler: ${candidate.manifest.permissions.join(", ") || "yok"}\n\nBu, yönetici onaylı genel katalog yayını değildir. Anahtar YEREL SIDELOAD güven sınıfıyla kaydedilecek; paket kayıtlı anahtarla yeniden doğrulanıp atomik olarak etkinleştirilecek.`
       });
       if (confirmation.response !== 0) return CommandResultSchema.parse(localCommandResult("devbox package install", cwd, started, "", { cancelled: true }));
-      const installed = await services.packages.install(packageSelection.filePaths[0], publicKeyPem);
+      await services.packages.enrollPublisher(candidate.manifest.publicKeyId, publicKeyPem, "LOCAL_SIDELOAD");
+      const installed = await services.packages.install(packageSelection.filePaths[0]);
       return CommandResultSchema.parse(localCommandResult("devbox package install", cwd, started, `${JSON.stringify(installed, null, 2)}\n`));
     }
     const target = packageTarget(input.target);
@@ -721,6 +782,21 @@ export function registerIpcHandlers(services: IpcServices): () => void {
       risky: true
     });
     return DurableJobSummarySchema.parse(services.remoteWorkers.enqueue(input.kind, input.payload));
+  });
+
+  registerHandler(IPC_CHANNELS.workerJobList, services.rendererWebContentsId, async () => (
+    DurableJobSummarySchema.array().parse(services.remoteWorkers.listJobs())
+  ));
+
+  registerHandler(IPC_CHANNELS.workerJobCancel, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = RemoteJobIdInputSchema.parse(unknownInput);
+    await enforcePermissionPolicy(event, services, {
+      title: "Uzak görevi iptal et",
+      message: "Bu uzak görevin çalışan süreç ağacı güvenli biçimde sonlandırılsın mı?",
+      detail: `Görev: ${input.jobId}`,
+      risky: true
+    });
+    return DurableJobSummarySchema.parse(services.remoteWorkers.cancelJob(input.jobId));
   });
 
   return () => {

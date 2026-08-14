@@ -12,6 +12,8 @@ import type { GitService } from "./git-service.js";
 import type { ProjectService } from "./project-service.js";
 import type { SettingsService } from "./settings-service.js";
 import type { RemoteWorkerService } from "./remote-worker-service.js";
+import type { LocalCatalogService } from "./local-catalog-service.js";
+import { CatalogToolCallInputSchema } from "../../shared/contracts.js";
 
 type CoreApiOptions = {
   apiKey: string;
@@ -24,6 +26,7 @@ type CoreApiOptions = {
   git: GitService;
   settings: SettingsService;
   remoteWorkers: RemoteWorkerService;
+  catalog: LocalCatalogService;
   probeCwd: string;
   appVersion: string;
 };
@@ -60,6 +63,7 @@ const WorkerSettleBodySchema = z.object({
   result: z.unknown()
 }).strict();
 const RemoteJobBodySchema = z.object({ kind: z.string().trim().min(1).max(80), payload: z.unknown() }).strict();
+const McpToolParamsSchema = z.object({ pluginId: z.string().min(2).max(160), toolName: z.string().min(1).max(160) }).strict();
 
 export class CoreApi {
   readonly #options: CoreApiOptions;
@@ -257,9 +261,26 @@ export class CoreApi {
       const capabilities = await this.#options.capabilities.inspect(this.#options.probeCwd);
       return { items: capabilities.filter((item) => ["git", "node", "pnpm", "pwsh", "dotnet", "hermes", "vercel-cli"].includes(item.id)) };
     });
-    this.#server.get("/v1/skills", async () => ({ state: "UNAVAILABLE", source: "no-installed-runtime-inventory", items: [], mutationSupported: false }));
-    this.#server.get("/v1/plugins", async () => ({ state: "UNAVAILABLE", source: "no-installed-runtime-inventory", items: [], mutationSupported: false }));
-    this.#server.get("/v1/mcp", async () => ({ state: "UNAVAILABLE", transports: [], servers: [], mutationSupported: false }));
+    this.#server.get("/v1/skills", async () => {
+      const catalog = await this.#options.catalog.inspect();
+      return { state: catalog.items.some((item) => item.kind === "skill") ? "DISCOVERED" : "UNAVAILABLE", source: "verified-local-catalog", items: catalog.items.filter((item) => item.kind === "skill"), mutationSupported: false };
+    });
+    this.#server.get("/v1/plugins", async () => {
+      const catalog = await this.#options.catalog.inspect();
+      const items = catalog.items.filter((item) => item.kind === "plugin");
+      return { state: items.some((item) => item.runtimeState === "RUNNING") ? "READY" : items.some((item) => item.runtimeState === "INSTALLED") ? "INSTALLED" : items.length > 0 ? "DISCOVERED" : "UNAVAILABLE", source: "verified-local-catalog", items, mutationSupported: true };
+    });
+    this.#server.get("/v1/mcp", async () => {
+      const catalog = await this.#options.catalog.inspect();
+      const servers = catalog.items.filter((item) => item.kind === "plugin" && item.runtimeState === "RUNNING");
+      return { state: servers.length > 0 ? "READY" : "UNAVAILABLE", transports: servers.length > 0 ? ["stdio"] : [], servers, mutationSupported: false };
+    });
+    this.#server.post("/v1/mcp/:pluginId/tools/:toolName/call", async (request) => {
+      if (this.#options.settings.get().approvalPolicy === "always") throw new Error("API_INTERACTIVE_APPROVAL_REQUIRED");
+      const params = McpToolParamsSchema.parse(request.params);
+      const input = CatalogToolCallInputSchema.parse({ pluginId: params.pluginId, toolName: params.toolName, arguments: request.body ?? {} });
+      return { item: await this.#options.catalog.callPortablePluginTool(input.pluginId, input.toolName, input.arguments) };
+    });
     this.#server.get("/v1/vercel", async () => {
       const capabilities = await this.#options.capabilities.inspect(this.#options.probeCwd);
       return { cli: capabilities.find((item) => item.id === "vercel-cli") ?? null, account: capabilities.find((item) => item.id === "vercel-account") ?? null, remoteMutationPerformed: false };
@@ -313,6 +334,11 @@ export class CoreApi {
     this.#server.post("/v1/workers/jobs", async (request, reply) => {
       const body = RemoteJobBodySchema.parse(request.body);
       return await reply.code(202).send({ job: this.#options.remoteWorkers.enqueue(body.kind, body.payload) });
+    });
+    this.#server.get("/v1/workers/jobs", async () => ({ items: this.#options.remoteWorkers.listJobs() }));
+    this.#server.delete("/v1/workers/jobs/:id", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      return { job: this.#options.remoteWorkers.cancelJob(params.id) };
     });
 
     await this.#server.listen({ host: "127.0.0.1", port: 0 });

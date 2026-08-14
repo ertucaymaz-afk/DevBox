@@ -8,6 +8,9 @@ directories:
 files:
   - dist/**/*
   - package.json
+extraResources:
+  - from: vendor/microsoft-js-debug
+    to: vendor/microsoft-js-debug
 asar: true
 asarUnpack:
   - node_modules/node-pty/**/*

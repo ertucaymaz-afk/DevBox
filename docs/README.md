@@ -7,6 +7,9 @@ Bu dizin, GitHub depo kökünü kompakt tutarken ürün ve yayın belgelerine te
 - [Sürüm notları](RELEASE_NOTES.md)
 - [Değişiklik geçmişi](../CHANGELOG.md)
 - [Geliştirici ve iletişim](DEVELOPERS.md)
+- [Evrensel eklenti ve uygulama entegrasyonu — gerçek uygulama durumu](EVRENSEL-ENTEGRASYON-DURUMU.md)
+- [`geliştirme.md` işleme ve izlenebilirlik kaydı](GELISTIRME-MD-ISLEME.md)
+- [`geliştirme.md` makine-okunur alım raporu](GELISTIRME-MD-ALIM-RAPORU.md)
 
 ## Güvenlik ve gizlilik
 

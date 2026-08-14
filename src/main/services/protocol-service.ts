@@ -123,7 +123,11 @@ export class ProtocolSession {
       if (pending) {
         clearTimeout(pending.timeout);
         this.#pending.delete(responseId);
-        if (message.error) pending.reject(new Error("PROTOCOL_REMOTE_ERROR"));
+        const dapFailure = this.kind === "dap" && message.success === false;
+        if (message.error || dapFailure) {
+          const detail = typeof message.message === "string" ? message.message.slice(0, 2_000) : "UNKNOWN";
+          pending.reject(new Error(`PROTOCOL_REMOTE_ERROR:${detail}`));
+        }
         else pending.resolve(message);
         return;
       }

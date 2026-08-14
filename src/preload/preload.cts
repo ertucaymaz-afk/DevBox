@@ -9,6 +9,12 @@ const { contextBridge, ipcRenderer, webUtils } = electron;
 const CHANNELS = Object.freeze({
   bootstrap: "devbox:v1:bootstrap",
   capabilityInspect: "devbox:v1:capability:inspect",
+  catalogInspect: "devbox:v1:catalog:inspect",
+  catalogSourceSelect: "devbox:v1:catalog:source-select",
+  catalogInstallPlugins: "devbox:v1:catalog:install-plugins",
+  catalogConnectPlugins: "devbox:v1:catalog:connect-plugins",
+  catalogDisconnectPlugins: "devbox:v1:catalog:disconnect-plugins",
+  catalogCallTool: "devbox:v1:catalog:call-tool",
   projectOpen: "devbox:v1:project:open",
   projectReveal: "devbox:v1:project:reveal",
   projectTree: "devbox:v1:project:tree",
@@ -28,6 +34,7 @@ const CHANNELS = Object.freeze({
   threadGet: "devbox:v1:thread:get",
   threadMessage: "devbox:v1:thread:message",
   threadActivity: "devbox:v1:thread:activity",
+  threadSnapshot: "devbox:v1:thread:snapshot",
   threadMessageUpdate: "devbox:v1:thread:message-update",
   threadMessageRegenerate: "devbox:v1:thread:message-regenerate",
   threadRename: "devbox:v1:thread:rename",
@@ -71,11 +78,19 @@ const CHANNELS = Object.freeze({
   ,workerList: "devbox:v1:worker:list"
   ,workerRevoke: "devbox:v1:worker:revoke"
   ,workerJobEnqueue: "devbox:v1:worker:job-enqueue"
+  ,workerJobList: "devbox:v1:worker:job-list"
+  ,workerJobCancel: "devbox:v1:worker:job-cancel"
 });
 
 const bridge: DevBoxBridge = Object.freeze({
   bootstrap: async () => await ipcRenderer.invoke(CHANNELS.bootstrap),
   inspectCapabilities: async () => await ipcRenderer.invoke(CHANNELS.capabilityInspect),
+  inspectCatalog: async () => await ipcRenderer.invoke(CHANNELS.catalogInspect),
+  selectCatalogSource: async (kind: "skill" | "plugin") => await ipcRenderer.invoke(CHANNELS.catalogSourceSelect, { kind }),
+  installPortablePlugins: async () => await ipcRenderer.invoke(CHANNELS.catalogInstallPlugins),
+  connectPortablePlugins: async () => await ipcRenderer.invoke(CHANNELS.catalogConnectPlugins),
+  disconnectPortablePlugins: async () => await ipcRenderer.invoke(CHANNELS.catalogDisconnectPlugins),
+  callCatalogTool: async (input: unknown) => await ipcRenderer.invoke(CHANNELS.catalogCallTool, input),
   openProject: async () => await ipcRenderer.invoke(CHANNELS.projectOpen),
   revealProject: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.projectReveal, { projectId }),
   readProjectTree: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.projectTree, { projectId }),
@@ -98,6 +113,11 @@ const bridge: DevBoxBridge = Object.freeze({
     const handler = (_event: Electron.IpcRendererEvent, payload: unknown): void => listener(payload as Parameters<typeof listener>[0]);
     ipcRenderer.on(CHANNELS.threadActivity, handler);
     return () => ipcRenderer.removeListener(CHANNELS.threadActivity, handler);
+  },
+  onThreadSnapshot: (listener: Parameters<DevBoxBridge["onThreadSnapshot"]>[0]) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown): void => listener(payload as Parameters<typeof listener>[0]);
+    ipcRenderer.on(CHANNELS.threadSnapshot, handler);
+    return () => ipcRenderer.removeListener(CHANNELS.threadSnapshot, handler);
   },
   updateMessage: async (threadId: string, itemId: string, content: string) => await ipcRenderer.invoke(CHANNELS.threadMessageUpdate, { threadId, itemId, content }),
   regenerateMessage: async (threadId: string, itemId: string) => await ipcRenderer.invoke(CHANNELS.threadMessageRegenerate, { threadId, itemId }),
@@ -148,7 +168,9 @@ const bridge: DevBoxBridge = Object.freeze({
   createWorkerPairing: async () => await ipcRenderer.invoke(CHANNELS.workerPairingCreate),
   listRemoteWorkers: async () => await ipcRenderer.invoke(CHANNELS.workerList),
   revokeRemoteWorker: async (workerId: string) => await ipcRenderer.invoke(CHANNELS.workerRevoke, { workerId }),
-  enqueueRemoteJob: async (kind: string, payload: unknown) => await ipcRenderer.invoke(CHANNELS.workerJobEnqueue, { kind, payload })
+  enqueueRemoteJob: async (kind: string, payload: unknown) => await ipcRenderer.invoke(CHANNELS.workerJobEnqueue, { kind, payload }),
+  listRemoteJobs: async () => await ipcRenderer.invoke(CHANNELS.workerJobList),
+  cancelRemoteJob: async (jobId: string) => await ipcRenderer.invoke(CHANNELS.workerJobCancel, { jobId })
 });
 
 contextBridge.exposeInMainWorld("devbox", bridge);

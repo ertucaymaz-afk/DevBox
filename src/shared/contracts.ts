@@ -33,6 +33,75 @@ export const CapabilitySchema = z.object({
 
 export type Capability = z.infer<typeof CapabilitySchema>;
 
+export const CatalogItemSchema = z.object({
+  kind: z.enum(["skill", "plugin"]),
+  id: z.string().min(1).max(160),
+  name: z.string().min(1).max(200),
+  productName: z.string().min(1).max(240),
+  version: z.string().min(1).max(80),
+  publisher: z.string().min(1).max(160),
+  license: z.string().min(1).max(240),
+  redistributionAllowed: z.boolean(),
+  trustClass: z.enum(["PROPRIETARY_SOURCE", "LOCAL_HASH_VERIFIED", "LOCAL_SIDELOAD", "MANAGED_SIGNED_CATALOG"]),
+  sourceState: z.enum(["MISSING", "HASH_VERIFIED", "BUNDLE_VERIFIED", "HASH_FAILED"]),
+  runtimeState: z.enum(["SOURCE_ONLY", "NOT_INSTALLED", "INSTALLED", "RUNNING", "FAILED"]),
+  doctorState: z.enum(["NOT_APPLICABLE", "NOT_RUN", "PASSED", "FAILED"]),
+  toolCount: z.number().int().nonnegative(),
+  tools: z.array(z.object({
+    name: z.string().min(1).max(160),
+    description: z.string().max(2_000).nullable(),
+    inputSchema: z.record(z.string(), z.unknown())
+  }).strict()).max(512),
+  requestedPermissions: z.array(z.string().min(1).max(80)).max(64),
+  grantedPermissions: z.array(z.string().min(1).max(80)).max(64),
+  health: z.object({
+    checkedAt: z.string().datetime().nullable(),
+    consecutiveFailures: z.number().int().nonnegative(),
+    lastError: z.string().max(2_000).nullable()
+  }).strict().nullable(),
+  detail: z.string(),
+  evidence: z.array(z.string())
+}).strict();
+export type CatalogItem = z.infer<typeof CatalogItemSchema>;
+
+export const CatalogToolCallInputSchema = z.object({
+  pluginId: z.string().min(2).max(160),
+  toolName: z.string().min(1).max(160),
+  arguments: z.record(z.string(), z.unknown())
+}).strict().superRefine((value, context) => {
+  if (new TextEncoder().encode(JSON.stringify(value.arguments)).byteLength > 1_048_576) {
+    context.addIssue({ code: "custom", message: "MCP_TOOL_ARGUMENT_LIMIT_EXCEEDED" });
+  }
+});
+export type CatalogToolCallInput = z.infer<typeof CatalogToolCallInputSchema>;
+
+export const CatalogToolCallResultSchema = z.object({
+  pluginId: z.string(),
+  toolName: z.string(),
+  completedAt: z.string().datetime(),
+  durationMs: z.number().int().nonnegative(),
+  result: z.unknown()
+}).strict();
+export type CatalogToolCallResult = z.infer<typeof CatalogToolCallResultSchema>;
+
+export const CatalogSnapshotSchema = z.object({
+  inspectedAt: z.string().datetime(),
+  skillRoot: z.string().nullable(),
+  pluginRoot: z.string().nullable(),
+  counts: z.object({
+    total: z.number().int().nonnegative(),
+    skills: z.number().int().nonnegative(),
+    plugins: z.number().int().nonnegative(),
+    installed: z.number().int().nonnegative(),
+    running: z.number().int().nonnegative(),
+    blocked: z.number().int().nonnegative()
+  }).strict(),
+  items: z.array(CatalogItemSchema),
+  issues: z.array(z.string())
+}).strict();
+export type CatalogSnapshot = z.infer<typeof CatalogSnapshotSchema>;
+export const CatalogSourceInputSchema = z.object({ kind: z.enum(["skill", "plugin"]) }).strict();
+
 export const ProjectSummarySchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -445,24 +514,39 @@ export const EvolutionLearningSchema = z.object({
 export type EvolutionLearning = z.infer<typeof EvolutionLearningSchema>;
 
 export const EvolutionCampaignSchema = z.object({
+  maturityModelVersion: z.literal(2),
   projectId: z.string().min(8).max(128),
   enabled: z.boolean(),
+  isRunning: z.boolean(),
   directive: z.string().trim().min(80).max(64_000),
   score: z.number().int().min(0).max(100),
-  level: z.number().int().min(1).max(10),
+  level: z.number().int().min(1),
+  lifetimeLevel: z.number().int().min(1),
+  migrationFloorLevel: z.number().int().min(1),
+  lifetimeEvidencePoints: z.number().int().nonnegative(),
+  validatedImprovementCount: z.number().int().nonnegative(),
+  stablePromotionCount: z.number().int().nonnegative(),
+  verifiedResearchCount: z.number().int().nonnegative(),
+  verifiedRegressionFixCount: z.number().int().nonnegative(),
+  domainScores: z.record(EvolutionTrackSchema, z.number().int().min(0).max(100)),
   stage: z.string().min(1).max(80),
   provider: z.string().min(1).max(80),
   model: z.string().min(1).max(160),
+  modelEffort: z.literal("high"),
+  lastProvider: z.string().min(1).max(80).nullable(),
+  lastModel: z.string().min(1).max(160).nullable(),
   completedCycles: z.number().int().nonnegative(),
   failedCycles: z.number().int().nonnegative(),
   cyclesToday: z.number().int().nonnegative(),
   cycleDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
-  dailyCycleLimit: z.number().int().min(1).max(48),
+  dailyCycleLimit: z.null(),
   intervalMinutes: z.number().int().min(30).max(10_080),
   lastCycleAt: z.string().datetime().nullable(),
   nextCycleAt: z.string().datetime().nullable(),
-  tasks: z.array(EvolutionTaskSchema).max(120),
-  learnings: z.array(EvolutionLearningSchema).max(40),
+  lastCycleDurationMs: z.number().int().nonnegative().nullable(),
+  lastError: z.string().max(1_000).nullable(),
+  tasks: z.array(EvolutionTaskSchema),
+  learnings: z.array(EvolutionLearningSchema),
   updatedAt: z.string().datetime()
 }).strict();
 export type EvolutionCampaign = z.infer<typeof EvolutionCampaignSchema>;
@@ -555,13 +639,32 @@ export const WorkerPairingSchema = z.object({ code: z.string().min(10).max(128),
 export type WorkerPairing = z.infer<typeof WorkerPairingSchema>;
 export const RemoteWorkerIdInputSchema = z.object({ workerId: z.string().uuid() }).strict();
 export const RemoteJobInputSchema = z.object({ kind: z.string().trim().min(1).max(80), payload: z.unknown() }).strict();
+export const RemoteJobIdInputSchema = z.object({ jobId: z.string().uuid() }).strict();
+export const DurableJobStateSchema = z.enum(["QUEUED", "LEASED", "RUNNING", "CANCEL_REQUESTED", "SUCCEEDED", "FAILED", "CANCELLED"]);
 export const DurableJobSummarySchema = z.object({
-  id: z.string().uuid(), kind: z.string(), state: z.string(), attempt: z.number().int().nonnegative(), createdAt: z.string().datetime()
+  id: z.string().uuid(),
+  kind: z.string(),
+  aggregateId: z.string().nullable(),
+  state: DurableJobStateSchema,
+  attempt: z.number().int().nonnegative(),
+  payload: z.unknown(),
+  result: z.unknown().nullable(),
+  leaseOwner: z.string().nullable(),
+  leaseExpiresAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
 }).passthrough();
+export type DurableJobSummary = z.infer<typeof DurableJobSummarySchema>;
 
 export const IPC_CHANNELS = {
   bootstrap: "devbox:v1:bootstrap",
   capabilityInspect: "devbox:v1:capability:inspect",
+  catalogInspect: "devbox:v1:catalog:inspect",
+  catalogSourceSelect: "devbox:v1:catalog:source-select",
+  catalogInstallPlugins: "devbox:v1:catalog:install-plugins",
+  catalogConnectPlugins: "devbox:v1:catalog:connect-plugins",
+  catalogDisconnectPlugins: "devbox:v1:catalog:disconnect-plugins",
+  catalogCallTool: "devbox:v1:catalog:call-tool",
   projectOpen: "devbox:v1:project:open",
   projectReveal: "devbox:v1:project:reveal",
   projectTree: "devbox:v1:project:tree",
@@ -581,6 +684,7 @@ export const IPC_CHANNELS = {
   threadGet: "devbox:v1:thread:get",
   threadMessage: "devbox:v1:thread:message",
   threadActivity: "devbox:v1:thread:activity",
+  threadSnapshot: "devbox:v1:thread:snapshot",
   threadMessageUpdate: "devbox:v1:thread:message-update",
   threadMessageRegenerate: "devbox:v1:thread:message-regenerate",
   threadRename: "devbox:v1:thread:rename",
@@ -624,4 +728,6 @@ export const IPC_CHANNELS = {
   ,workerList: "devbox:v1:worker:list"
   ,workerRevoke: "devbox:v1:worker:revoke"
   ,workerJobEnqueue: "devbox:v1:worker:job-enqueue"
+  ,workerJobList: "devbox:v1:worker:job-list"
+  ,workerJobCancel: "devbox:v1:worker:job-cancel"
 } as const;

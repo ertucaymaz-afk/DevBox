@@ -76,6 +76,7 @@ import type {
 } from "../shared/contracts";
 import {
   AutomationWorkspace,
+  CatalogWorkspace,
   IntegrationWorkspace,
   SettingsWorkspace,
   TerminalWorkspace,
@@ -84,7 +85,7 @@ import {
 } from "./AdvancedViews";
 import { WhatsNewWorkspace } from "./WhatsNewWorkspace";
 
-type View = "thread" | "files" | "git" | "runs" | "sites" | "capabilities" | "settings" | "terminal" | "worktrees" | "automations" | "integrations" | "pullRequests" | "whatsNew";
+type View = "thread" | "files" | "git" | "runs" | "sites" | "capabilities" | "settings" | "terminal" | "worktrees" | "automations" | "integrations" | "skills" | "pullRequests" | "whatsNew";
 type PromptState = {
   title: string;
   label: string;
@@ -711,6 +712,18 @@ export function App(): ReactNode {
     });
   }), []);
 
+  useEffect(() => window.devbox.onThreadSnapshot((detail) => {
+    setThread((current) => current?.thread.id === detail.thread.id ? detail : current);
+    setThreads((current) => {
+      const index = current.findIndex((item) => item.id === detail.thread.id);
+      if (index < 0) return [detail.thread, ...current];
+      return current.map((item) => item.id === detail.thread.id ? detail.thread : item);
+    });
+    requestAnimationFrame(() => {
+      if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+    });
+  }), []);
+
   useEffect(() => {
     if (!selectedProject?.isGitRepository) return;
     let active = true;
@@ -1111,6 +1124,7 @@ export function App(): ReactNode {
                 : view === "worktrees" ? "Worktree’ler"
                   : view === "automations" ? "DevBox API gelişimi"
                     : view === "integrations" ? "Eklentiler ve entegrasyonlar"
+                      : view === "skills" ? "Beceriler ve taşınabilir eklentiler"
                       : view === "pullRequests" ? "GitHub pull request’leri"
                         : view === "whatsNew" ? `DevBox ${__DEVBOX_VERSION__} yenilikleri`
                           : "Ayarlar";
@@ -1145,6 +1159,7 @@ export function App(): ReactNode {
             <button className={view === "sites" ? "active" : ""} onClick={() => setView("sites")}><Globe2 size={16} /><span>Siteler</span></button>
             <button className={view === "automations" ? "active" : ""} onClick={() => setView("automations")}><ListChecks size={16} /><span>API gelişimi</span></button>
             <button className={view === "integrations" ? "active" : ""} onClick={() => setView("integrations")}><Plug size={16} /><span>Eklentiler</span></button>
+            <button className={view === "skills" ? "active" : ""} onClick={() => setView("skills")}><Sparkles size={16} /><span>Beceriler</span></button>
           </nav>
           <div className="sidebar-scroll">
             <section className="sidebar-section"><div className="section-label"><span>Projeler</span><button onClick={() => void chooseProject()} aria-label="Proje ekle"><Plus size={14} /></button></div>{bootstrap?.projects.length ? bootstrap.projects.map((project) => <button key={project.id} className={`project-row ${selectedProject?.id === project.id ? "selected" : ""}`} onClick={() => { void loadProject(project); setView("thread"); }} title={project.rootPath}><Folder size={15} /><span>{project.name}</span>{project.isGitRepository && <GitBranch size={12} />}</button>) : <p className="empty-label">Proje yok</p>}</section>
@@ -1196,6 +1211,7 @@ export function App(): ReactNode {
             {view === "worktrees" && <WorktreeWorkspace project={selectedProject} />}
             {view === "automations" && <AutomationWorkspace project={selectedProject} />}
             {view === "integrations" && <IntegrationWorkspace project={selectedProject} />}
+            {view === "skills" && <CatalogWorkspace />}
             {view === "pullRequests" && <IntegrationWorkspace project={selectedProject} scope="github" />}
             {view === "whatsNew" && <WhatsNewWorkspace />}
             {view === "settings" && <SettingsWorkspace settings={appSettings} onSettings={(next) => { setAppSettings(next); setPermission(next.permissionProfile); }} onClose={() => setView(thread ? "thread" : selectedProject ? "files" : "thread")} />}

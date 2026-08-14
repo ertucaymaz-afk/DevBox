@@ -37,19 +37,30 @@ describe("state database", () => {
 
     const thread = database.createThread("project-12345678", "Yeni görev");
     expect(thread.items).toEqual([]);
-    const updated = database.appendMessage(thread.thread.id, "Projeyi test et", "Model sağlayıcısı READY değil.");
+    const pending = database.beginMessage(thread.thread.id, "Sağlayıcı bitmeden beni göster", []);
+    expect(pending.detail.items.map((item) => item.role)).toEqual(["user"]);
+    expect(pending.detail.thread.state).toBe("RUNNING");
+    expect(pending.detail.items[0]?.turnId).toBe(pending.turnId);
+    database.appendTurnActivity(thread.thread.id, pending.turnId, "Codex sağlayıcısı doğrulanıyor");
+    expect(database.getThread(thread.thread.id).items.map((item) => [item.role, item.content])).toContainEqual(["activity", "Codex sağlayıcısı doğrulanıyor"]);
+    database.completeMessage(thread.thread.id, pending.turnId, "Kalıcı yanıt");
+    expect(database.getThread(thread.thread.id).items.map((item) => item.role)).toEqual(["user", "activity", "assistant"]);
+    database.deleteThread(thread.thread.id);
+
+    const completedThread = database.createThread("project-12345678", "Yeni görev");
+    const updated = database.appendMessage(completedThread.thread.id, "Projeyi test et", "Model sağlayıcısı READY değil.");
     expect(updated.thread.title).toBe("Projeyi test et");
     expect(updated.items.map((item) => item.role)).toEqual(["user", "assistant"]);
     expect(updated.items.every((item) => Array.isArray(item.attachments))).toBe(true);
-    const edited = database.updateUserMessage(thread.thread.id, updated.items[0]!.id, "Projeyi ayrıntılı test et");
+    const edited = database.updateUserMessage(completedThread.thread.id, updated.items[0]!.id, "Projeyi ayrıntılı test et");
     expect(edited.items[0]?.content).toBe("Projeyi ayrıntılı test et");
-    const regenerated = database.replaceAssistantMessage(thread.thread.id, updated.items[1]!.id, "Yeni doğrulanmış yanıt");
+    const regenerated = database.replaceAssistantMessage(completedThread.thread.id, updated.items[1]!.id, "Yeni doğrulanmış yanıt");
     expect(regenerated.items[1]?.content).toBe("Yeni doğrulanmış yanıt");
     expect(database.listThreads("project-12345678")).toHaveLength(1);
-    expect(database.renameThread(thread.thread.id, "Kalıcı görev").title).toBe("Kalıcı görev");
-    expect(database.setThreadFlag(thread.thread.id, "pinned", true)).toMatchObject({ pinned: true, archived: false, unread: false });
-    expect(database.setThreadFlag(thread.thread.id, "unread", true)).toMatchObject({ pinned: true, archived: false, unread: true });
-    expect(database.setThreadFlag(thread.thread.id, "archived", true)).toMatchObject({ pinned: true, archived: true, unread: true });
+    expect(database.renameThread(completedThread.thread.id, "Kalıcı görev").title).toBe("Kalıcı görev");
+    expect(database.setThreadFlag(completedThread.thread.id, "pinned", true)).toMatchObject({ pinned: true, archived: false, unread: false });
+    expect(database.setThreadFlag(completedThread.thread.id, "unread", true)).toMatchObject({ pinned: true, archived: false, unread: true });
+    expect(database.setThreadFlag(completedThread.thread.id, "archived", true)).toMatchObject({ pinned: true, archived: true, unread: true });
     expect(database.listThreads("project-12345678")[0]).toMatchObject({ pinned: true, archived: true, unread: true });
     const automation = database.createAutomation({
       projectId: "project-12345678",
@@ -61,7 +72,7 @@ describe("state database", () => {
     expect(database.toggleAutomation(automation.id).enabled).toBe(false);
     database.deleteAutomation(automation.id);
     expect(database.listAutomations()).toEqual([]);
-    database.deleteThread(thread.thread.id);
+    database.deleteThread(completedThread.thread.id);
     expect(database.listThreads()).toEqual([]);
   });
 

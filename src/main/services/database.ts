@@ -417,6 +417,16 @@ export class StateDatabase {
     return rows.map((row) => this.#mapDurableJob(row));
   }
 
+  public listRemoteDurableJobs(limit = 100): DurableJob[] {
+    const bounded = Math.max(1, Math.min(500, Math.trunc(limit)));
+    const rows = this.#database.prepare(`
+      SELECT * FROM durable_jobs
+      WHERE kind LIKE 'remote:%'
+      ORDER BY created_at DESC LIMIT ?
+    `).all(bounded) as unknown as DurableJobRow[];
+    return rows.map((row) => this.#mapDurableJob(row));
+  }
+
   public createWorkerPairing(codeHash: string, expiresAt: string): void {
     const now = new Date().toISOString();
     this.#database.prepare("DELETE FROM worker_pairings WHERE expires_at <= ? OR used_at IS NOT NULL").run(now);
@@ -484,11 +494,22 @@ export class StateDatabase {
 
   public revokeRemoteWorker(id: string): RemoteWorker {
     const now = new Date().toISOString();
-    const result = this.#database.prepare(`
-      UPDATE remote_workers SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL
-    `).run(now, id);
-    if (result.changes !== 1) throw new Error("REMOTE_WORKER_REVOKED_OR_MISSING");
-    return this.getRemoteWorker(id);
+    this.#database.exec("BEGIN IMMEDIATE;");
+    try {
+      const result = this.#database.prepare(`
+        UPDATE remote_workers SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL
+      `).run(now, id);
+      if (result.changes !== 1) throw new Error("REMOTE_WORKER_REVOKED_OR_MISSING");
+      this.#database.prepare(`
+        UPDATE durable_jobs SET state = 'CANCEL_REQUESTED', updated_at = ?
+        WHERE kind LIKE 'remote:%' AND lease_owner = ? AND state IN ('LEASED', 'RUNNING')
+      `).run(now, id);
+      this.#database.exec("COMMIT;");
+      return this.getRemoteWorker(id);
+    } catch (error) {
+      this.#database.exec("ROLLBACK;");
+      throw error;
+    }
   }
 
   public leaseNextRemoteJob(workerId: string, leaseMs = 30_000, maxAttempts = 3): DurableJob | null {
@@ -702,6 +723,16 @@ export class StateDatabase {
     attachmentIds: readonly string[] = [],
     activities: readonly { message: string; createdAt: string }[] = []
   ): ThreadDetail {
+    const started = this.beginMessage(threadId, content, attachmentIds);
+    for (const activity of activities) this.appendTurnActivity(threadId, started.turnId, activity.message, activity.createdAt);
+    return this.completeMessage(threadId, started.turnId, assistantContent);
+  }
+
+  public beginMessage(
+    threadId: string,
+    content: string,
+    attachmentIds: readonly string[] = []
+  ): { detail: ThreadDetail; turnId: string } {
     const existing = this.#database.prepare("SELECT * FROM threads WHERE id = ?").get(threadId) as ThreadRow | undefined;
     if (!existing) throw new Error("THREAD_NOT_FOUND");
     const draftAttachments = this.getStoredAttachments(threadId, attachmentIds, true);
@@ -712,16 +743,10 @@ export class StateDatabase {
     this.#database.exec("BEGIN IMMEDIATE;");
     try {
       this.#database.prepare("UPDATE threads SET state = 'RUNNING', updated_at = ? WHERE id = ?").run(now, threadId);
-      this.#database.prepare("INSERT INTO turns(id, thread_id, status, input, started_at, ended_at) VALUES (?, ?, 'COMPLETED', ?, ?, ?)")
-        .run(turnId, threadId, content, now, now);
+      this.#database.prepare("INSERT INTO turns(id, thread_id, status, input, started_at, ended_at) VALUES (?, ?, 'RUNNING', ?, ?, NULL)")
+        .run(turnId, threadId, content, now);
       this.#database.prepare("INSERT INTO items(id, turn_id, sequence, type, payload_json, created_at) VALUES (?, ?, 0, 'message', ?, ?)")
         .run(userItemId, turnId, JSON.stringify({ role: "user", content }), now);
-      const insertActivity = this.#database.prepare("INSERT INTO items(id, turn_id, sequence, type, payload_json, created_at) VALUES (?, ?, ?, 'activity', ?, ?)");
-      activities.forEach((activity, index) => {
-        insertActivity.run(randomUUID(), turnId, index + 1, JSON.stringify({ role: "activity", content: activity.message }), activity.createdAt);
-      });
-      this.#database.prepare("INSERT INTO items(id, turn_id, sequence, type, payload_json, created_at) VALUES (?, ?, ?, 'message', ?, ?)")
-        .run(randomUUID(), turnId, activities.length + 1, JSON.stringify({ role: "assistant", content: assistantContent }), now);
       const bindAttachment = this.#database.prepare("UPDATE attachments SET item_id = ? WHERE id = ? AND thread_id = ? AND item_id IS NULL");
       for (const attachment of draftAttachments) {
         const result = bindAttachment.run(userItemId, attachment.id, threadId);
@@ -729,7 +754,36 @@ export class StateDatabase {
       }
       const shouldRetitle = GENERIC_THREAD_TITLES.has(existing.title);
       const nextTitle = shouldRetitle ? deriveThreadTitle(content, draftAttachments.length > 0) : existing.title;
-      this.#database.prepare("UPDATE threads SET title = ?, state = 'COMPLETED', updated_at = ? WHERE id = ?").run(nextTitle, now, threadId);
+      this.#database.prepare("UPDATE threads SET title = ?, state = 'RUNNING', unread = 0, updated_at = ? WHERE id = ?").run(nextTitle, now, threadId);
+      this.#database.exec("COMMIT;");
+    } catch (error) {
+      this.#database.exec("ROLLBACK;");
+      throw error;
+    }
+    return { detail: this.getThread(threadId), turnId };
+  }
+
+  public appendTurnActivity(threadId: string, turnId: string, message: string, createdAt = new Date().toISOString()): ThreadDetail {
+    const turn = this.#database.prepare("SELECT id FROM turns WHERE id = ? AND thread_id = ? AND status = 'RUNNING'").get(turnId, threadId);
+    if (!turn) throw new Error("RUNNING_TURN_NOT_FOUND");
+    const row = this.#database.prepare("SELECT COALESCE(MAX(sequence), 0) AS sequence FROM items WHERE turn_id = ?").get(turnId) as { sequence: number };
+    this.#database.prepare("INSERT INTO items(id, turn_id, sequence, type, payload_json, created_at) VALUES (?, ?, ?, 'activity', ?, ?)")
+      .run(randomUUID(), turnId, row.sequence + 1, JSON.stringify({ role: "activity", content: message.slice(0, 2_000) }), createdAt);
+    this.#database.prepare("UPDATE threads SET updated_at = ? WHERE id = ?").run(createdAt, threadId);
+    return this.getThread(threadId);
+  }
+
+  public completeMessage(threadId: string, turnId: string, assistantContent: string): ThreadDetail {
+    const turn = this.#database.prepare("SELECT id FROM turns WHERE id = ? AND thread_id = ? AND status = 'RUNNING'").get(turnId, threadId);
+    if (!turn) throw new Error("RUNNING_TURN_NOT_FOUND");
+    const row = this.#database.prepare("SELECT COALESCE(MAX(sequence), 0) AS sequence FROM items WHERE turn_id = ?").get(turnId) as { sequence: number };
+    const now = new Date().toISOString();
+    this.#database.exec("BEGIN IMMEDIATE;");
+    try {
+      this.#database.prepare("INSERT INTO items(id, turn_id, sequence, type, payload_json, created_at) VALUES (?, ?, ?, 'message', ?, ?)")
+        .run(randomUUID(), turnId, row.sequence + 1, JSON.stringify({ role: "assistant", content: assistantContent }), now);
+      this.#database.prepare("UPDATE turns SET status = 'COMPLETED', ended_at = ? WHERE id = ?").run(now, turnId);
+      this.#database.prepare("UPDATE threads SET state = 'COMPLETED', unread = 0, updated_at = ? WHERE id = ?").run(now, threadId);
       this.#database.exec("COMMIT;");
     } catch (error) {
       this.#database.exec("ROLLBACK;");

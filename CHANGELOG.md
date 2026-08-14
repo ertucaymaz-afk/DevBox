@@ -2,6 +2,32 @@
 
 DevBox’taki kayda değer bütün değişiklikler burada tutulur. `0.x` serisi işlevsel önizleme aşamasındayken proje anlamsal sürümlemeyi izler.
 
+## [0.1.4] - 2026-08-14
+
+### Eklendi
+
+- OpenAI Codex CLI `gpt-5.6-sol` ve yüksek düşünme düzeyini öncelikli kullanan; sabit günlük sınır koymayan, her çevrimde farklılaştırılmış görev üreten ve sonucu SQLite WAL içinde saklayan DevBox API gelişim kuyruğu.
+- Şema doğrulaması, izin bildirimi, uyumluluk sınırı, yayıncı anahtarı kaydı, Ed25519 manifest doğrulaması, SHA-256 içerik denetimi, yerel sideload/yönetilen katalog güven sınıfları, geri alma, onarım ve iptal listesi uygulayan eklenti yaşam döngüsü.
+- Her eklentiyi ayrı child process’te çalıştıran, MCP `initialize`, `tools/list` ve gerçek `tools/call` akışını doğrulayan izole MCP host’u; **Eklentiler** altında gerçek katalog ve **Beceriler** envanteri.
+- Zincir bütünlüğü denetlenen yerel audit kaydı ve imzalı/sıralı iptal listesi doğrulaması.
+- Resmî Microsoft `vscode-js-debug` varlığına bağlanan yerleşik JavaScript/TypeScript DAP yolu; thread, çağrı yığını, scope, değişken, continue/pause/step ve proje sınırı içindeki breakpoint kontrolleri.
+- Uzak worker görev geçmişi, iptal, lease/heartbeat kurtarması, token özeti, çalışma-kökü ve komut izin listesi; gerçek Core API + worker süreciyle komut ve iptal E2E doğrulaması.
+- Evrensel eklenti ve uygulama entegrasyon belgesindeki maddeleri uygulanmış, kısmi, dış altyapı gerektiren ve çalıştırılmamış olarak ayıran Türkçe doğruluk matrisi.
+- 51.468 satırlık `geliştirme.md` kaynağındaki 22 fazı ve 3.362 benzersiz atomik görevi başlangıçta kanıtsız `PASS` vermeden sürüm kontrollü görev grafiğine dönüştüren tekrarlanabilir alım ve release-gate doğrulaması.
+
+### Değiştirildi
+
+- Hata ayıklama alanı ham JSON görünümünden thread → frame → scope → değişken akışını tıklanabilir gösteren kompakt denetçiye dönüştürüldü; dar pencerede tek sütuna iner.
+- MCP child-process kapanışı Windows dosya kilidini bırakmadan tamamlanmış sayılmıyor; geçici dizin temizleme yarışı giderildi.
+- Geçici yerel katalog-doctor sahnesi Git, kaynak arşivi ve yayın teslimlerinden dışlandı.
+
+### Doğrulama ve sınırlar
+
+- 27 test dosyasında 52 test, iki TypeScript typecheck, Vite/Electron üretim derlemesi ve ürün-doğruluk denetimi geçti. MCP kapanışı ayrıca beş ardışık Windows çalıştırmasında doğrulandı.
+- Gerçek TypeScript language-server ve gerçek Node hata ayıklama adaptörü süreçleri testte başlatıldı; proje dışı breakpoint yolu reddedildi.
+- Aynı makinede gerçek HTTP/Core API ve ayrı worker süreciyle görev çalıştırma ve çalışan görevi iptal etme E2E testi geçti. Fiziksel ikinci makine, ağ bölünmesi ve uzun temiz-VM soak henüz kanıtlanmış değildir.
+- SignPath Foundation incelemesi sürdüğü için v0.1.4 kurucusu gerçek sertifika sağlanana kadar `NOT_SIGNED` yayımlanır; self-signed kimlik kullanılmaz.
+
 ## [0.1.3] - 2026-08-14
 
 ### Düzeltildi

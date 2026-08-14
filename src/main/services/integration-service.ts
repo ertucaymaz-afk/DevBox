@@ -5,6 +5,7 @@ import type { CommandResult, IntegrationStatus } from "../../shared/contracts.js
 import type { CommandRunner } from "./command-runner.js";
 import type { PackageLifecycleService } from "./package-lifecycle-service.js";
 import type { SshTrustService } from "./ssh-trust-service.js";
+import { BUILTIN_JAVASCRIPT_DEBUG_ADAPTER, builtInJavaScriptAdapterFiles } from "./language-debug-service.js";
 
 function firstLine(value: string): string | null {
   return value.split(/\r?\n/u).map((line) => line.trim()).find(Boolean) ?? null;
@@ -128,7 +129,7 @@ export class IntegrationService {
       },
       { kind: "lsp", state: protocols.lsp.length ? "CONFIGURED" : "UNAVAILABLE", version: "3.17", account: null, detail: protocols.lsp.length ? `Dil sunucusu yürütülebilirleri keşfedildi: ${protocols.lsp.join(", ")}. Bu oturumda initialize/diagnostics alışverişi çalıştırılmadığı için READY değildir.` : "PATH veya seçili projenin node_modules/.bin dizininde desteklenen dil sunucusu bulunamadı.", commands: ["discover"], checkedAt },
       { kind: "dap", state: protocols.dap.length ? "CONFIGURED" : "UNAVAILABLE", version: "1.71", account: null, detail: protocols.dap.length ? `Debug adaptörü yürütülebilirleri keşfedildi: ${protocols.dap.join(", ")}. Bu oturumda initialize/launch/attach kanıtı olmadığı için READY değildir.` : "PATH veya seçili projenin node_modules/.bin dizininde desteklenen debug adaptörü bulunamadı.", commands: ["discover"], checkedAt },
-      { kind: "marketplace", state: packageStatus && packageStatus.trustedPublishers > 0 && packageStatus.installedPackages > 0 ? "READY" : this.#packages ? "CONFIGURED" : "UNAVAILABLE", version: "1", account: null, detail: packageStatus ? `İmzalı paket yaşam döngüsü bağlı: ${packageStatus.trustedPublishers} güven kökü, ${packageStatus.installedPackages} etkin paket. READY yalnız en az bir güven kökü ve doğrulanmış etkin paket varsa verilir.` : "Paket yaşam döngüsü deposu bağlanmadı.", commands: ["verify", "install", "inventory", "repair", "rollback"], checkedAt },
+      { kind: "marketplace", state: packageStatus?.auditIntegrity === "FAILED" || packageStatus?.revocations.state === "INVALID" || packageStatus?.revocations.state === "EXPIRED" ? "DEGRADED" : packageStatus && packageStatus.managedCatalogPublishers > 0 && packageStatus.managedCatalogPackages > 0 && packageStatus.revocations.state === "CURRENT" ? "READY" : this.#packages ? "CONFIGURED" : "UNAVAILABLE", version: "1", account: null, detail: packageStatus ? `İmzalı paket yaşam döngüsü bağlı: ${packageStatus.localSideloadPackages} yerel sideload, ${packageStatus.managedCatalogPackages} yönetilen katalog paketi; hash-zincirli yerel audit: ${packageStatus.auditIntegrity} (${packageStatus.auditEvents} olay); Ed25519 iptal listesi: ${packageStatus.revocations.state} (sıra ${packageStatus.revocations.sequence}, ${packageStatus.revocations.entries} kayıt). Yerel key/paket varlığı marketplace READY sayılmaz; READY yalnız doğrulanmış yönetilen katalog güven kökü, etkin katalog paketi ve güncel imzalı iptal listesiyle verilir.` : "Paket yaşam döngüsü deposu bağlanmadı.", commands: ["verify", "install", "inventory", "repair", "rollback", "revocation-verify"], checkedAt },
       { kind: "updater", state: "BLOCKED", version: "1", account: null, detail: packageStatus ? `İmzalı update staging/verify/repair/rollback host'u hazır (${packageStatus.activeUpdates} staged); güvenilir yayın kanalı ve Authenticode sertifikası olmadan çalışan EXE otomatik değiştirilmez.` : "İmzalı manifest doğrulayıcısı var; güvenilir yayın kanalı ve Authenticode sertifikası gerekir.", commands: ["stage", "verify", "repair", "rollback", "channel-required", "certificate-required"], checkedAt },
       { kind: "signing", state: signTool.exitCode !== 0 ? "UNAVAILABLE" : signingCertificate.exitCode === 0 ? "READY" : "BLOCKED", version: versionFrom(`${signTool.stdout}\n${signTool.stderr}`), account: null, detail: signTool.exitCode !== 0 ? "Windows SDK SignTool bulunamadı." : signingCertificate.exitCode === 0 ? `Geçerli kod imzalama EKU'suna ve kullanılabilir özel anahtara sahip sertifika bulundu: ${firstLine(signingCertificate.stdout) ?? "kimlik okunamadı"}.` : "SignTool bulundu ancak CurrentUser/LocalMachine My depolarında geçerli code-signing EKU'su ve kullanılabilir özel anahtarı olan gerçek yayın sertifikası yok.", commands: ["preflight", "sign", "verify"], checkedAt }
     ];
@@ -147,7 +148,17 @@ export class IntegrationService {
       Promise.all(lspCandidates.map(locate)),
       Promise.all(dapCandidates.map(locate))
     ]);
-    return { lsp: lsp.filter((item): item is string => item !== null), dap: dap.filter((item): item is string => item !== null) };
+    let builtInJavaScript: string | null = null;
+    try {
+      const files = builtInJavaScriptAdapterFiles();
+      if (existsSync(files.proxy) && existsSync(files.server)) builtInJavaScript = `${BUILTIN_JAVASCRIPT_DEBUG_ADAPTER} (Microsoft vscode-js-debug 1.117.0, paketli)`;
+    } catch {
+      builtInJavaScript = null;
+    }
+    return {
+      lsp: lsp.filter((item): item is string => item !== null),
+      dap: [...(builtInJavaScript ? [builtInJavaScript] : []), ...dap.filter((item): item is string => item !== null)]
+    };
   }
 
   public async github(cwd: string, action: "pr-list" | "pr-create" | "pr-merge" | "issue-list" | "issue-create" | "checks" | "run-list" | "run-log" | "run-rerun" | "release-list" | "release-create", target: string): Promise<CommandResult> {

@@ -46,10 +46,11 @@ describe("API evolution persistence", () => {
     const firstService = createService(firstDatabase);
     const initial = firstService.get(projectId);
     expect(initial.tasks).toHaveLength(14);
-    expect(initial.dailyCycleLimit).toBe(24);
+    expect(initial.dailyCycleLimit).toBeNull();
     expect(initial.intervalMinutes).toBe(60);
     expect(initial.provider).toContain("OpenAI Codex CLI");
-    expect(initial.model).toBe("İlk gerçek çevrimde doğrulanacak");
+    expect(initial.model).toBe("gpt-5.6-sol");
+    expect(initial.modelEffort).toBe("high");
 
     const directive = [
       "DevBox API gelişimini kalıcı olarak izle; her iddiayı gerçek çalışma kanıtına bağla.",
@@ -60,6 +61,7 @@ describe("API evolution persistence", () => {
       ...updated,
       dailyCycleLimit: 4,
       intervalMinutes: 360,
+      level: 7,
       tasks: updated.tasks.slice(0, 1)
     });
 
@@ -71,8 +73,11 @@ describe("API evolution persistence", () => {
     const reopened = createService(reopenedDatabase).get(projectId);
 
     expect(reopened.directive).toBe(directive);
-    expect(reopened.dailyCycleLimit).toBe(24);
-    expect(reopened.intervalMinutes).toBe(60);
+    expect(reopened.dailyCycleLimit).toBeNull();
+    expect(reopened.intervalMinutes).toBe(360);
+    expect(reopened.level).toBe(7);
+    expect(reopened.lifetimeLevel).toBe(7);
+    expect(reopened.migrationFloorLevel).toBe(7);
     expect(reopened.tasks).toHaveLength(14);
     expect(new Set(reopened.tasks.map((task) => task.track)).size).toBe(14);
     expect(reopened.provider).toContain("OpenAI Codex CLI");

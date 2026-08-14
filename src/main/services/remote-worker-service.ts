@@ -59,7 +59,13 @@ export class RemoteWorkerService {
 
   public start(token: string, jobId: string): DurableJob {
     const worker = this.heartbeat(token);
-    return this.#database.startDurableJob(jobId, worker.id, LEASE_MS);
+    try {
+      return this.#database.startDurableJob(jobId, worker.id, LEASE_MS);
+    } catch (error) {
+      const current = this.#database.getDurableJob(jobId);
+      if (current.leaseOwner === worker.id && current.state === "CANCEL_REQUESTED") return current;
+      throw error;
+    }
   }
 
   public heartbeatJob(token: string, jobId: string): DurableJob {
@@ -84,5 +90,15 @@ export class RemoteWorkerService {
     const normalized = kind.trim().replace(/^remote:/u, "").slice(0, 80);
     if (!/^[a-z0-9][a-z0-9._-]*$/u.test(normalized)) throw new Error("REMOTE_JOB_KIND_INVALID");
     return this.#database.enqueueDurableJob(`remote:${normalized}`, payload);
+  }
+
+  public listJobs(): DurableJob[] {
+    return this.#database.listRemoteDurableJobs(100);
+  }
+
+  public cancelJob(jobId: string): DurableJob {
+    const job = this.#database.getDurableJob(jobId);
+    if (!job.kind.startsWith("remote:")) throw new Error("REMOTE_JOB_NOT_FOUND");
+    return this.#database.requestDurableJobCancellation(jobId);
   }
 }

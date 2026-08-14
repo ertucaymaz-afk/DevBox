@@ -14,6 +14,7 @@ import { CoreApi } from "./services/core-api.js";
 import { StateDatabase } from "./services/database.js";
 import { GitService } from "./services/git-service.js";
 import { IntegrationService } from "./services/integration-service.js";
+import { LocalCatalogService } from "./services/local-catalog-service.js";
 import { DebugService, LanguageService } from "./services/language-debug-service.js";
 import { PackageLifecycleService } from "./services/package-lifecycle-service.js";
 import { ProjectService } from "./services/project-service.js";
@@ -46,6 +47,7 @@ let terminals: TerminalService | null = null;
 let evolution: ApiEvolutionService | null = null;
 let commandRunner: CommandRunner | null = null;
 let unregisterIpc: (() => void) | null = null;
+let localCatalog: LocalCatalogService | null = null;
 let debugService: DebugService | null = null;
 
 function rendererRoot(): string {
@@ -146,6 +148,11 @@ async function start(): Promise<void> {
   const packages = new PackageLifecycleService(path.join(app.getPath("userData"), "signed-runtime"));
   const sshTrust = new SshTrustService(path.join(app.getPath("userData"), "ssh", "known-hosts"), runner);
   const integrations = new IntegrationService(runner, packages, sshTrust);
+  const catalog = new LocalCatalogService(path.join(app.getPath("userData"), "catalog"), runner, {
+    skillRoot: path.join(app.getPath("desktop"), "Yeni klasör", "12-Gelistirici-Araci-v1.2.0"),
+    pluginRoot: path.join(app.getPath("desktop"), "Yeni klasör", "12-Portable-AI-Plugins-v2.3.0")
+  });
+  localCatalog = catalog;
   const language = new LanguageService(projects);
   debugService = new DebugService(projects);
   coreApi = new CoreApi({
@@ -159,6 +166,7 @@ async function start(): Promise<void> {
     evolution,
     settings,
     remoteWorkers,
+    catalog,
     probeCwd: app.getPath("userData"),
     appVersion: app.getVersion()
   });
@@ -182,6 +190,7 @@ async function start(): Promise<void> {
     terminals,
     worktrees,
     integrations,
+    catalog,
     packages,
     sshTrust,
     language,
@@ -210,7 +219,7 @@ app.whenReady().then(start).catch((error: unknown) => {
 });
 
 app.on("before-quit", (event) => {
-  if (!coreApi && !database && !terminals && !evolution && !commandRunner) return;
+  if (!coreApi && !database && !terminals && !evolution && !commandRunner && !localCatalog) return;
   event.preventDefault();
   const api = coreApi;
   coreApi = null;
@@ -225,6 +234,8 @@ app.on("before-quit", (event) => {
   unregisterIpc?.();
   unregisterIpc = null;
   void (async () => {
+    await localCatalog?.close();
+    localCatalog = null;
     await runner?.close();
     await api?.close();
     database?.close();
