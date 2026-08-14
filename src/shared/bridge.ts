@@ -10,6 +10,11 @@ import type {
   GitDiff,
   GitStatus,
   IntegrationStatus,
+  LanguageDiagnosticsResult,
+  DebugResponse,
+  DebugSession,
+  RemoteWorker,
+  WorkerPairing,
   PlatformAction,
   ProjectSummary,
   ProjectTreeNode,
@@ -84,4 +89,12 @@ export interface DevBoxBridge {
   runVercelAction(projectId: string, action: "link" | "preview" | "production" | "inspect" | "logs" | "rollback", target?: string): Promise<CommandResult>;
   runGitHubAction(projectId: string, action: "pr-list" | "pr-create" | "pr-merge" | "issue-list" | "issue-create" | "checks" | "run-list" | "run-log" | "run-rerun" | "release-list" | "release-create", target?: string): Promise<CommandResult>;
   runPlatformAction(action: PlatformAction, target?: string, projectId?: string): Promise<CommandResult>;
+  getLanguageDiagnostics(projectId: string, relativePath: string, language: "typescript" | "typescriptreact" | "javascript" | "javascriptreact", content: string, version: number): Promise<LanguageDiagnosticsResult>;
+  startDebugSession(projectId: string, executable: string, args: string[], request: "launch" | "attach", configuration: Record<string, unknown>): Promise<DebugSession>;
+  runDebugCommand(sessionId: string, command: "continue" | "pause" | "next" | "stepIn" | "stepOut" | "threads" | "stackTrace" | "scopes" | "variables" | "setBreakpoints", args?: Record<string, unknown>): Promise<DebugResponse>;
+  stopDebugSession(sessionId: string): Promise<void>;
+  createWorkerPairing(): Promise<WorkerPairing>;
+  listRemoteWorkers(): Promise<RemoteWorker[]>;
+  revokeRemoteWorker(workerId: string): Promise<RemoteWorker>;
+  enqueueRemoteJob(kind: string, payload: unknown): Promise<{ id: string; kind: string; state: string; attempt: number; createdAt: string }>;
 }

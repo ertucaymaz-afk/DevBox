@@ -31,7 +31,7 @@ for (const relativeRoot of productionRoots) {
   }
 }
 
-const builder = await readFile(path.join(workspace, "electron-builder.yml"), "utf8");
+const builder = await readFile(path.join(workspace, "config", "electron-builder.yml"), "utf8");
 if (!/^asar:\s*true\s*$/mu.test(builder)) violations.push("electron-builder must package the application as ASAR");
 if (!/^\s+- dist\/\*\*\/\*\s*$/mu.test(builder) || !/^\s+- package\.json\s*$/mu.test(builder)) {
   violations.push("electron-builder files allowlist must contain only dist/**/* and package.json");

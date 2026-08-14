@@ -63,6 +63,14 @@ const CHANNELS = Object.freeze({
   ,vercelAction: "devbox:v1:integration:vercel"
   ,githubAction: "devbox:v1:integration:github"
   ,platformAction: "devbox:v1:integration:platform"
+  ,languageDiagnostics: "devbox:v1:language:diagnostics"
+  ,debugStart: "devbox:v1:debug:start"
+  ,debugCommand: "devbox:v1:debug:command"
+  ,debugStop: "devbox:v1:debug:stop"
+  ,workerPairingCreate: "devbox:v1:worker:pairing-create"
+  ,workerList: "devbox:v1:worker:list"
+  ,workerRevoke: "devbox:v1:worker:revoke"
+  ,workerJobEnqueue: "devbox:v1:worker:job-enqueue"
 });
 
 const bridge: DevBoxBridge = Object.freeze({
@@ -132,7 +140,15 @@ const bridge: DevBoxBridge = Object.freeze({
   inspectIntegrations: async (projectId?: string) => await ipcRenderer.invoke(CHANNELS.integrationInspect, projectId ? { projectId } : {}),
   runVercelAction: async (projectId: string, action: "link" | "preview" | "production" | "inspect" | "logs" | "rollback", target = "") => await ipcRenderer.invoke(CHANNELS.vercelAction, { projectId, action, target }),
   runGitHubAction: async (projectId: string, action: "pr-list" | "pr-create" | "pr-merge" | "issue-list" | "issue-create" | "checks" | "run-list" | "run-log" | "run-rerun" | "release-list" | "release-create", target = "") => await ipcRenderer.invoke(CHANNELS.githubAction, { projectId, action, target }),
-  runPlatformAction: async (action: PlatformAction, target = "", projectId?: string) => await ipcRenderer.invoke(CHANNELS.platformAction, { action, target, ...(projectId ? { projectId } : {}) })
+  runPlatformAction: async (action: PlatformAction, target = "", projectId?: string) => await ipcRenderer.invoke(CHANNELS.platformAction, { action, target, ...(projectId ? { projectId } : {}) }),
+  getLanguageDiagnostics: async (projectId: string, relativePath: string, language: "typescript" | "typescriptreact" | "javascript" | "javascriptreact", content: string, version: number) => await ipcRenderer.invoke(CHANNELS.languageDiagnostics, { projectId, relativePath, language, content, version }),
+  startDebugSession: async (projectId: string, executable: string, args: string[], request: "launch" | "attach", configuration: Record<string, unknown>) => await ipcRenderer.invoke(CHANNELS.debugStart, { projectId, executable, arguments: args, request, configuration }),
+  runDebugCommand: async (sessionId: string, command: "continue" | "pause" | "next" | "stepIn" | "stepOut" | "threads" | "stackTrace" | "scopes" | "variables" | "setBreakpoints", args: Record<string, unknown> = {}) => await ipcRenderer.invoke(CHANNELS.debugCommand, { sessionId, command, arguments: args }),
+  stopDebugSession: async (sessionId: string) => await ipcRenderer.invoke(CHANNELS.debugStop, { sessionId }),
+  createWorkerPairing: async () => await ipcRenderer.invoke(CHANNELS.workerPairingCreate),
+  listRemoteWorkers: async () => await ipcRenderer.invoke(CHANNELS.workerList),
+  revokeRemoteWorker: async (workerId: string) => await ipcRenderer.invoke(CHANNELS.workerRevoke, { workerId }),
+  enqueueRemoteJob: async (kind: string, payload: unknown) => await ipcRenderer.invoke(CHANNELS.workerJobEnqueue, { kind, payload })
 });
 
 contextBridge.exposeInMainWorld("devbox", bridge);

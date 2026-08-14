@@ -1,0 +1,65 @@
+name: Windows dayanıklılık denetimi
+
+on:
+  workflow_dispatch:
+    inputs:
+      soak_seconds:
+        description: Temiz sanal makine yük testi süresi, saniye (300-21600)
+        required: true
+        default: "10800"
+  schedule:
+    - cron: "17 1 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-resilience-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  clean-windows-vm:
+    name: Gerçek CPU RAM I/O ve hata kurtarma
+    runs-on: windows-latest
+    timeout-minutes: 390
+    steps:
+      - name: İncelenen kaynak kodu al
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Node.js 24 kullan
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Sabitlenmiş pnpm sürümünü etkinleştir
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.19.0 --activate
+
+      - name: Tam bağımlılık grafiğini kilit dosyasından kur
+        run: pnpm install --frozen-lockfile
+
+      - name: Denetlenecek çalışma zamanını derle
+        run: pnpm build:main
+
+      - name: Gerçek zaman aşımı iptal çıktı baskısı ve lease çökmesi uygula
+        run: node scripts/failure-injection.mjs
+
+      - name: Temiz sanal makinede CPU RAM I/O yük testini çalıştır
+        shell: pwsh
+        env:
+          DEVBOX_SOAK_SECONDS: ${{ inputs.soak_seconds || '10800' }}
+        run: node scripts/soak-smoke.mjs
+
+      - name: Dayanıklılık kanıtlarını yükle
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-resilience-${{ github.run_id }}
+          path: outputs/*.json
+          if-no-files-found: error
+          retention-days: 30

@@ -2,9 +2,20 @@
 
 > Windows üzerinde proje, sohbet, Git, terminal ve kanıt akışını tek yerde toplayan açık kaynak mühendislik masaüstü.
 
+[![En güncel sürüm](https://img.shields.io/github/v/release/ertucaymaz-afk/DevBox?include_prereleases&label=sürüm&color=2ecf9f)](https://github.com/ertucaymaz-afk/DevBox/releases/latest)
+[![DevBox doğrulama](https://github.com/ertucaymaz-afk/DevBox/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ertucaymaz-afk/DevBox/actions/workflows/ci.yml)
+[![Lisans: Apache 2.0](https://img.shields.io/badge/lisans-Apache--2.0-6b7280)](LICENSE)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-3b82f6)](https://github.com/ertucaymaz-afk/DevBox/releases)
+
 ![DevBox sohbet görünümü](docs/images/devbox-chat-ui.png)
 
 DevBox; yerel projeyle konuşmayı, dosyaları incelemeyi, değişiklikleri izlemeyi ve gerçek araçları çalıştırmayı aynı çalışma alanında buluşturur. Bir özellik makinede gerçekten hazır değilse yeşil bir “başarılı” rozeti göstermez: neden kullanılamadığını açıkça söyler.
+
+## 🚀 Son sürüm ve yenilikler
+
+Yeni sürümler; kurucu, taşınabilir ZIP, SHA-256 sağlama toplamları, SBOM ve dürüst imza durumuyla birlikte [GitHub Releases](https://github.com/ertucaymaz-afk/DevBox/releases/latest) sayfasında yayımlanır. Önceki sürümler ve değişiklik geçmişi için [tüm yayınları](https://github.com/ertucaymaz-afk/DevBox/releases) veya [ayrıntılı sürüm notlarını](docs/RELEASE_NOTES.md) açabilirsiniz.
+
+DevBox içindeki **Yenilikler** alanı da kurulu gerçek sürümün notlarını animasyonlu olarak gösterir. Okundu bilgisi yalnız cihazınızda saklanır; uzaktaki bir servis güncelleme varmış gibi taklit edilmez.
 
 ## ✨ Neler var?
 
@@ -17,7 +28,9 @@ DevBox; yerel projeyle konuşmayı, dosyaları incelemeyi, değişiklikleri izle
 - Sabit konuşmalar, arşiv, okunma durumu, otomatik başlıklar ve kalıcı SQLite geçmişi
 - GitHub PR / issue / check / CI / release ve Vercel komut yolları
 - Worktree yaşam döngüsü, dayanıklı görevler, lease ve yeniden başlatma kurtarması
-- Loopback üzerinde bearer kimlik doğrulamalı DevBox v1 API
+- Gerçek TypeScript/JavaScript LSP tanıları ve seçilebilir hata ayıklama adaptörü üzerinden DAP kontrol yüzeyi
+- Tek kullanımlık eşleştirme, iptal edilebilir kimlik, sağlık sinyali ve çökme kurtarması kullanan uzak çalışan protokolü
+- Yerel geri döngü adresinde erişim anahtarıyla kimlik doğrulayan DevBox v1 API’si
 - Sağlık ve oturum denetimi geçen Codex CLI öncelikli API gelişim araştırması; yalnızca gerçek çağrı başarısız olursa yapılandırılmış Hermes/NVIDIA NIM geri dönüşü
 
 DevBox’ta demo yanıt, sahte entegrasyon sonucu, simüle edilmiş ilerleme ya da uydurma “hazır” durumu bulunmaz. Çalışmayan bir yol, kanıt üretmek yerine hata durumuna geçer.
@@ -30,7 +43,7 @@ API gelişimi ekranı bir modelin kendi kendine eğitim gördüğünü iddia etm
 
 ![DevBox terminal görünümü](docs/images/devbox-terminal.png)
 
-Terminal görünümü Windows pseudo-console üzerinde çift yönlüdür. Giriş, çıkış, yeniden boyutlandırma ve sonlandırma yaşam döngüsü gerçek süreçle bağlıdır; hem “Sohbete dön” hem de görünür kapatma düğmesi vardır.
+Terminal görünümü Windows sözde konsolu üzerinde çift yönlüdür. Giriş, çıkış, yeniden boyutlandırma ve sonlandırma yaşam döngüsü gerçek süreçle bağlıdır; hem “Sohbete dön” hem de görünür kapatma düğmesi vardır.
 
 ## 📦 Kurulum
 
@@ -56,11 +69,22 @@ pnpm package:installer
 
 `pnpm verify`; TypeScript denetimini, birim/sözleşme testlerini, üretim derlemesini ve ürün-doğruluk denetimini çalıştırır. İmzalı paket yolu olan `pnpm package:signed`, kullanılabilir gerçek bir Authenticode kimliği yoksa bilinçli olarak başarısız olur.
 
+## 🌐 Uzak çalışan
+
+DevBox API yalnız `127.0.0.1` üzerinde dinler. Uzak bir makineyi doğrudan internete açık bir porta bağlamak yerine güvenilen SSH tüneli kullanın:
+
+1. **Eklentiler ve entegrasyonlar → Dayanıklı uzak çalışanlar** bölümünden eşleştirme kodu oluşturun.
+2. Uzak makinede ekranda verilen SSH local-forward komutunu çalıştırın.
+3. Açık kaynak arşivindeki `scripts/remote-worker.mjs` dosyasını, ekranda verilen ortam değişkenleriyle başlatın.
+4. Uzak çalışan ilk bağlantıda erişim anahtarını kullanıcı profilindeki `.devbox/worker-token` dosyasına yazar. Kod tekrar kullanılamaz; uygulamadan uzak çalışanın yetkisi kalıcı olarak kaldırılabilir.
+
+Uzak çalışan yalnız `git`, `node`, `pnpm`, `npm`, `pwsh` ve `dotnet` komutlarını `shell: false` ile çalıştırır; çalışma dizini seçilen proje kökünün dışına çıkamaz. Çok saatli temiz Windows sanal makine dayanıklılık işi `.github/workflows/windows-resilience.yml` içindedir. İş akışı sonucu yayımlanmadan veya gerçek iki makine testi yapılmadan uzak ağ dayanıklılığı “kanıtlandı” diye sunulmaz.
+
 ## 🔐 Gizlilik ve güvenlik
 
-DevBox reklam telemetrisi veya ürün analitiği göndermez. Yerel proje, sohbet, ayar, ek ve kanıt verileri; kullanıcı dış sağlayıcı ya da entegrasyon çağrısını açıkça başlatmadıkça makineden çıkmaz. Ayrıntılar [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md) ve [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) dosyalarında bulunur.
+DevBox reklam telemetrisi veya ürün analitiği göndermez. Yerel proje, sohbet, ayar, ek ve kanıt verileri; kullanıcı dış sağlayıcı ya da entegrasyon çağrısını açıkça başlatmadıkça makineden çıkmaz. Ayrıntılar [gizlilik](docs/policies/PRIVACY.md), [güvenlik](.github/SECURITY.md) ve [kod imzalama](docs/policies/CODE_SIGNING_POLICY.md) belgelerinde bulunur.
 
-SignPath Foundation açık kaynak başvurusu proje geliştiricisi tarafından **14 Ağustos 2026 tarihinde gönderildi**. Başvuru şu anda dış inceleme/onboarding aşamasındadır. SignPath onayı ve gerçek güven kökü gelene kadar yayımlanan Windows dosyaları `NOT_SIGNED` olarak işaretlenir; self-signed bir sertifika yayın kimliği gibi sunulmaz.
+SignPath Foundation açık kaynak başvurusu proje geliştiricisi tarafından **14 Ağustos 2026 tarihinde gönderildi**. Başvuru şu anda dış inceleme ve projeyi kabul sürecindedir. SignPath onayı ve gerçek güven kökü gelene kadar yayımlanan Windows dosyaları `İMZASIZ (NOT_SIGNED)` olarak işaretlenir; kendinden imzalı bir sertifika yayın kimliği gibi sunulmaz.
 
 ## 👤 Geliştirici
 
@@ -70,12 +94,14 @@ DevBox, **Yaaertu** tarafından geliştiriliyor.
 - Instagram: [@yaaertu](https://www.instagram.com/yaaertu/)
 - Ürün/geliştirici imzası: **devbox by yaaertu**
 
-`yaaertu` ürün ve sosyal medya kimliğidir. GitHub’da doğrulanmış mevcut hesap ve bu deponun gerçek sahibi `ertucaymaz-afk` olduğu için CODEOWNERS ve yayın kaynağı bu hesapta tutulur. Geliştirici, sorumluluk ve iletişim ayrıntıları için [DEVELOPERS.md](DEVELOPERS.md) dosyasına bakın.
+`yaaertu` ürün ve sosyal medya kimliğidir. GitHub’da doğrulanmış mevcut hesap ve bu deponun gerçek sahibi `ertucaymaz-afk` olduğu için CODEOWNERS ve yayın kaynağı bu hesapta tutulur. Geliştirici, sorumluluk ve iletişim ayrıntıları için [geliştirici belgesine](docs/DEVELOPERS.md) bakın.
 
 ## 🤝 Katkı
 
-Katkılar Apache-2.0 kapsamında açıktır. Başlamadan önce [CONTRIBUTING.md](CONTRIBUTING.md) ve [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) dosyalarını okuyun. Kimlik bilgisi, özel kullanıcı verisi, yerel veritabanı, derleme klasörü veya doğrulanmamış başarı iddiası göndermeyin.
+Katkılar Apache-2.0 kapsamında açıktır. Başlamadan önce [katkı rehberini](.github/CONTRIBUTING.md) ve [davranış kurallarını](.github/CODE_OF_CONDUCT.md) okuyun. Kimlik bilgisi, özel kullanıcı verisi, yerel veritabanı, derleme klasörü veya doğrulanmamış başarı iddiası göndermeyin.
+
+Ürün, sürüm, gizlilik ve kod imzalama belgelerinin kompakt dizini için [docs/README.md](docs/README.md) sayfasını kullanın. Derleme ve test araçlarının ayrıntılı ayarları kök listeyi kalabalıklaştırmamak için `config/` altında tutulur.
 
 ## 📄 Lisans
 
-Copyright 2026 DevBox contributors. [Apache License 2.0](LICENSE) ile lisanslanmıştır.
+Copyright 2026 DevBox katkıcıları. Bağlayıcı [Apache License 2.0](LICENSE) metniyle lisanslanmıştır. Daha kolay okunabilen fakat hukuken bağlayıcı olmayan [Türkçe lisans özetine](docs/policies/LISANS-OZETI.md) de bakabilirsiniz.

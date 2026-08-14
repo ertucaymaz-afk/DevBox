@@ -1,6 +1,34 @@
-# Changelog
+# Değişiklik Günlüğü
 
-All notable DevBox changes are recorded here. DevBox follows semantic versioning while the `0.x` line remains a functional preview.
+DevBox’taki kayda değer bütün değişiklikler burada tutulur. `0.x` serisi işlevsel önizleme aşamasındayken proje anlamsal sürümlemeyi izler.
+
+## [0.1.2] - 2026-08-14
+
+### Eklendi
+
+- Kurulu sürümün gerçek değişikliklerini gösteren, sürüm bazında okundu durumunu cihazda saklayan ve hareketi azalt tercihine saygı duyan animasyonlu **Yenilikler** çalışma alanı.
+- GitHub sürümleri, açık kaynak depo ve geliştirici hesabı için yalnız izin verilen güvenilir HTTPS adreslerini sistem tarayıcısında açan dış bağlantı sınırı.
+- Hukuken bağlayıcı Apache 2.0 metnini değiştirmeden sunan Türkçe lisans özeti ile ayrıntılı Türkçe topluluk davranış, katkı, güvenlik, gizlilik ve imzalama belgeleri.
+- Kurulu `typescript-language-server` süreciyle gerçek LSP `initialize`, `didOpen` ve `publishDiagnostics` akışı; TypeScript/JavaScript editöründe satır-sütun seçimine giden hata listesi.
+- Kullanıcının seçtiği gerçek hata ayıklama adaptörü sürecine bağlanan DAP konsolu; başlatma/bağlanma, devam, duraklat, adım, iş parçacığı, çağrı yığını, kapsam, değişken ve kesme noktası komutları.
+- On dakika geçerli tek kullanımlık eşleştirme kodu, yalnız bir kez gösterilen bearer kimliği, heartbeat, 45 saniyelik lease, crash recovery ve yetki iptali kullanan uzak worker protokolü.
+- Uzak worker için komut allowlist’i, proje-kökü sınırı, çıktı sınırı ve yeniden bağlanırken üst sınırlı geri çekilme uygulayan `scripts/remote-worker.mjs` çalıştırıcısı.
+- Haftalık veya elle başlatılabilen temiz `windows-latest` dayanıklılık iş akışı; varsayılan üç saatlik gerçek CPU/RAM/I/O yükü, failure-injection ve kanıt arşivi.
+
+### Değiştirildi
+
+- GitHub kök görünümü sadeleştirildi: topluluk sağlık dosyaları `.github/`, ayrıntılı ürün ve imzalama belgeleri `docs/`, araç yapılandırmaları `config/` altında toplandı; bütün komutlar, bağlantılar ve kaynak arşivi doğrulaması yeni yollarla güncellendi.
+- GitHub Actions `checkout`, `setup-node` ve `upload-artifact` kullanımları Node 24 tabanlı resmî v6 sürümlerine taşındı.
+- DevBox durum veritabanı şeması v5’e çıkarıldı; eşleştirme sırları ve worker token’ları düz metin yerine SHA-256 kimlikleriyle saklanır.
+- DAP oturum durumu, kabul edilen komuttan tahmin edilmek yerine adapter’ın gerçek `stopped`, `continued`, `terminated` ve `exited` olaylarından güncellenir.
+- Worker API kimlik doğrulama hataları HTTP 401, geçersiz yaşam döngüsü geçişleri ayrık hata kodlarıyla raporlanır.
+
+### Doğrulama ve sınırlar
+
+- TypeScript, gerçek language-server entegrasyon testi, loopback worker eşleştirme/lease testi ve SQLite v5/crash-recovery sözleşmeleri release kapısına eklendi.
+- Yerel smoke testi bu sürüm turunda kullanıcı isteğiyle çalıştırılmadı. Çok saatli soak, temiz GitHub-hosted Windows VM iş akışına kondu; workflow sonucu oluşmadan “geçti” sayılmaz.
+- Fiziksel güç kesintisi, sürücü arızası ve gerçek çok makineli ağ bölünmesi GitHub-hosted VM tarafından kanıtlanmış değildir; bunlar ayrı donanım/uzak-host doğrulama kapısı olarak açık kalır.
+- SignPath Foundation başvurusu dış incelemededir; v0.1.2 dosyaları gerçek sertifika sağlanana kadar `NOT_SIGNED` kalır.
 
 ## [0.1.1] - 2026-08-14
 
@@ -37,45 +65,45 @@ All notable DevBox changes are recorded here. DevBox follows semantic versioning
 
 ## [0.1.0] - 2026-08-14
 
-### Added
+### Eklendi
 
-- Conversation-first Windows desktop layout with compact navigation, project context, message history, composer, settings, API Evolution, integrations, file, Git, terminal, worktree and test surfaces.
-- Real local project selection and bounded file operations, SHA-256 previews, right-click clipboard actions, edit/copy/quote/regenerate message actions, and drag-and-drop attachments up to 300 MiB per file.
-- Real `node-pty`/ConPTY terminal sessions with resize, input, output and termination lifecycle.
-- SQLite WAL persistence for projects, conversations, settings, attachments, message feedback, API Evolution campaigns and durable jobs.
-- Loopback-only bearer-authenticated DevBox v1 HTTP API.
-- Health-checked NVIDIA NIM/Hermes chat route and an authenticated official Codex CLI route for read-only API Evolution analysis, with NVIDIA fallback only after a real Codex failure.
-- Fourteen API Evolution tracks, a 24-cycle daily ceiling, 60-minute scheduling, editable durable directive, evidence links and restart recovery.
-- GitHub, Vercel, SSH host-key pinning, LSP/DAP discovery, worktree and signed-package lifecycle command paths that report unavailable prerequisites instead of inventing success.
-- Windows NSIS packaging, release manifest, SHA-256 inventory, CycloneDX SBOM, third-party notices and a fail-closed Authenticode build path.
-- Apache-2.0 licensing, contribution/security/privacy policies, public CI and SignPath Foundation application material.
-- Application-native conversation context menu with pin, rename, archive, read state, project reveal, path/session/deep-link copy and permanent deletion.
-- Persisted provider activity events for real command, provider, evidence and failure progress without fabricated chain-of-thought.
-- Expandable live Git change capsule with actual per-file `git diff --numstat` additions/deletions and explicit unknown/binary states.
-- Original animated DevBox launch introduction with once, always and never display preferences.
+- Kompakt gezinme, proje bağlamı, mesaj geçmişi, ileti kutusu, ayarlar, API gelişimi, entegrasyonlar, dosyalar, Git, terminal, çalışma ağacı ve test yüzeylerini birleştiren sohbet öncelikli Windows masaüstü düzeni.
+- Gerçek yerel proje seçimi; sınırlandırılmış dosya işlemleri; SHA-256 önizlemeleri; sağ tık pano eylemleri; mesaj düzenleme, kopyalama, alıntılama ve yeniden oluşturma; dosya başına 300 MiB’a kadar sürükle-bırak ekleri.
+- Yeniden boyutlandırma, giriş, çıkış ve sonlandırma yaşam döngüsüne sahip gerçek `node-pty`/ConPTY terminal oturumları.
+- Projeler, sohbetler, ayarlar, ekler, mesaj geri bildirimleri, API gelişimi kampanyaları ve dayanıklı görevler için SQLite WAL kalıcılığı.
+- Yalnız yerel geri döngü adresinde dinleyen ve erişim anahtarıyla doğrulanan DevBox v1 HTTP API’si.
+- Sağlığı denetlenen NVIDIA NIM/Hermes sohbet yolu ve salt okunur API gelişimi analizi için kimliği doğrulanmış resmî Codex CLI yolu; NVIDIA’ya yalnız gerçek Codex hatasından sonra geçiş.
+- On dört API gelişimi alanı, günlük 24 çevrim sınırı, 60 dakikalık zamanlama, düzenlenebilir kalıcı yönerge, kanıt bağlantıları ve yeniden başlatma kurtarması.
+- Eksik ön koşullarda başarı uydurmayan GitHub, Vercel, SSH sunucu anahtarı sabitleme, LSP/DAP keşfi, çalışma ağacı ve imzalı paket yaşam döngüsü komut yolları.
+- Windows NSIS paketleme, sürüm bildirimi, SHA-256 envanteri, CycloneDX SBOM, üçüncü taraf bildirimleri ve güvenli biçimde başarısız olan Authenticode derleme yolu.
+- Apache-2.0 lisansı, katkı/güvenlik/gizlilik politikaları, açık CI ve SignPath Foundation başvuru belgeleri.
+- Sabitleme, yeniden adlandırma, arşivleme, okundu durumu, projeyi gösterme, yol/oturum/derin bağlantı kopyalama ve kalıcı silme içeren uygulama içi sohbet bağlam menüsü.
+- Uydurma düşünce zinciri göstermeden gerçek komut, sağlayıcı, kanıt ve hata ilerlemesini kalıcılaştıran etkinlik kayıtları.
+- Dosya başına gerçek `git diff --numstat` ekleme/silme sayılarını ve bilinmeyen/ikili durumları gösteren açılabilir canlı Git değişiklik kapsülü.
+- Bir kez, her zaman ve hiçbir zaman seçeneklerine sahip özgün hareketli DevBox açılış tanıtımı.
 
-### Changed
+### Değiştirildi
 
-- Reduced navigation and conversation density to match the supplied Codex-style reference more closely; the separate visible `Çalış` mode was removed from the main conversation surface.
-- Added an animated SVG DevBox wordmark and increased safe spacing between the brand and navigation.
-- Simplified Settings into focused internal sections and added an explicit close control.
-- Added contextual automatic conversation titles, project/conversation path context and absolute tooltip plus compact visible timestamps.
-- Replaced the misleading always-green conversation marker with real running/error state indicators; opening a conversation no longer leaves a false unread signal.
-- Changed task deletion to a result-bearing IPC contract: cancelling the native confirmation leaves the task intact, while confirming deletes both SQLite data and the visible row.
-- Converted message operations to compact icon controls while keeping accessible labels and real clipboard/edit/quote/regenerate/feedback behavior.
-- Migrated legacy API Evolution campaigns from 4 daily cycles and 360-minute intervals to 24 daily cycles and 60-minute intervals, while filling all fourteen missing tracks without erasing earlier results.
-- Moved provider capability inspection off the blocking startup path and made initial readiness visibly indeterminate until real inspection completes.
-- Replaced the native Windows delete prompt with an accessible dark in-product confirmation dialog and a result-bearing permanent-delete flow.
+- Gezinme ve sohbet yoğunluğu verilen Codex tarzı referansa yaklaştırıldı; ayrı görünür `Çalış` modu ana sohbet yüzeyinden kaldırıldı.
+- Hareketli SVG DevBox yazı logosu eklendi ve marka ile gezinme arasındaki güvenli boşluk artırıldı.
+- Ayarlar odaklı iç bölümlere ayrıldı ve görünür bir kapatma denetimi eklendi.
+- Bağlama göre otomatik sohbet başlıkları, proje/sohbet yolu, tam zaman araç ipucu ve kompakt görünür zaman damgaları eklendi.
+- Yanıltıcı sürekli yeşil sohbet işareti gerçek çalışıyor/hata durumlarıyla değiştirildi; sohbet açıldığında sahte okunmamış işareti bırakılmıyor.
+- Görev silme sonuç döndüren IPC sözleşmesine geçirildi: iptal görevi korur, onay hem SQLite kaydını hem görünür satırı siler.
+- Mesaj işlemleri erişilebilir etiketler ile gerçek pano/düzenleme/alıntı/yeniden oluşturma/geri bildirim davranışlarını koruyan kompakt simgelere dönüştürüldü.
+- Eski API gelişimi kampanyaları önceki sonuçlar silinmeden günlük 4 çevrim ve 360 dakikadan günlük 24 çevrim ve 60 dakikaya taşındı; eksik on dört alan tamamlandı.
+- Sağlayıcı kabiliyeti denetimi açılışı engelleyen yoldan çıkarıldı; ilk hazır olma durumu gerçek denetim bitene kadar belirsiz gösteriliyor.
+- Yerel Windows silme penceresi erişilebilir, koyu renkli uygulama içi onay iletişim kutusu ve sonuç döndüren kalıcı silme akışıyla değiştirildi.
 
-### Verification
+### Doğrulama
 
-- TypeScript main and renderer type checks pass.
-- Unit and contract tests include database migration/integrity, durable jobs, agent routing and real close/reopen API Evolution persistence.
-- Electron Playwright E2E covers task creation, deletion cancellation, confirmed deletion, settings close behavior, secure preload bridge and production build startup.
-- The product-truth audit rejects production test-mode switches and mock/demo/simulation markers and verifies the packaged file allowlist.
+- TypeScript ana süreç ve görüntüleyici tür denetimleri geçer.
+- Birim ve sözleşme testleri veritabanı geçişi/bütünlüğü, dayanıklı görevler, ajan yönlendirmesi ve gerçek kapatıp açma sonrası API gelişimi kalıcılığını kapsar.
+- Electron Playwright uçtan uca akışı görev oluşturma, silmeyi iptal etme, onaylı silme, ayarları kapatma, güvenli ön yükleme köprüsü ve üretim derlemesi başlangıcını kapsar.
+- Ürün doğruluğu denetimi üretimde test kiplerini ve sahte/demo/simülasyon işaretlerini reddeder; paketlenen dosya izin listesini doğrular.
 
-### Known release gates
+### Bilinen yayın kapıları
 
-- The current installer is Authenticode `NotSigned` until SignPath Foundation approves the open-source application and provisions its trust root.
-- Full editor diagnostics/debugger UI for LSP/DAP, restart-resumable multi-machine worker scheduling, signed marketplace hosting, signed automatic update/repair/rollback, clean-VM mutation tests and multi-hour failure/soak matrices are not release-complete.
-- This release intentionally does not claim that a SignPath application, certificate, signature or third-party service mutation succeeded unless its external system provides evidence.
+- SignPath Foundation açık kaynak başvurusunu onaylayıp güven kökünü sağlayana kadar mevcut kurucu Authenticode `NotSigned` durumundadır.
+- Tam editör tanılama/hata ayıklama arayüzü, yeniden başlatmada sürdürülebilen çok makineli görev planlama, imzalı pazar yeri barındırma, imzalı otomatik güncelleme/onarım/geri alma, temiz sanal makine mutasyon testleri ve çok saatli hata/yük matrisleri bu ilk sürümde yayın için tamamlanmış değildir.
+- Dış sistem kanıtı sağlamadıkça SignPath başvurusu, sertifika, imza veya üçüncü taraf hizmet değişikliği başarılı sayılmaz.

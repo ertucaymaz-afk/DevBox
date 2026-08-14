@@ -4,8 +4,8 @@
     "lib": ["ES2023"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": "src",
-    "outDir": "dist/main",
+    "rootDir": "../src",
+    "outDir": "../dist/main",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -19,6 +19,6 @@
     "declaration": true,
     "types": ["node"]
   },
-  "include": ["src/main/**/*.ts", "src/preload/**/*.cts", "src/shared/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"]
+  "include": ["../src/main/**/*.ts", "../src/preload/**/*.cts", "../src/shared/**/*.ts"],
+  "exclude": ["../src/**/*.test.ts"]
 }
