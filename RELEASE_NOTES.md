@@ -1,24 +1,40 @@
-# DevBox 0.1.0 functional preview
+# DevBox 0.1.1 — işlevsel önizleme
 
-This package contains the latest DevBox source or Windows installer, depending on the archive name:
+Bu sürüm, sohbet ekranındaki günlük kullanım sorunlarını ve API gelişimi sağlayıcı rotasını birlikte ele alıyor.
 
-- `DevBox-source-v0.1.0.zip` is the low-size, Apache-2.0 source archive. It excludes `node_modules`, build output, installers, runtime databases, evidence, local secrets and caches.
-- `devbox.zip` is the installable Windows delivery archive. It contains the NSIS installer, checksums, release manifest and third-party notices; it is not a source archive.
+## 📦 Arşivler
 
-## User-visible corrections in this build
+- `DevBox-source-v0.1.1.zip`: düşük boyutlu, Apache-2.0 açık kaynak arşivi. `node_modules`, derleme çıktıları, installer, yerel veritabanı, kanıt kayıtları, gizli bilgiler ve cache içermez.
+- `devbox.zip`: Windows kurulum teslimi. NSIS installer, sağlama toplamı, sürüm manifesti ve üçüncü taraf bildirimlerini içerir; kaynak kod arşivi değildir.
 
-- Task deletion now waits for the native confirmation result. Cancel keeps the task; confirm removes the persistent SQLite record and refreshes the sidebar.
-- Settings has an explicit close button and a smaller set of focused internal sections.
-- Conversation titles are derived from the first meaningful user request and stay editable.
-- Sidebar rows and individual messages show real timestamps; the conversation header shows project/history context.
-- The former always-green row marker now represents only real running/error state, eliminating the false unread appearance.
-- API Evolution is no longer capped at four visible cycles. It has fourteen tracks, stores up to 120 task records, runs at most 24 automatic cycles per UTC day at a minimum 60-minute interval, and persists its directive/results in SQLite WAL across restarts.
-- API Evolution first uses a health-checked, logged-in official Codex CLI in ephemeral read-only mode. If that real call fails, DevBox may use the configured NVIDIA NIM/Hermes route; if neither works, the task is recorded as failed rather than fabricated.
-- Chat remains on the user-configured NVIDIA/Hermes route and reports configuration or provider failures explicitly.
+## ✨ Görünür düzeltmeler
 
-## Signing status
+- Yeni sohbet düğmesine tekrar tekrar basmak, ilk mesaj gönderilmeden kalıcı boş sohbet oluşturmaz.
+- Sabitlenen sohbetler ayrı **Sabit konuşmalar** bölümüne taşınır ve görünür pin işareti alır.
+- Sohbeti silme, uygulama içi koyu onay penceresiyle doğrulanır; sonuç üst-ortada dört saniye görünen temiz beyaz bildirimle gösterilir.
+- Terminal ve Dosyalar çalışma alanlarında hem **Sohbete dön** hem de görünür kapatma düğmesi vardır.
+- Pull Request’ler ile Eklentiler farklı gerçek çalışma alanlarına gider.
+- Sol üst geri/ileri düğmeleri gerçek gezinme durumuna göre çalışır; kullanılamayan ileri düğmesi etkin görünmez.
+- Mesaj kutusu ve diğer düzenlenebilir alanlarda sağ tık menüsü Kes, Kopyala ve **Yapıştır** işlemlerini içerir. Enter gönderir; Shift+Enter yeni satır açar.
+- Mesaj eylemleri düzenleme, kopyalama, alıntılama/yanıtlama, yeniden oluşturma ve geri bildirim işlevlerini erişilebilir ikonlarla sunar.
+- Boş sohbet ekranı, geliştirici imzası ve görünür zaman/konu hiyerarşisi daha kompakt hale getirildi.
 
-The installer supplied with this preview is unsigned unless `release-manifest.json` says `VALID`. The public repository and SignPath Foundation application package are prepared, but only SignPath can approve the project and issue the real open-source code-signing identity. DevBox does not substitute a self-signed certificate or claim an external approval before it exists.
+## 🧭 API gelişimi
 
-See [CHANGELOG.md](CHANGELOG.md), [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md), and [SECURITY.md](SECURITY.md) for details.
+DevBox ilk olarak sağlık ve oturum denetimi geçen resmî Codex CLI yolunu salt-okunur/ephemeral çalıştırır. Gerçek Codex çağrısı başarısız olursa ve NVIDIA NIM yapılandırılmışsa Hermes rotasına geçer. İki yol da çalışmazsa görev başarısız kaydedilir; içerik uydurulmaz.
 
+Bu alan model eğitimi veya kendi kendine kod yazma iddiası taşımaz. Araştırma ve backlog görevleri; sağlayıcı, zaman, durable-job ve hata kanıtlarıyla SQLite WAL içinde kalıcıdır. Uygulama yeniden açıldığında önceki çevrimler korunur. Kaynak kod değişikliği kullanıcı onayı olmadan yapılmaz.
+
+## ✅ Doğrulama
+
+- TypeScript typecheck
+- 17 dosyada 32 birim/sözleşme testi
+- Vite/Electron üretim build’i
+- Ürün-doğruluk denetimi
+- Gerçek Electron Playwright E2E: secure preload, clipboard, boş sohbet, sabitleme, silme, ayar kapatma, PR/Eklenti ayrımı, API gelişimi ve terminal çıkışları
+
+## 🔐 SignPath ve imza durumu
+
+Geliştirici SignPath Foundation açık kaynak başvurusunu 14 Ağustos 2026 tarihinde gönderdi. İnceleme, kimlik doğrulama, proje onboarding’i ve sertifika tahsisi SignPath’in dış sürecidir ve henüz tamamlanmış sayılmaz. Bu nedenle installer yalnızca `release-manifest.json` açıkça `VALID` diyorsa imzalı kabul edilmelidir; mevcut v0.1.1 önizlemesi `NOT_SIGNED` olarak yayımlanır. DevBox self-signed sertifikayı genel yayın kimliği gibi sunmaz.
+
+Ayrıntılar için [CHANGELOG.md](CHANGELOG.md), [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md), [SECURITY.md](SECURITY.md) ve [DEVELOPERS.md](DEVELOPERS.md) dosyalarına bakın.

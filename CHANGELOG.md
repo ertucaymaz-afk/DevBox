@@ -2,6 +2,39 @@
 
 All notable DevBox changes are recorded here. DevBox follows semantic versioning while the `0.x` line remains a functional preview.
 
+## [0.1.1] - 2026-08-14
+
+### Eklendi
+
+- Sohbetlerden ayrı ve sayılı **Sabit konuşmalar** bölümü; sabit satırlarda görünür pin işareti.
+- Pull Request’ler için Eklentiler ekranından ayrılmış gerçek GitHub PR/issue/check/CI/release çalışma alanı.
+- Çalışma ekranlarında hem **Sohbete dön** hem de görünür kapatma düğmesi.
+- Ana geliştirici markası **Yaaertu**, uygulama içinde hareketli `devbox by yaaertu` imzası ve proje sosyal bağlantıları.
+- Gerçek uygulama çalıştırmasından alınan sohbet, API gelişimi ve terminal ekran görüntüleri.
+- API gelişimi geçmişinde daha geniş görev/bulgu görünümü ve Codex-first sağlayıcı rotasının açık kanıt metni.
+
+### Değiştirildi
+
+- Yeni sohbet düğmesi artık yalnızca boş taslak açıyor; ilk mesaj/ek gönderilmeden SQLite’da art arda boş sohbet üretmiyor.
+- Boş durum daha kompakt, ortalanmış ve hareketi azalt ayarına saygı duyan çizgili sinyal animasyonuyla yenilendi.
+- Silme sonucu sağ altta kalıcı uyarı yerine üst-ortada, beyaz, animasyonlu ve dört saniyelik `Sohbet silindi.` bildirimi olarak gösteriliyor.
+- Sol üst geri düğmesi çalışma ekranlarından sohbete döner; ileri düğmesi yalnızca gerçek sohbet geçmişinde kullanılabilir.
+- Düzenlenebilir metin, sohbet kutusu ve kod editörünün sağ tık yolu Kes/Kopyala/**Yapıştır** durumunu gerçek Electron clipboard menüsüne iletiyor.
+- API gelişimi ilk gerçek çevrimde oturumu doğrulanmış yerel OpenAI Codex CLI’ı salt-okunur/ephemeral biçimde dener; yalnızca bu çağrı gerçekten başarısızsa yapılandırılmış Hermes/NVIDIA NIM rotasına geçer.
+- API gelişimi açıklamaları “kendi kendine eğitim” iddiasını kaldırdı: kalıcı araştırma/backlog geçmişi üretir, kullanıcı onayı olmadan kaynak kodu değiştirmez.
+- README ve sürüm belgeleri Türkçe, geliştirici kimliği ve SignPath başvuru durumu ile genişletildi.
+
+### Doğrulama
+
+- TypeScript ana süreç ve renderer denetimleri geçiyor.
+- 17 test dosyasındaki 32 birim/sözleşme testi geçiyor.
+- Üretim build’i ve ürün-doğruluk denetimi geçiyor; üretim paketinde test modu veya mock/fake/demo/simulation işareti kabul edilmiyor.
+- Electron Playwright akışı boş sohbet üretmeme, gerçek SQLite thread sabitleme/silme, uygulama içi onay, merkez bildirimi, Ayarlar kapatma, Pull Request/Eklenti ayrımı, API gelişimi, terminal çıkışları, clipboard köprüsü ve secure preload sözleşmesini çalıştırıyor.
+
+### Dışta kalan yayın kapısı
+
+- SignPath Foundation başvurusu geliştirici tarafından gönderildi; dış inceleme, onboarding ve gerçek sertifika henüz tamamlanmadığından v0.1.1 dosyaları `NOT_SIGNED` yayımlanır. Self-signed sertifika kullanılmaz.
+
 ## [0.1.0] - 2026-08-14
 
 ### Added

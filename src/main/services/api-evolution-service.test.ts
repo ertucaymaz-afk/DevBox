@@ -48,6 +48,8 @@ describe("API evolution persistence", () => {
     expect(initial.tasks).toHaveLength(14);
     expect(initial.dailyCycleLimit).toBe(24);
     expect(initial.intervalMinutes).toBe(60);
+    expect(initial.provider).toContain("OpenAI Codex CLI");
+    expect(initial.model).toBe("İlk gerçek çevrimde doğrulanacak");
 
     const directive = [
       "DevBox API gelişimini kalıcı olarak izle; her iddiayı gerçek çalışma kanıtına bağla.",
@@ -73,6 +75,7 @@ describe("API evolution persistence", () => {
     expect(reopened.intervalMinutes).toBe(60);
     expect(reopened.tasks).toHaveLength(14);
     expect(new Set(reopened.tasks.map((task) => task.track)).size).toBe(14);
+    expect(reopened.provider).toContain("OpenAI Codex CLI");
     expect(reopenedDatabase.integrityCheck()).toMatchObject({ ok: true, detail: "ok" });
   });
 });

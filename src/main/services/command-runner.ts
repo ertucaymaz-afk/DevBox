@@ -45,6 +45,11 @@ export type CommandRequest = {
   environment?: Readonly<Record<string, string>>;
 };
 
+type ActiveCommand = {
+  cancel: () => void;
+  closed: Promise<void>;
+};
+
 function sanitizedEnvironment(additional: Readonly<Record<string, string>> | undefined): NodeJS.ProcessEnv {
   const result: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
@@ -65,7 +70,11 @@ function displayArgument(argument: string): string {
 }
 
 export class CommandRunner {
+  readonly #active = new Set<ActiveCommand>();
+  #closed = false;
+
   public async run(request: CommandRequest): Promise<CommandResult> {
+    if (this.#closed) throw new Error("COMMAND_RUNNER_CLOSED");
     const started = new Date();
     const startedMonotonic = performance.now();
     const timeoutMs = request.timeoutMs ?? 30_000;
@@ -80,6 +89,10 @@ export class CommandRunner {
       let timedOut = false;
       let cancelled = false;
       let finished = false;
+      let resolveClosed!: () => void;
+      const closed = new Promise<void>((resolveClosedPromise) => {
+        resolveClosed = resolveClosedPromise;
+      });
 
       const child = spawn(request.executable, [...request.args], {
         cwd: request.cwd,
@@ -114,6 +127,14 @@ export class CommandRunner {
           child.kill();
         }
       };
+      const active: ActiveCommand = {
+        cancel: () => {
+          cancelled = true;
+          stop();
+        },
+        closed
+      };
+      this.#active.add(active);
       const timeout = setTimeout(() => {
         timedOut = true;
         stop();
@@ -131,6 +152,8 @@ export class CommandRunner {
         finished = true;
         clearTimeout(timeout);
         request.cancellation?.removeEventListener("abort", onAbort);
+        this.#active.delete(active);
+        resolveClosed();
         const ended = new Date();
         resolve({
           runId,
@@ -152,5 +175,22 @@ export class CommandRunner {
       child.on("error", (error) => finish(null, null, error));
       child.on("close", (code, signal) => finish(code, signal));
     });
+  }
+
+  public async close(timeoutMs = 5_000): Promise<void> {
+    if (this.#closed && this.#active.size === 0) return;
+    this.#closed = true;
+    const active = [...this.#active];
+    for (const command of active) command.cancel();
+    if (active.length === 0) return;
+
+    let timeout: NodeJS.Timeout | undefined;
+    await Promise.race([
+      Promise.all(active.map(async (command) => await command.closed)),
+      new Promise<void>((resolve) => {
+        timeout = setTimeout(resolve, timeoutMs);
+      })
+    ]);
+    if (timeout) clearTimeout(timeout);
   }
 }

@@ -41,6 +41,7 @@ let database: StateDatabase | null = null;
 let coreApi: CoreApi | null = null;
 let terminals: TerminalService | null = null;
 let evolution: ApiEvolutionService | null = null;
+let commandRunner: CommandRunner | null = null;
 let unregisterIpc: (() => void) | null = null;
 
 function rendererRoot(): string {
@@ -71,7 +72,7 @@ function installSessionSecurity(): void {
       responseHeaders: {
         ...details.responseHeaders,
         "Content-Security-Policy": [
-          "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
         ]
       }
     });
@@ -122,6 +123,7 @@ async function start(): Promise<void> {
   const secretStore = new SecretStore(path.join(app.getPath("userData"), "secrets"));
   const apiKey = await secretStore.getOrCreateApiKey();
   const runner = new CommandRunner();
+  commandRunner = runner;
   const capabilities = new CapabilityService(runner);
   const agent = new AgentService(runner);
   const attachments = new AttachmentService(database, path.join(app.getPath("userData"), "attachments"));
@@ -192,7 +194,7 @@ app.whenReady().then(start).catch((error: unknown) => {
 });
 
 app.on("before-quit", (event) => {
-  if (!coreApi && !database && !terminals && !evolution) return;
+  if (!coreApi && !database && !terminals && !evolution && !commandRunner) return;
   event.preventDefault();
   const api = coreApi;
   coreApi = null;
@@ -200,9 +202,12 @@ app.on("before-quit", (event) => {
   terminals = null;
   evolution?.stop();
   evolution = null;
+  const runner = commandRunner;
+  commandRunner = null;
   unregisterIpc?.();
   unregisterIpc = null;
   void (async () => {
+    await runner?.close();
     await api?.close();
     database?.close();
     database = null;

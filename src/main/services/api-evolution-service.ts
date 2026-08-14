@@ -6,14 +6,15 @@ import type { StateDatabase } from "./database.js";
 import type { ProjectService } from "./project-service.js";
 import type { SettingsService } from "./settings-service.js";
 
-const PROVIDER = "Hermes / NVIDIA NIM";
-const MODEL = "nvidia/nemotron-3-super-120b-a12b";
+const PROVIDER = "OpenAI Codex CLI → Hermes/NVIDIA NIM fallback";
+const MODEL = "İlk gerçek çevrimde doğrulanacak";
 const INITIAL_SCORE = 0;
 const DEFAULT_INTERVAL_MINUTES = 60;
 const DEFAULT_DAILY_LIMIT = 24;
 const JOB_LEASE_MS = 4 * 60_000;
 const DEFAULT_DIRECTIVE = [
   "DevBox'ı gerçek, üretim kalitesinde ve kanıt temelli bir Windows mühendislik masaüstü olarak geliştir.",
+  "Her çevrimde önce kimliği doğrulanmış yerel OpenAI Codex CLI yolunu kullan; Codex kullanılamıyorsa yalnız gerçekten çalıştırılan Hermes/NVIDIA NIM fallback sonucunu kaydet.",
   "Gösterilen her veri, başarı, düğme ve yetenek gerçek çalışma sonucuna dayanmalı; doğrulanmamış veya eksik yeteneği açıkça engel olarak işaretle.",
   "Kodlama, ürün tasarımı, API sözleşmeleri, güvenlik, performans, erişilebilirlik, gözlemlenebilirlik, entegrasyon, test ve yayın zincirini birlikte değerlendir.",
   "Çalışma zamanı gerçek web arama aracı sağlıyorsa güncel iddiaları birincil kaynaklarla doğrula; sağlamıyorsa web araştırması yapılmış gibi davranma ve doğrulanması gereken kaynakları ayrı listele.",
@@ -120,6 +121,8 @@ export class ApiEvolutionService {
           return {
             ...record,
             directive: typeof record.directive === "string" ? record.directive : DEFAULT_DIRECTIVE,
+            provider: Number(record.completedCycles ?? 0) === 0 ? PROVIDER : record.provider,
+            model: Number(record.completedCycles ?? 0) === 0 ? MODEL : record.model,
             dailyCycleLimit: record.dailyCycleLimit === 4 ? DEFAULT_DAILY_LIMIT : record.dailyCycleLimit,
             intervalMinutes: record.intervalMinutes === 360 ? DEFAULT_INTERVAL_MINUTES : record.intervalMinutes,
             tasks: [...existingTasks, ...TASK_DEFINITIONS.filter((definition) => !existingTracks.has(definition.track)).map(taskFrom)].slice(-120)
