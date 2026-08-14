@@ -17,7 +17,7 @@ if (-not (Test-Path -LiteralPath $Outputs -PathType Container)) {
   New-Item -ItemType Directory -Path $Outputs | Out-Null
 }
 
-$Required = @("DevBox-Setup.exe", "SHA256SUMS.txt", "THIRD-PARTY-NOTICES.txt", "release-manifest.json")
+$Required = @("DevBox-Setup.exe", "SHA256SUMS.txt", "THIRD-PARTY-NOTICES.txt", "release-manifest.json", "sbom.cdx.json")
 foreach ($Name in $Required) {
   if (-not (Test-Path -LiteralPath (Join-Path $Stage $Name) -PathType Leaf)) { throw "MISSING_STAGE_FILE:$Name" }
 }

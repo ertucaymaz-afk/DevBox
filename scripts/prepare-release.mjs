@@ -11,6 +11,9 @@ const installer = path.join(releaseDirectory, "DevBox-Setup.exe");
 const packageJson = JSON.parse(await readFile(path.join(workspace, "package.json"), "utf8"));
 const lockText = await readFile(path.join(workspace, "pnpm-lock.yaml"), "utf8");
 const execFileAsync = promisify(execFile);
+const { stdout: sourceCommitOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: workspace, windowsHide: true, timeout: 30_000 });
+const sourceCommit = sourceCommitOutput.trim();
+if (!/^[a-f0-9]{40}$/u.test(sourceCommit)) throw new Error("Unable to resolve an exact Git source commit for the release manifest");
 
 await rm(stage, { recursive: true, force: true });
 await mkdir(stage, { recursive: true });
@@ -27,7 +30,9 @@ const sbom = {
   metadata: { timestamp: new Date().toISOString(), component: { type: "application", name: "DevBox", version: packageJson.version } },
   components: directPackages
 };
-await writeFile(path.join(releaseDirectory, "sbom.cdx.json"), `${JSON.stringify(sbom, null, 2)}\n`, "utf8");
+const sbomText = `${JSON.stringify(sbom, null, 2)}\n`;
+await writeFile(path.join(releaseDirectory, "sbom.cdx.json"), sbomText, "utf8");
+await writeFile(path.join(stage, "sbom.cdx.json"), sbomText, "utf8");
 
 const notices = [
   "DevBox — Third-Party Notices",
@@ -67,6 +72,10 @@ const manifest = {
   releaseReady: false,
   verdict: "FUNCTIONAL_PREVIEW_NOT_FULL_22_PD_RELEASE",
   installer: { file: "DevBox-Setup.exe", sha256: sha256(installerBuffer), bytes: installerBuffer.byteLength, authenticode },
+  source: {
+    repository: packageJson.repository.url,
+    commit: sourceCommit
+  },
   sourceLockSha256: sha256(Buffer.from(lockText, "utf8")),
   knownReleaseBlockers: [
     authenticode === "VALID"
@@ -81,7 +90,7 @@ const manifest = {
 await writeFile(path.join(stage, "release-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
 const hashes = [];
-for (const name of ["DevBox-Setup.exe", "THIRD-PARTY-NOTICES.txt", "release-manifest.json"]) {
+for (const name of ["DevBox-Setup.exe", "THIRD-PARTY-NOTICES.txt", "release-manifest.json", "sbom.cdx.json"]) {
   hashes.push(`${sha256(await readFile(path.join(stage, name)))} *${name}`);
 }
 await writeFile(path.join(stage, "SHA256SUMS.txt"), `${hashes.join("\n")}\n`, "utf8");
