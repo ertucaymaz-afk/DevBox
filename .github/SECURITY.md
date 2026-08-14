@@ -1,23 +1,37 @@
-# Security policy
+# DevBox Güvenlik Politikası
 
-## Supported versions
+## Desteklenen sürümler
 
-DevBox is currently a public preview. Only the latest published release and the default branch receive security fixes.
+DevBox şu anda açık kaynak işlevsel önizleme aşamasındadır. Güvenlik düzeltmeleri en güncel yayımlanmış sürüme ve varsayılan `main` dalına uygulanır. Eski önizlemeler için geriye dönük güvenlik yaması sözü verilmez; mümkün olduğunda en güncel sürüme geçilmesi önerilir.
 
-## Report a vulnerability
+## Bir güvenlik açığını bildirme
 
-Do not open a public issue containing exploit details, credentials, private project data, or sensitive logs. Use GitHub private vulnerability reporting for this repository when available. If that channel is unavailable, open a minimal public issue asking the maintainer to establish a private contact channel; do not include the vulnerability details in that issue.
+Exploit ayrıntısını, erişim anahtarını, özel proje verisini, kişisel bilgiyi veya hassas günlüğü herkese açık issue’ya koymayın. Depoda GitHub özel güvenlik bildirimi açıksa bu kanalı kullanın. Kullanılamıyorsa açığın ayrıntısını yazmadan, proje sorumlusundan özel iletişim kanalı oluşturmasını isteyen kısa bir issue açın.
 
-Include the affected version/commit, Windows version, reproducible steps, security impact, and any relevant redacted evidence. Reports are acknowledged as soon as practicable. A fix, mitigation, or coordinated disclosure timeline depends on severity and reproducibility.
+İncelemeyi hızlandırmak için mümkünse şunları ekleyin:
 
-## Security boundaries
+- Etkilenen DevBox sürümü veya commit kimliği.
+- Windows sürümü ve ilgili çalışma ortamı.
+- Güvenli biçimde tekrarlanabilen adımlar.
+- Olası güvenlik etkisi ve saldırganın ihtiyaç duyduğu yetki.
+- Gizli bilgileri temizlenmiş ekran görüntüsü, günlük veya örnek dosya.
+- Bildiğiniz geçici önlem ya da düzeltme önerisi.
 
-- Renderer code has no direct Node.js access; privileged operations cross validated IPC contracts.
-- Project file operations are bounded to a selected canonical root.
-- The HTTP API binds to loopback and requires a bearer key.
-- External provider credentials remain in the main/child-process boundary and are not returned to the renderer.
-- High-impact integrations and process operations are governed by the active permission profile.
-- SSH trust is pinned explicitly; signed package operations fail closed when trust or signature validation is missing.
-- Release artifacts include hashes and a machine-readable signing verdict.
+Bildirim mümkün olan en kısa sürede alındı olarak işaretlenir. Düzeltme, geçici önlem ve koordineli açıklama takvimi; etkinin ağırlığına, tekrar üretilebilirliğe ve kullanıcı riskine göre belirlenir. Araştırmacının emeği, güvenli açıklama sürecine uyduğu sürece sürüm notlarında belirtilir.
 
-Security scanners and tests are used to improve DevBox itself. DevBox is not marketed or distributed as an exploitation, malware, credential-harvesting, or vulnerability weaponization tool.
+## Temel güvenlik sınırları
+
+- Renderer doğrudan Node.js yetkisine sahip değildir; ayrıcalıklı işlemler doğrulanan IPC sözleşmelerinden geçer.
+- Proje dosyası işlemleri, kullanıcının seçtiği kanonik kök içinde sınırlandırılır.
+- HTTP API yalnız loopback adresine bağlanır ve bearer anahtarı ister.
+- Dış sağlayıcı anahtarları ana/alt süreç sınırında tutulur ve renderer’a geri verilmez.
+- Yüksek etkili entegrasyon ve süreç işlemleri etkin izin profiline tabidir.
+- SSH güveni açık host-key sabitlemesiyle kurulur; güven veya imza doğrulaması yoksa paket işlemi güvenli biçimde kapanır.
+- Yayın paketleri SHA-256 özetleri ve makine tarafından okunabilen imza kararı içerir.
+- Güvenilmeyen dış bağlantılar uygulama tarafından sistem tarayıcısında açılmaz.
+
+## Kapsam dışında olmayan önemli alanlar
+
+Kurucu, otomatik güncelleme, release workflow’u, bağımlılık zinciri, ConPTY, LSP/DAP süreçleri, uzak worker eşleştirmesi, GitHub/Vercel/SSH komutları, eklenti veya MCP kurulumu ve dosya önizleme sınırları güvenlik incelemesinin parçasıdır. “Yerel çalışıyor” olması bu yüzeyleri otomatik olarak güvenli yapmaz.
+
+DevBox’ın kendi güvenliğini iyileştirmek için tarayıcılar, birim/sözleşme testleri ve yayın denetimleri kullanılır. DevBox; istismar, kötü amaçlı yazılım üretimi, kimlik bilgisi toplama veya açıkları silahlandırma aracı olarak pazarlanmaz ve dağıtılmaz.

@@ -1,4 +1,4 @@
-name: CI
+name: DevBox doğrulama
 
 on:
   push:
@@ -16,66 +16,66 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify source and contracts
+    name: Kaynak ve sözleşmeleri doğrula
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout reviewed source
+      - name: İncelenen kaynak kodu al
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
-      - name: Use Node.js 24
+      - name: Node.js 24 kullan
         uses: actions/setup-node@v6
         with:
           node-version: 24
           package-manager-cache: false
 
-      - name: Enable pinned pnpm
+      - name: Sabitlenmiş pnpm sürümünü etkinleştir
         shell: pwsh
         run: |
           corepack enable
           corepack prepare pnpm@11.19.0 --activate
 
-      - name: Restore dependencies from lockfile
+      - name: Bağımlılıkları kilit dosyasından kur
         run: pnpm install --frozen-lockfile
 
-      - name: Verify product
+      - name: Ürünü doğrula
         run: pnpm verify
 
   package:
-    name: Build unsigned review artifact
+    name: İmzasız inceleme paketini üret
     runs-on: windows-latest
     timeout-minutes: 45
     needs: verify
     steps:
-      - name: Checkout reviewed source
+      - name: İncelenen kaynak kodu al
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
-      - name: Use Node.js 24
+      - name: Node.js 24 kullan
         uses: actions/setup-node@v6
         with:
           node-version: 24
           package-manager-cache: false
 
-      - name: Enable pinned pnpm
+      - name: Sabitlenmiş pnpm sürümünü etkinleştir
         shell: pwsh
         run: |
           corepack enable
           corepack prepare pnpm@11.19.0 --activate
 
-      - name: Restore dependencies from lockfile
+      - name: Bağımlılıkları kilit dosyasından kur
         run: pnpm install --frozen-lockfile
 
-      - name: Build installer and verified release inventory
+      - name: Kurucuyu ve doğrulanmış yayın envanterini üret
         run: |
           pnpm package:installer
           pnpm release:prepare
           pnpm release:verify
 
-      - name: Upload unsigned artifact for review
+      - name: İmzasız paketi inceleme için yükle
         uses: actions/upload-artifact@v6
         with:
           name: devbox-unsigned-${{ github.sha }}

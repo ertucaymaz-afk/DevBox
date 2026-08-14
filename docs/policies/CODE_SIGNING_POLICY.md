@@ -1,46 +1,48 @@
-# Code signing policy
+# DevBox Kod İmzalama Politikası
 
-Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+Ücretsiz kod imzalama hizmetinin [SignPath.io](https://signpath.io/), sertifikanın ise [SignPath Foundation](https://signpath.org/) tarafından sağlanması planlanmaktadır.
 
-## Status
+## Güncel durum
 
-The project maintainer submitted the SignPath Foundation open-source application on 2026-08-14. SignPath review, identity validation, onboarding and certificate availability are separate external states and remain pending until SignPath provides confirmation. Current public preview artifacts are unsigned and their `release-manifest.json` files state `NOT_SIGNED`. No self-signed certificate is represented as a public release identity.
+Proje geliştiricisi SignPath Foundation açık kaynak başvurusunu **14 Ağustos 2026** tarihinde gönderdi. SignPath incelemesi, kimlik doğrulaması, onboarding ve sertifika tahsisi birbirinden ayrı dış süreçlerdir. SignPath tarafından açık onay gelene kadar bunların hiçbiri tamamlanmış sayılmaz.
 
-## Roles
+Mevcut işlevsel önizleme paketleri imzasızdır ve `release-manifest.json` içindeki imza kararı `NOT_SIGNED` değerini taşır. Self-signed bir sertifika, güvenilir kamu yayın kimliği gibi gösterilmez.
 
-The initial maintainer currently performs all three roles while the project has one maintainer:
+## Roller ve sorumluluklar
 
-- Author: [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
-- Reviewer: [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
-- Approver: [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
+Projenin şu anda tek sorumlusu bulunduğu için başlangıçta üç rolü de aynı kişi yürütür:
 
-The project will separate these duties when additional trusted maintainers join. GitHub and SignPath accounts participating in build or signing must use multi-factor authentication.
+- **Yazar:** [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
+- **İnceleyen:** [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
+- **Onaylayan:** [@ertucaymaz-afk](https://github.com/ertucaymaz-afk)
 
-## Trusted build and origin
+Yeni güvenilir sorumlular katıldığında görevler ayrılacaktır. Derleme veya imzalama sürecine katılan GitHub ve SignPath hesaplarında çok faktörlü kimlik doğrulama zorunludur.
 
-Only artifacts that satisfy all of the following may be submitted for public signing:
+## Güvenilen kaynak ve derleme
 
-1. The source commit is reachable from this public GitHub repository.
-2. The build runs on a GitHub-hosted Windows runner using the workflow stored in the same commit.
-3. Dependencies are restored from `pnpm-lock.yaml` with frozen-lockfile enforcement.
-4. Type checks, tests, the production build, the product-truth audit, packaging verification, secret scanning, and release inventory checks pass.
-5. The unsigned artifact is uploaded with `actions/upload-artifact@v4` and submitted by the official SignPath GitHub integration after onboarding.
-6. SignPath origin verification binds the signing request to the GitHub repository, workflow, commit, and build artifact.
-7. A designated approver manually approves the signing request.
+Bir dosya ancak aşağıdaki koşulların tümü sağlanırsa genel yayın imzasına gönderilebilir:
 
-Workflow and dependency changes require the same review as application code. Release workflows use least-privilege GitHub permissions and do not run untrusted pull-request code with signing credentials.
+1. Kaynak commit bu herkese açık GitHub deposundan erişilebilir olmalıdır.
+2. Derleme, aynı commit içindeki workflow kullanılarak GitHub’ın barındırdığı Windows runner üzerinde yapılmalıdır.
+3. Bağımlılıklar `pnpm-lock.yaml` üzerinden `--frozen-lockfile` zorlamasıyla kurulmalıdır.
+4. Tür denetimi, testler, üretim derlemesi, ürün-doğruluk denetimi, paket doğrulaması, gizli bilgi taraması ve yayın envanteri başarıyla tamamlanmalıdır.
+5. İmzasız dosya güncel resmî `actions/upload-artifact` adımıyla yüklenmeli; SignPath onboarding tamamlandıktan sonra resmî GitHub entegrasyonuyla gönderilmelidir.
+6. SignPath kaynak doğrulaması; isteği depoya, workflow’a, commit’e ve derleme çıktısına bağlamalıdır.
+7. Yetkili bir onaylayan her imza isteğini elle onaylamalıdır.
 
-## Artifact identity
+Workflow ve bağımlılık değişiklikleri uygulama koduyla aynı incelemeden geçer. Yayın işleri en az GitHub yetkisiyle çalışır; güvenilmeyen pull request kodu imzalama kimlikleriyle yürütülmez.
 
-Signed files must use consistent product metadata:
+## Dosya kimliği
 
-- Product: `DevBox`
-- Publisher/certificate subject: the identity issued through SignPath Foundation
-- File and product version: the version in `package.json` and the release tag
-- Original filename: `DevBox.exe` for the installed application and `DevBox-Setup.exe` for the installer
+İmzalanan dosyalar tutarlı ürün üst verisi taşımalıdır:
 
-Every release includes SHA-256 checksums, a release manifest, third-party notices, and a CycloneDX SBOM. Signing does not replace hash verification or release testing.
+- Ürün: `DevBox`
+- Yayıncı/sertifika sahibi: SignPath Foundation sürecinde verilen gerçek kimlik
+- Dosya ve ürün sürümü: `package.json` sürümü ile release etiketi
+- Özgün dosya adı: kurulu uygulama için `DevBox.exe`, kurucu için `DevBox-Setup.exe`
 
-## Revocation and incident response
+Her release; SHA-256 sağlama toplamı, yayın manifesti, üçüncü taraf bildirimleri ve CycloneDX SBOM içerir. Kod imzası, sağlama toplamı doğrulamasının veya yayın testlerinin yerine geçmez.
 
-If a signed artifact is suspected of compromise, maintainers will stop distribution, mark the affected GitHub release, notify SignPath, request certificate or artifact revocation when appropriate, publish indicators/hashes, and issue a repaired release from a clean reviewed commit. Compromised credentials or unauthorized workflow changes are treated as security incidents.
+## İptal ve olay müdahalesi
+
+İmzalı bir dosyada ihlal şüphesi oluşursa dağıtım durdurulur, etkilenen GitHub release açıkça işaretlenir, SignPath’e bildirim yapılır ve gerekirse sertifika ya da dosya iptali istenir. Etkilenen özetler ve göstergeler yayımlanır; düzeltilmiş sürüm temiz ve incelenmiş bir commit’ten yeniden üretilir. Ele geçirilen hesaplar veya izinsiz workflow değişiklikleri güvenlik olayı kabul edilir.

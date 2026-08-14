@@ -1,62 +1,66 @@
-# SignPath Foundation open-source application dossier
+# SignPath Foundation Açık Kaynak Başvuru Kaydı
 
-## Project identity
+Bu belge, gönderilen başvurunun proje içinde izlenebilmesi ve yayın zincirinin herkese açık biçimde denetlenebilmesi için tutulur. SignPath onayı yerine geçmez.
 
-- Project name: DevBox
-- Repository: https://github.com/ertucaymaz-afk/DevBox
-- Homepage: https://github.com/ertucaymaz-afk/DevBox#readme
-- License: Apache License 2.0 (OSI approved)
-- Primary artifact: Windows x64 NSIS installer, `DevBox-Setup.exe`
-- Product type: Windows-first autonomous engineering desktop
-- Tagline: Evidence-backed local engineering desktop with real provider, terminal, Git and integration paths.
-- Public release: https://github.com/ertucaymaz-afk/DevBox/releases/tag/v0.1.1
-- Application submitted by project maintainer: 2026-08-14
-- External status: SignPath review, identity validation, onboarding and certificate provisioning pending
+## Proje kimliği
 
-## Application description
+- **Proje:** DevBox
+- **Depo:** https://github.com/ertucaymaz-afk/DevBox
+- **Ana sayfa:** https://github.com/ertucaymaz-afk/DevBox#readme
+- **Lisans:** Apache License 2.0 — OSI onaylı
+- **Ana dosya:** Windows x64 NSIS kurucusu `DevBox-Setup.exe`
+- **Ürün türü:** Windows öncelikli açık kaynak mühendislik masaüstü
+- **Kısa tanım:** Gerçek sağlayıcı, terminal, Git ve entegrasyon yollarını kanıtlarıyla bir araya getiren yerel geliştirme çalışma alanı.
+- **Başvuruya dayanak yayın:** https://github.com/ertucaymaz-afk/DevBox/releases/tag/v0.1.1
+- **Başvuru tarihi:** 14 Ağustos 2026
+- **Dış durum:** İnceleme, kimlik doğrulama, onboarding ve sertifika tahsisi bekleniyor.
 
-DevBox is an Electron/React Windows desktop application for working with local software projects through persistent conversations, bounded file operations, Git inspection, real ConPTY terminals, worktrees, durable jobs, a loopback API and health-checked external provider integrations. The project prohibits fabricated capability states: unavailable credentials, tools, protocols, signing identities or remote services remain unavailable and produce explicit errors.
+## Başvuruda anlatılan ürün
 
-The current `0.1.x` line is a functional preview. It is published under Apache-2.0 without a proprietary edition or paid feature gate. The initial maintainer is actively developing and releasing the project. As a newly public project, it does not yet claim independent adoption, package-manager popularity or third-party reputation that cannot be demonstrated. The `v0.1.1` GitHub release contains the same unsigned Windows release form for which signing is requested.
+DevBox; yerel yazılım projeleriyle kalıcı sohbetler, sınırlandırılmış dosya işlemleri, Git incelemesi, gerçek ConPTY terminali, worktree’ler, dayanıklı görevler, loopback API ve sağlık denetimli dış sağlayıcı entegrasyonları üzerinden çalışmayı sağlayan Electron/React Windows uygulamasıdır.
 
-## Governance and security
+Projede uydurulmuş kabiliyet durumları yasaktır. Kimlik bilgisi, araç, protokol, imzalama kimliği veya uzak servis kullanılamıyorsa özellik “hazır” gösterilmez; doğrulanabilir bir hata verir.
 
-- Public contribution guide: `.github/CONTRIBUTING.md`
-- Public code of conduct: `.github/CODE_OF_CONDUCT.md`
-- Public vulnerability policy: `.github/SECURITY.md`
-- Public privacy/data-flow policy: `docs/policies/PRIVACY.md`
-- Signing roles and incident response: `docs/policies/CODE_SIGNING_POLICY.md`
-- License: `LICENSE`
-- Build and verification workflow: `.github/workflows/ci.yml`
-- Public release and documented download/uninstall path: `README.md` and the `v0.1.1` GitHub release
+`0.1.x` serisi Apache-2.0 altında yayımlanan işlevsel önizlemedir. Özel ücretli sürüm veya kapalı özellik kapısı yoktur. Yeni bir açık kaynak proje olduğu için kanıtlanmamış kullanıcı sayısı, paket yöneticisi popülerliği veya üçüncü taraf itibarı iddia edilmez. Başvuruya dayanak `v0.1.1` GitHub release, imza istenen Windows paket biçimini imzasız olarak içerir.
 
-The initial maintainer performs author, reviewer and signing-approver roles because the project currently has one maintainer. Accounts participating in release signing must use MFA. The project will separate duties when additional trusted maintainers join.
+## Yönetişim ve güvenlik belgeleri
 
-## Trusted build proposal
+- Katkı rehberi: `.github/CONTRIBUTING.md`
+- Topluluk davranış kuralları: `.github/CODE_OF_CONDUCT.md`
+- Güvenlik politikası: `.github/SECURITY.md`
+- Gizlilik ve veri akışı: `docs/policies/PRIVACY.md`
+- İmzalama rolleri ve olay müdahalesi: `docs/policies/CODE_SIGNING_POLICY.md`
+- Esas lisans: `LICENSE`
+- Derleme ve doğrulama workflow’u: `.github/workflows/ci.yml`
+- İndirme ve kaldırma yolu: `README.md` ile `v0.1.1` GitHub release
 
-1. A protected GitHub Actions workflow checks out the reviewed public commit on a GitHub-hosted Windows runner.
-2. Node.js and the pinned pnpm release restore `pnpm-lock.yaml` with frozen-lockfile enforcement.
-3. Type checks, unit/contract tests, production build, product-truth audit, installer packaging, release inventory and hash verification pass.
-4. `actions/upload-artifact@v4` uploads `release/devbox-package` without local signing keys.
-5. After SignPath onboarding supplies the organization/project/policy identifiers, the official SignPath GitHub action submits the artifact with origin verification bound to repository, workflow, commit and artifact.
-6. A designated approver manually approves the signing request in SignPath.
-7. The signed artifact is downloaded, its Authenticode chain and metadata are verified, and matching SHA-256 values plus SBOM and release manifest are published.
+Projenin şu anda tek sorumlusu olduğu için yazar, inceleyen ve imza onaylayıcısı rolleri aynı kişidedir. Yayın imzalamaya katılan hesaplarda çok faktörlü kimlik doğrulama kullanılacaktır. Yeni güvenilir sorumlular katıldığında görevler ayrılacaktır.
 
-No repository workflow currently pretends to submit to SignPath: the signing job will be enabled only after SignPath provides real identifiers and a trust root.
+## Önerilen güvenilen derleme zinciri
 
-## Current evidence and honest limitations
+1. Korunan GitHub Actions workflow’u incelenmiş herkese açık commit’i GitHub’ın Windows runner’ına alır.
+2. Node.js ve sabitlenmiş pnpm sürümü, `pnpm-lock.yaml` bağımlılıklarını frozen-lockfile zorlamasıyla kurar.
+3. Tür denetimi, birim/sözleşme testleri, üretim derlemesi, ürün-doğruluk denetimi, kurucu paketleme, yayın envanteri ve özet doğrulaması geçer.
+4. Güncel resmî `actions/upload-artifact` adımı, `release/devbox-package` klasörünü yerel imzalama anahtarı olmadan yükler.
+5. SignPath onboarding kuruluş/proje/politika kimliklerini sağladıktan sonra resmî SignPath GitHub adımı; depoya, workflow’a, commit’e ve dosyaya bağlı kaynak doğrulamasıyla paketi gönderir.
+6. Yetkili kişi SignPath içindeki isteği elle onaylar.
+7. İmzalı dosya indirilir; Authenticode zinciri ve üst verisi denetlenir. Eşleşen SHA-256 değerleri, SBOM ve yayın manifesti release ile paylaşılır.
 
-- Local TypeScript, unit/contract, production-build, truth-audit and Electron E2E checks pass.
-- Windows installer packaging and SHA-256 release inventory are functional.
-- Existing preview installers report Authenticode `NotSigned`.
-- SignPath application review, identity validation, project onboarding and certificate issuance are external manual decisions and are not represented as complete until SignPath confirms them.
+Depodaki hiçbir workflow şu anda SignPath’e gönderim yapıyormuş gibi davranmaz. İmzalama işi yalnız SignPath gerçek kimlikleri ve güven kökünü sağladıktan sonra etkinleştirilecektir.
 
-## Requested SignPath scope
+## Güncel kanıt ve dürüst sınırlar
 
-- SignPath organization/project: DevBox
+- Yerel TypeScript, birim/sözleşme, üretim derlemesi ve ürün-doğruluk denetimleri çalışır.
+- Windows kurucu paketlemesi ve SHA-256 yayın envanteri işlevseldir.
+- Mevcut önizleme kurucuları Authenticode açısından `NotSigned` sonucunu verir.
+- SignPath incelemesi, kimlik doğrulaması, proje onboarding’i ve sertifika tahsisi dışarıdaki insan onayına bağlıdır; SignPath doğrulamadıkça tamamlanmış gösterilmez.
+
+## İstenen SignPath kapsamı
+
+- Kuruluş/proje: DevBox
 - Platform: Windows x64
-- Build service: GitHub Actions on `windows-latest`
-- Source origin: `ertucaymaz-afk/DevBox`, protected `main` release commit/tag
-- Artifact to sign: the NSIS installer generated from the public release commit
-- Certificate provider: SignPath Foundation
-- Signing policy: manual approval for every release, origin verification required, no local private key
+- Derleme hizmeti: GitHub Actions `windows-latest`
+- Kaynak: korunan `main` release commit/etiketi, `ertucaymaz-afk/DevBox`
+- İmzalanacak dosya: herkese açık release commit’inden üretilen NSIS kurucusu
+- Sertifika sağlayıcı: SignPath Foundation
+- Politika: her release için elle onay, zorunlu kaynak doğrulaması, yerel özel anahtar yok

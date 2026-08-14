@@ -13,6 +13,7 @@ Bu dizin, GitHub depo kökünü kompakt tutarken ürün ve yayın belgelerine te
 - [Güvenlik politikası](../.github/SECURITY.md)
 - [Gizlilik ve veri akışı](policies/PRIVACY.md)
 - [Kod imzalama politikası](policies/CODE_SIGNING_POLICY.md)
+- [Apache 2.0 Türkçe bilgilendirme özeti](policies/LISANS-OZETI.md)
 
 ## Katkı
 

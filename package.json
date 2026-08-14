@@ -2,7 +2,7 @@
   "name": "devbox",
   "version": "0.1.2",
   "private": true,
-  "description": "Windows-first, evidence-backed autonomous engineering desktop",
+  "description": "Windows için kanıt temelli açık kaynak mühendislik masaüstü",
   "author": "Yaaertu",
   "type": "module",
   "main": "dist/main/main/main.js",

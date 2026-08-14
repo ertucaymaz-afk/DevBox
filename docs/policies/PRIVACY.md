@@ -1,42 +1,42 @@
-# DevBox privacy policy
+# DevBox Gizlilik ve Veri Akışı Politikası
 
-Last updated: 2026-08-14
+Son güncelleme: 14 Ağustos 2026
 
-DevBox is a local-first Windows desktop application. The project does not operate an analytics service, advertising service, user-profile database, or background telemetry endpoint.
+DevBox, yerel öncelikli bir Windows masaüstü uygulamasıdır. Proje; reklam analitiği, kullanıcı profilleme veritabanı veya arka planda çalışan ürün telemetrisi hizmeti işletmez.
 
-## Data stored locally
+## Cihazda saklanan veriler
 
-DevBox may store the following data in the current Windows user profile:
+DevBox, özelliklerini sürdürebilmek ve kesilen işleri geri getirebilmek için geçerli Windows kullanıcısının profilinde şu bilgileri saklayabilir:
 
-- selected project paths and project metadata;
-- task and message history;
-- user settings and permission policies;
-- attachment metadata and local copies selected by the user;
-- SHA-256 content identities, command results, integration evidence, and durable-job state;
-- locally stored trust records such as SSH known-host fingerprints and signed-package metadata.
+- Seçilen proje yolları ve proje üst verileri.
+- Sohbet, görev ve mesaj geçmişi.
+- Kullanıcı ayarları ve izin politikaları.
+- Kullanıcının seçtiği eklerin üst verileri ve yerel kopyaları.
+- SHA-256 içerik kimlikleri, komut sonuçları, entegrasyon kanıtları ve dayanıklı görev durumu.
+- SSH known-host parmak izleri ve imzalı paket üst verileri gibi yerel güven kayıtları.
 
-This information is used to provide the application features, recover interrupted work, and show truthful evidence. DevBox does not sell this data or transmit it to the DevBox maintainers.
+Bu bilgiler uygulamanın çalışması, yarım kalan işin kurtarılması ve sonuçların dürüst kanıtla gösterilmesi için kullanılır. DevBox bu verileri satmaz; proje geliştiricisine arka planda göndermez.
 
-## Data sent to third parties
+## Üçüncü taraflara giden veriler
 
-Network access is controlled by the selected permission profile and can be disabled. Data leaves the machine only when a user enables or invokes a real external operation. Depending on that operation:
+Ağ erişimi seçilen izin profiliyle yönetilir ve kapatılabilir. Veri yalnız kullanıcı gerçek bir dış işlemi etkinleştirdiğinde veya başlattığında cihazdan çıkar. Yapılan işleme göre:
 
-- NVIDIA NIM may receive the user task, a bounded conversation context, and a development/research instruction. The NVIDIA API key is read by the main process and is not exposed to the renderer.
-- GitHub CLI may send repository, pull-request, issue, check, workflow, or release data to the GitHub account configured on the machine.
-- Vercel CLI may send project and deployment data to the Vercel account configured on the machine.
-- SSH operations contact the exact host selected by the user and use strict host-key trust records.
-- package, MCP, plugin, or toolkit operations process only explicitly selected artifacts and fail closed when signature/trust prerequisites are absent.
+- NVIDIA NIM; kullanıcı görevini, sınırlandırılmış sohbet bağlamını ve geliştirme/araştırma yönergesini alabilir. NVIDIA API anahtarı ana süreçte okunur, renderer’a verilmez.
+- GitHub CLI; depo, pull request, issue, check, workflow veya release verisini makinede oturum açılmış GitHub hesabına gönderebilir.
+- Vercel CLI; proje ve deployment verisini makinede yapılandırılan Vercel hesabına gönderebilir.
+- SSH işlemleri yalnız kullanıcının seçtiği hedefe bağlanır ve sıkı host-key güven kaydını kullanır.
+- Paket, MCP, eklenti veya toolkit işlemleri yalnız açıkça seçilen dosyaları işler; gerekli imza ya da güven kökü yoksa güvenli biçimde durur.
 
-These providers process data under their own terms and privacy policies. DevBox does not proxy those requests through a DevBox-operated server.
+Bu sağlayıcılar veriyi kendi sözleşmeleri ve gizlilik politikaları kapsamında işler. İstekler DevBox tarafından işletilen bir sunucudan geçirilmez.
 
-## Attachments and archives
+## Ekler ve arşivler
 
-Attachments are limited to 300 MiB per file. Archive formats can be attached as inert files; DevBox does not execute or automatically extract them. Attachment previews are bounded and binary data is not rendered as executable content.
+Her ek için üst sınır 300 MiB’dir. ZIP, RAR ve benzeri arşivler etkisiz dosya olarak eklenebilir; DevBox bunları kendiliğinden çalıştırmaz veya otomatik açmaz. Önizleme boyutu sınırlandırılır, ikili veri yürütülebilir içerik olarak çizilmez.
 
-## Retention and deletion
+## Saklama ve silme
 
-Data remains on the device until the user deletes tasks/attachments or removes the application data. The Windows uninstaller intentionally preserves user data to prevent accidental loss. After uninstalling, a user may delete the DevBox directory under the current user's application-data location.
+Veri; kullanıcı sohbeti veya eki silene ya da uygulama veri dizinini kaldırana kadar cihazda kalır. Windows kaldırıcı, yanlışlıkla program kaldırmanın sohbet geçmişini de yok etmemesi için kullanıcı verisini bilinçli olarak korur. Uygulamayı kaldırdıktan sonra veriyi tamamen silmek isteyen kullanıcı, kendi Windows uygulama verisi altındaki DevBox klasörünü ayrıca kaldırabilir.
 
-## Security reports and questions
+## Sorular ve güvenlik bildirimleri
 
-Use the private vulnerability-reporting process described in [SECURITY.md](../../.github/SECURITY.md). For non-sensitive privacy questions, open a GitHub issue without including personal data, credentials, private repository contents, or logs containing secrets.
+Hassas bir açık için [Güvenlik Politikası](../../.github/SECURITY.md) içindeki özel bildirim yolunu kullanın. Gizli olmayan gizlilik soruları için GitHub issue açabilirsiniz; kişisel veri, anahtar, özel depo içeriği veya gizli bilgi taşıyan günlük eklemeyin.

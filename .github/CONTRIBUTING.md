@@ -1,24 +1,54 @@
-# Contributing to DevBox
+# DevBox’a Katkı Rehberi
 
-## Principles
+DevBox’a ayırdığınız zaman için teşekkür ederiz. Küçük bir yazım düzeltmesi, iyi hazırlanmış bir hata kaydı, erişilebilirlik önerisi veya kapsamlı bir özellik katkısı aynı amacı taşır: ürünü daha güvenilir ve daha anlaşılır hâle getirmek.
 
-- Implement real behavior. Do not add demo data, fake integrations, simulated success, placeholder progress, or claims that are not supported by runtime evidence.
-- Keep secrets, personal data, private repository content, generated artifacts, and local state out of commits.
-- Fail closed when a trust root, credential, provider, executable, or external service is unavailable.
-- Add or update tests for changed contracts and user-visible behavior.
-- Preserve accessibility, keyboard access, context-menu behavior, and reduced-motion support.
+## Başlamadan önce
 
-## Development workflow
+- Hata bildirecekseniz aynı konunun daha önce açılıp açılmadığını issue’larda arayın.
+- Yeni özellikte kullanıcı sorunu, beklenen davranış ve güvenlik sınırını kısa ama somut biçimde anlatın.
+- Hassas açık, anahtar, özel proje verisi veya kişisel bilgi içeren konuları herkese açık issue’ya yazmayın; [Güvenlik Politikası](SECURITY.md) içindeki özel bildirim yolunu kullanın.
+- Topluluk etkileşimlerinde [Davranış Kuralları](CODE_OF_CONDUCT.md) geçerlidir.
 
-1. Create a focused branch.
-2. Run `pnpm install --frozen-lockfile`.
-3. Make a bounded change with tests.
-4. Run `pnpm verify`.
-5. For packaging changes, also run `pnpm package:installer`, `pnpm release:prepare`, and `pnpm release:verify` on Windows.
-6. Explain actual evidence and remaining limitations in the pull request.
+## Değişmez ürün ilkesi
 
-Do not commit `node_modules`, `dist`, `release`, `outputs`, `work`, `evidence`, `research`, `.env` files, databases, logs, or credentials.
+DevBox’ta çalışmayan bir özellik çalışıyormuş gibi gösterilemez. Katkılarda demo veri, sahte entegrasyon sonucu, simüle edilmiş başarı, uydurma ilerleme, doldurma amaçlı cevap veya çalışma zamanı kanıtı olmayan “hazır” durumu bulunmamalıdır.
 
-## Pull requests
+Bir güven kökü, kimlik bilgisi, sağlayıcı, yürütülebilir dosya veya dış servis yoksa yol güvenli biçimde kapanmalı ve kullanıcıya doğru neden gösterilmelidir. Başarılı görünmek için hatayı gizlemek kabul edilmez.
 
-Pull requests must explain the problem, the implemented behavior, tests run, security/privacy effects, rollback approach, and any honest limitations. Changes to signing, update, installer, workflow, permission, IPC, process, path, network, or credential boundaries require explicit reviewer attention.
+## Yerel geliştirme akışı
+
+1. Depoyu fork’layın ve değişikliğinizi anlatan odaklı bir dal oluşturun.
+2. `pnpm install --frozen-lockfile` ile kilit dosyasındaki bağımlılıkları kurun.
+3. Tek bir sorunu çözen, incelenebilir büyüklükte değişiklik yapın.
+4. Değişen sözleşme ve görünür davranışlar için test ekleyin veya mevcut testi güncelleyin.
+5. `pnpm verify` çalıştırın.
+6. Paketleme alanına dokunduysanız Windows üzerinde `pnpm package:installer`, `pnpm release:prepare` ve `pnpm release:verify` komutlarını da çalıştırın.
+7. Sonuçları ve dürüstçe kalan sınırları pull request açıklamasına yazın.
+
+`node_modules`, `dist`, `release`, `outputs`, `work`, `evidence`, `research`, `.env` dosyaları, yerel veritabanları, günlükler, kimlik bilgileri veya kullanıcıya ait proje içeriği commit’e eklenmemelidir.
+
+## Kod ve arayüz beklentileri
+
+- Ayrıcalıklı işlemleri doğrulanan IPC sözleşmelerinin dışına taşımayın.
+- Dosya ve süreç işlemlerinde seçilen kanonik proje kökü sınırını koruyun.
+- Klavye kullanımı, görünür odak, sağ tık menüleri, ekran okuyucu etiketleri ve hareketi azaltma seçeneğini bozmayın.
+- Kullanıcıya gösterilen Türkçe metinleri doğal, kısa ve anlaşılır yazın; teknik terim gerekiyorsa ilk kullanımda açıklayın.
+- Yeni bağımlılık eklerken lisansı, bakım durumu, paket boyutu ve tedarik zinciri etkisini açıklayın.
+- Mevcut kullanıcı verisini değiştiren bir işlemde geriye dönüş ve veri koruma yolunu belirtin.
+
+## İyi bir pull request nasıl görünür?
+
+Pull request açıklamasında şu soruların yanıtı bulunmalıdır:
+
+- Hangi gerçek kullanıcı sorunu çözülüyor?
+- Davranış daha önce nasıldı, şimdi nasıl?
+- Hangi testler ve derlemeler çalıştırıldı?
+- Güvenlik, gizlilik, erişilebilirlik ve performans etkisi nedir?
+- Sorun çıkarsa değişiklik nasıl geri alınabilir?
+- Henüz kapanmayan veya yalnız belirli ortamda doğrulanabilen ne var?
+
+İmzalama, güncelleme, kurucu, GitHub Actions, izin, IPC, süreç, dosya yolu, ağ veya kimlik bilgisi sınırlarını değiştiren pull request’ler özellikle dikkatli inceleme gerektirir.
+
+## İnceleme kültürü
+
+Kod incelemesi kişiyi değil değişikliği değerlendirir. Bir öneriye katılmıyorsanız gerekçenizi kanıt, test veya somut kullanım örneğiyle anlatın. İnceleme sırasında yeni bir sorun bulunursa kapsamı sessizce büyütmek yerine ayrı issue açmak çoğu zaman daha sağlıklıdır.

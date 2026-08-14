@@ -9,6 +9,9 @@ Bu sürüm; gerçek LSP/DAP kontrol yüzeyini, eşleştirilmiş uzak worker yaş
 
 ## ✨ Görünür düzeltmeler
 
+- Sürümle birlikte gelen gerçek değişiklikleri gösteren, hareketi azalt tercihine saygılı animasyonlu **Yenilikler** çalışma alanı eklendi. Okundu bilgisi sürüm bazında cihazda saklanır; uydurma çevrimiçi içerik üretilmez.
+- Yenilikler ekranından güncel GitHub sürümüne, tüm sürümlere, açık kaynak depoya ve geliştirici hesabına yalnız güvenilen HTTPS adresleri üzerinden ulaşılabilir.
+- Topluluk davranış kuralları, katkı rehberi, güvenlik, gizlilik ve kod imzalama belgeleri doğal ve ayrıntılı Türkçeyle yeniden yazıldı. Hukuken bağlayıcı Apache 2.0 metni aynen korunurken ayrıca açık bir Türkçe bilgilendirme özeti eklendi.
 - Yeni sohbet düğmesine tekrar tekrar basmak, ilk mesaj gönderilmeden kalıcı boş sohbet oluşturmaz.
 - Sabitlenen sohbetler ayrı **Sabit konuşmalar** bölümüne taşınır ve görünür pin işareti alır.
 - Sohbeti silme, uygulama içi koyu onay penceresiyle doğrulanır; sonuç üst-ortada dört saniye görünen temiz beyaz bildirimle gösterilir.
@@ -25,11 +28,11 @@ DevBox ilk olarak sağlık ve oturum denetimi geçen resmî Codex CLI yolunu sal
 
 Bu alan model eğitimi veya kendi kendine kod yazma iddiası taşımaz. Araştırma ve backlog görevleri; sağlayıcı, zaman, durable-job ve hata kanıtlarıyla SQLite WAL içinde kalıcıdır. Uygulama yeniden açıldığında önceki çevrimler korunur. Kaynak kod değişikliği kullanıcı onayı olmadan yapılmaz.
 
-## 🧩 LSP, DAP ve uzak worker
+## 🧩 LSP, DAP ve uzak çalışan
 
-TypeScript/JavaScript dosyaları, kurulu gerçek language-server sürecine LSP üzerinden gönderilir; diagnostics satır/sütunları editör seçimine bağlanır. Debugger, kullanıcı tarafından seçilmiş kurulu bir Debug Adapter olmadan oturum açmaz. DAP paneli thread, stack, scope, variables, breakpoint ve yürütme kontrollerini gerçek protokol yanıtlarıyla gösterir.
+TypeScript/JavaScript dosyaları, kurulu gerçek dil sunucusu sürecine LSP üzerinden gönderilir; tanılama satır ve sütunları editör seçimine bağlanır. Hata ayıklayıcı, kullanıcı tarafından seçilmiş kurulu bir hata ayıklama adaptörü olmadan oturum açmaz. DAP paneli iş parçacığı, çağrı yığını, kapsam, değişken, kesme noktası ve yürütme kontrollerini gerçek protokol yanıtlarıyla gösterir.
 
-Uzak worker yalnız uygulama içinden onayla üretilen tek kullanımlık kodla eşleşir. Kalıcı token bir kez verilir, veritabanında yalnız özeti saklanır. Worker komutları allowlist ve çalışma-kökü sınırına tabidir; ağ kesilirse üst sınırlı geri çekilmeyle yeniden bağlanır, süresi dolan lease yeniden kuyruğa alınır. Bu sürüm çok makineli protokolü sağlar; gerçek iki-host ağ bölünmesi kanıtı henüz ayrı release kapısıdır.
+Uzak çalışan yalnız uygulama içinden onayla üretilen tek kullanımlık kodla eşleşir. Kalıcı erişim anahtarı bir kez verilir, veritabanında yalnız özeti saklanır. Uzak çalışan komutları izin listesi ve çalışma kökü sınırına tabidir; ağ kesilirse üst sınırlı geri çekilmeyle yeniden bağlanır, süresi dolan görev kiralaması yeniden kuyruğa alınır. Bu sürüm çok makineli protokolü sağlar; gerçek iki sunuculu ağ bölünmesi kanıtı henüz ayrı yayın kapısıdır.
 
 ## ✅ Doğrulama
 

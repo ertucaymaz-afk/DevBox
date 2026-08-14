@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, Menu, net, protocol, session } from "electron";
+import { app, BrowserWindow, Menu, net, protocol, session, shell } from "electron";
 import { registerIpcHandlers } from "./ipc.js";
 import { SecretStore } from "./security/secret-store.js";
+import { isTrustedExternalUrl } from "./security/external-url.js";
 import { AgentService } from "./services/agent-service.js";
 import { ApiEvolutionService } from "./services/api-evolution-service.js";
 import { AttachmentService } from "./services/attachment-service.js";
@@ -106,7 +107,12 @@ function createWindow(): BrowserWindow {
     }
   });
 
-  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (isTrustedExternalUrl(url)) {
+      void shell.openExternal(url).catch((error: unknown) => console.error("Güvenilen dış bağlantı açılamadı:", error));
+    }
+    return { action: "deny" };
+  });
   window.webContents.on("will-navigate", (event, navigationUrl) => {
     const allowed = navigationUrl.startsWith("app://devbox/") || navigationUrl.startsWith("http://127.0.0.1:5173/");
     if (!allowed) event.preventDefault();
