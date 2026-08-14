@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 const checkedAt = "2026-08-14T01:10:00+03:00";
 const root = new URL("../research/", import.meta.url);
 const evidenceRoot = new URL("../evidence/", import.meta.url);
+const outputRoot = new URL("../outputs/", import.meta.url);
 
 const sources = [
   {
@@ -574,6 +575,7 @@ async function writeJson(url, value) {
 
 await mkdir(root, { recursive: true });
 await mkdir(new URL("architecture-decisions/", root), { recursive: true });
+await mkdir(outputRoot, { recursive: true });
 await writeJson(new URL("source-index.json", root), sources);
 await writeJson(new URL("requirements-registry.json", root), requirements);
 await writeJson(new URL("traceability-baseline.json", root), traceability);
@@ -607,7 +609,7 @@ const phaseMarkdown = [
   "`RELEASE_READY=false`. Uygulama çalışır ve paketlenebilir bir mühendislik önizlemesidir; yerel imzalı kurulum/onarım/rollback ve SSH pinning tamamlanmıştır. Authenticode ile güvenilir binary update handoff, tam LSP/DAP kullanıcı deneyimi, dayanıklı remote worker ve uzun süreli temiz-VM soak/failure-injection kapıları kapanmadan genel kullanıma hazır olarak etiketlenmez.",
   ""
 ].join("\n");
-await writeFile(new URL("DEVBOX-22-FAZ-ULTRA-DETAYLI-KAPSAM.md", new URL("../outputs/", import.meta.url)), phaseMarkdown, "utf8");
+await writeFile(new URL("DEVBOX-22-FAZ-ULTRA-DETAYLI-KAPSAM.md", outputRoot), phaseMarkdown, "utf8");
 
 for (let index = 1; index <= 22; index += 1) {
   const pd = `PD-${String(index).padStart(2, "0")}`;
