@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 
-const RELEASE_URL = "https://github.com/ertucaymaz-afk/DevBox/releases/latest";
+const RELEASE_URL = `https://github.com/ertucaymaz-afk/DevBox/releases/tag/v${__DEVBOX_VERSION__}`;
 const ALL_RELEASES_URL = "https://github.com/ertucaymaz-afk/DevBox/releases";
 const REPOSITORY_URL = "https://github.com/ertucaymaz-afk/DevBox";
 const INSTAGRAM_URL = "https://www.instagram.com/yaaertu/";
