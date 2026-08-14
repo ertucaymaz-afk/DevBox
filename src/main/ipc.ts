@@ -1,0 +1,627 @@
+import { randomUUID } from "node:crypto";
+import { lstat, readFile } from "node:fs/promises";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import type { Bootstrap } from "../shared/contracts.js";
+import {
+  AppMenuInputSchema,
+  AppSettingsSchema,
+  AttachmentImportPathsInputSchema,
+  AttachmentImportResultSchema,
+  AttachmentSchema,
+  AttachmentRemoveInputSchema,
+  BootstrapSchema,
+  CommandResultSchema,
+  ContextMenuInputSchema,
+  EvolutionCampaignSchema,
+  EvolutionDirectiveInputSchema,
+  EvolutionToggleInputSchema,
+  FileCreateInputSchema,
+  FileDuplicateInputSchema,
+  FileReadInputSchema,
+  FileRenameInputSchema,
+  FileSnapshotSchema,
+  FileWriteInputSchema,
+  GitDiffSchema,
+  GitStatusSchema,
+  GitHubActionInputSchema,
+  IntegrationInspectInputSchema,
+  IntegrationStatusSchema,
+  IPC_CHANNELS,
+  PathCopyInputSchema,
+  PlatformActionInputSchema,
+  ProjectIdInputSchema,
+  ProjectSummarySchema,
+  ProjectTreeNodeSchema,
+  SettingsPatchInputSchema,
+  TaskRunInputSchema,
+  TextCopyInputSchema,
+  TerminalIdInputSchema,
+  TerminalResizeInputSchema,
+  TerminalStartInputSchema,
+  TerminalSummarySchema,
+  TerminalWriteInputSchema,
+  ThemeImportInputSchema,
+  ThreadCreateInputSchema,
+  ThreadDetailSchema,
+  ThreadIdInputSchema,
+  ThreadItemInputSchema,
+  ThreadItemUpdateInputSchema,
+  ThreadListInputSchema,
+  ThreadMessageInputSchema,
+  ThreadRenameInputSchema,
+  ThreadSummarySchema,
+  VercelActionInputSchema,
+  WorktreeCreateInputSchema,
+  WorktreeRemoveInputSchema,
+  WorktreeSchema
+} from "../shared/contracts.js";
+import type { CapabilityService } from "./services/capability-service.js";
+import type { AgentService } from "./services/agent-service.js";
+import type { ApiEvolutionService } from "./services/api-evolution-service.js";
+import type { AttachmentService } from "./services/attachment-service.js";
+import type { CoreApi } from "./services/core-api.js";
+import type { GitService } from "./services/git-service.js";
+import type { IntegrationService } from "./services/integration-service.js";
+import type { PackageLifecycleService } from "./services/package-lifecycle-service.js";
+import type { ProjectService } from "./services/project-service.js";
+import type { SettingsService } from "./services/settings-service.js";
+import type { SshTrustService } from "./services/ssh-trust-service.js";
+import type { TaskService } from "./services/task-service.js";
+import type { TerminalService } from "./services/terminal-service.js";
+import type { WorktreeService } from "./services/worktree-service.js";
+
+type IpcServices = {
+  coreApi: CoreApi;
+  capabilities: CapabilityService;
+  agent: AgentService;
+  evolution: ApiEvolutionService;
+  attachments: AttachmentService;
+  projects: ProjectService;
+  git: GitService;
+  tasks: TaskService;
+  settings: SettingsService;
+  terminals: TerminalService;
+  worktrees: WorktreeService;
+  integrations: IntegrationService;
+  packages: PackageLifecycleService;
+  sshTrust: SshTrustService;
+  database: import("./services/database.js").StateDatabase;
+  probeCwd: string;
+  rendererWebContentsId: number;
+};
+
+type GuardedOperation = {
+  title: string;
+  message: string;
+  detail: string;
+  risky: boolean;
+};
+
+async function enforcePermissionPolicy(event: IpcMainInvokeEvent, services: IpcServices, operation: GuardedOperation): Promise<void> {
+  const policy = services.settings.get();
+  const requiresApproval = policy.approvalPolicy === "always" || (policy.approvalPolicy === "on-request" && operation.risky);
+  if (!requiresApproval) return;
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) throw new Error("WINDOW_NOT_FOUND");
+  const confirmation = await dialog.showMessageBox(window, {
+    type: operation.risky ? "warning" : "question",
+    title: `DevBox — ${operation.title}`,
+    message: operation.message,
+    detail: `${operation.detail}\n\nEtkin profil: ${policy.permissionProfile} · sandbox: ${policy.sandboxPolicy} · ağ: ${policy.networkAccess ? "açık" : "yalnız bu onayla"}`,
+    buttons: ["Vazgeç", "Bu işleme izin ver"],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true
+  });
+  if (confirmation.response !== 1) throw new Error("OPERATION_NOT_APPROVED");
+}
+
+function localCommandResult(commandDisplay: string, cwd: string, started: number, stdout: string, options: { stderr?: string; cancelled?: boolean } = {}): import("../shared/contracts.js").CommandResult {
+  const endedAt = new Date().toISOString();
+  return {
+    runId: randomUUID(),
+    commandDisplay,
+    cwd,
+    exitCode: options.cancelled ? null : options.stderr ? 1 : 0,
+    signal: null,
+    stdout,
+    stderr: options.stderr ?? "",
+    startedAt: new Date(Date.now() - Math.max(0, Math.round(performance.now() - started))).toISOString(),
+    endedAt,
+    durationMs: Math.max(0, Math.round(performance.now() - started)),
+    timedOut: false,
+    truncated: false,
+    exitReason: options.cancelled ? "CANCELLED" : "EXITED"
+  };
+}
+
+function packageTarget(value: string): { kind: "plugin" | "mcp" | "toolkit" | "update"; id: string } {
+  const match = /^(plugin|mcp|toolkit|update)\/([a-z0-9][a-z0-9._-]{1,127})$/u.exec(value.trim());
+  if (!match) throw new Error("PACKAGE_TARGET_EXPECTED_KIND_SLASH_ID");
+  return { kind: match[1] as "plugin" | "mcp" | "toolkit" | "update", id: match[2]! };
+}
+
+function assertTrustedRenderer(event: IpcMainInvokeEvent, expectedWebContentsId: number): void {
+  const senderFrame = event.senderFrame;
+  if (!senderFrame || event.sender.id !== expectedWebContentsId || senderFrame !== senderFrame.top) {
+    throw new Error("UNTRUSTED_IPC_SENDER");
+  }
+  const senderUrl = senderFrame.url;
+  const trusted = senderUrl.startsWith("app://devbox/") || senderUrl.startsWith("http://127.0.0.1:5173/");
+  if (!trusted) throw new Error("UNTRUSTED_IPC_ORIGIN");
+}
+
+function registerHandler<TInput, TOutput>(
+  channel: string,
+  expectedWebContentsId: number,
+  handler: (input: TInput, event: IpcMainInvokeEvent) => Promise<TOutput>
+): void {
+  ipcMain.handle(channel, async (event, input: TInput) => {
+    assertTrustedRenderer(event, expectedWebContentsId);
+    return await handler(input, event);
+  });
+}
+
+async function popupMenu(event: IpcMainInvokeEvent, template: MenuItemConstructorOptions[]): Promise<string | null> {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) throw new Error("WINDOW_NOT_FOUND");
+  return await new Promise<string | null>((resolve) => {
+    let settled = false;
+    const finish = (action: string | null): void => {
+      if (settled) return;
+      settled = true;
+      resolve(action);
+    };
+    const hydrated = template.map((item) => item.id && !item.role && item.type !== "separator"
+      ? { ...item, click: (): void => finish(item.id ?? null) }
+      : item);
+    const menu = Menu.buildFromTemplate(hydrated);
+    menu.popup({ window, callback: () => finish(null) });
+  });
+}
+
+export function registerIpcHandlers(services: IpcServices): () => void {
+  const channels = Object.values(IPC_CHANNELS);
+
+  registerHandler(IPC_CHANNELS.bootstrap, services.rendererWebContentsId, async (): Promise<Bootstrap> => {
+    const bootstrap = {
+      app: {
+        name: "DevBox" as const,
+        version: app.getVersion(),
+        platform: process.platform,
+        architecture: process.arch,
+        desktopReady: true
+      },
+      core: { state: "READY" as const, origin: services.coreApi.origin, apiVersion: "v1" as const },
+      projects: services.projects.list(),
+      capabilities: await services.capabilities.inspect(services.probeCwd)
+    };
+    return BootstrapSchema.parse(bootstrap);
+  });
+
+  registerHandler(IPC_CHANNELS.projectOpen, services.rendererWebContentsId, async () => {
+    const result = await dialog.showOpenDialog({
+      title: "DevBox — Proje aç",
+      properties: ["openDirectory", "createDirectory"],
+      securityScopedBookmarks: false
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    return ProjectSummarySchema.parse(await services.projects.open(result.filePaths[0]));
+  });
+
+  registerHandler(IPC_CHANNELS.projectTree, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ProjectIdInputSchema.parse(unknownInput);
+    return ProjectTreeNodeSchema.array().parse(await services.projects.tree(input.projectId));
+  });
+
+  registerHandler(IPC_CHANNELS.fileRead, services.rendererWebContentsId, async (unknownInput) => {
+    const input = FileReadInputSchema.parse(unknownInput);
+    return FileSnapshotSchema.parse(await services.projects.readFile(input.projectId, input.relativePath));
+  });
+
+  registerHandler(IPC_CHANNELS.fileWrite, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = FileWriteInputSchema.parse(unknownInput);
+    await enforcePermissionPolicy(event, services, { title: "Dosyayı kaydet", message: `“${input.relativePath}” dosyasına yazılsın mı?`, detail: "Yazma yalnız seçili canonical proje kökünde ve beklenen SHA-256 sürümü eşleşirse yapılır.", risky: false });
+    return FileSnapshotSchema.parse(await services.projects.writeFile(input.projectId, input.relativePath, input.expectedSha256, input.content));
+  });
+
+  registerHandler(IPC_CHANNELS.fileCreate, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = FileCreateInputSchema.parse(unknownInput);
+    await enforcePermissionPolicy(event, services, { title: "Proje öğesi oluştur", message: `“${input.name}” oluşturulsun mu?`, detail: "İşlem yalnız seçili proje kökünde gerçekleştirilir.", risky: false });
+    return ProjectTreeNodeSchema.array().parse(await services.projects.createPath(input.projectId, input.parentRelativePath, input.name, input.kind));
+  });
+
+  registerHandler(IPC_CHANNELS.fileRename, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = FileRenameInputSchema.parse(unknownInput);
+    await enforcePermissionPolicy(event, services, { title: "Yeniden adlandır", message: `“${input.relativePath}” yeniden adlandırılsın mı?`, detail: `Yeni ad: ${input.newName}`, risky: false });
+    return ProjectTreeNodeSchema.array().parse(await services.projects.renamePath(input.projectId, input.relativePath, input.newName));
+  });
+
+  registerHandler(IPC_CHANNELS.fileDuplicate, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = FileDuplicateInputSchema.parse(unknownInput);
+    await enforcePermissionPolicy(event, services, { title: "Çoğalt", message: `“${input.relativePath}” çoğaltılsın mı?`, detail: "Kopya yalnız seçili proje kökünde oluşturulur.", risky: false });
+    return ProjectTreeNodeSchema.array().parse(await services.projects.duplicatePath(input.projectId, input.relativePath));
+  });
+
+  registerHandler(IPC_CHANNELS.fileTrash, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = FileReadInputSchema.parse(unknownInput);
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) throw new Error("WINDOW_NOT_FOUND");
+    const confirmation = await dialog.showMessageBox(window, {
+      type: "warning",
+      title: "DevBox — Geri Dönüşüm Kutusu",
+      message: `“${input.relativePath}” Geri Dönüşüm Kutusu'na taşınsın mı?`,
+      detail: "Bu işlem dosyayı kalıcı olarak silmez; Windows Geri Dönüşüm Kutusu'ndan kurtarabilirsiniz.",
+      buttons: ["Vazgeç", "Taşı"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    });
+    if (confirmation.response !== 1) return ProjectTreeNodeSchema.array().parse(await services.projects.tree(input.projectId));
+    return ProjectTreeNodeSchema.array().parse(await services.projects.trashPath(input.projectId, input.relativePath));
+  });
+
+  registerHandler(IPC_CHANNELS.fileReveal, services.rendererWebContentsId, async (unknownInput) => {
+    const input = FileReadInputSchema.parse(unknownInput);
+    await services.projects.revealPath(input.projectId, input.relativePath);
+  });
+
+  registerHandler(IPC_CHANNELS.pathCopy, services.rendererWebContentsId, async (unknownInput) => {
+    const parsed = PathCopyInputSchema.parse(unknownInput);
+    clipboard.writeText(await services.projects.displayPath(parsed.projectId, parsed.relativePath, parsed.absolute));
+  });
+
+  registerHandler(IPC_CHANNELS.gitStatus, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ProjectIdInputSchema.parse(unknownInput);
+    return GitStatusSchema.parse(await services.git.status(services.projects.get(input.projectId).rootPath));
+  });
+
+  registerHandler(IPC_CHANNELS.gitDiff, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ProjectIdInputSchema.parse(unknownInput);
+    return GitDiffSchema.parse(await services.git.diff(services.projects.get(input.projectId).rootPath));
+  });
+
+  registerHandler(IPC_CHANNELS.taskRunPreset, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = TaskRunInputSchema.parse(unknownInput);
+    const project = services.projects.get(input.projectId);
+    await enforcePermissionPolicy(event, services, { title: "Proje komutu", message: `“${input.preset}” görevi çalıştırılsın mı?`, detail: `Çalışma dizini canonical proje köküne sabitlenir: ${project.rootPath}`, risky: input.preset !== "git-status" });
+    return CommandResultSchema.parse(await services.tasks.runPreset(project.rootPath, input.preset));
+  });
+
+  registerHandler(IPC_CHANNELS.threadList, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThreadListInputSchema.parse(unknownInput ?? {});
+    return ThreadSummarySchema.array().parse(services.database.listThreads(input.projectId));
+  });
+
+  registerHandler(IPC_CHANNELS.threadCreate, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThreadCreateInputSchema.parse(unknownInput);
+    return ThreadDetailSchema.parse(services.database.createThread(input.projectId, input.title));
+  });
+
+  registerHandler(IPC_CHANNELS.threadGet, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThreadIdInputSchema.parse(unknownInput);
+    return ThreadDetailSchema.parse(services.database.getThread(input.threadId));
+  });
+
+  registerHandler(IPC_CHANNELS.threadMessage, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = ThreadMessageInputSchema.parse(unknownInput);
+    const current = services.database.getThread(input.threadId);
+    await enforcePermissionPolicy(event, services, { title: "NVIDIA ajan isteği", message: "Bu görev Hermes üzerinden NVIDIA NIM sağlayıcısına gönderilsin mi?", detail: "DevBox, son görev metnini ve sınırlandırılmış sohbet bağlamını gönderir; ortam gizli değerini renderer'a taşımaz.", risky: false });
+    const attachmentContext = await services.attachments.buildAgentContext(input.threadId, input.attachmentIds);
+    const agentPrompt = `${input.content || "Ekli dosyaları incele."}${attachmentContext}`;
+    const assistantContent = await services.agent.respond(agentPrompt, services.projects.get(current.thread.projectId).rootPath, current.items)
+      .then((response) => response.content)
+      .catch((error: unknown) => {
+        const code = error instanceof Error ? error.message : "AGENT_UNKNOWN_FAILURE";
+        const remediation = code === "NVIDIA_CREDENTIAL_UNAVAILABLE"
+          ? "Windows ortamına NVIDIA_API_KEY ekleyip DevBox'ı yeniden başlatın."
+          : code === "HERMES_EXECUTION_FAILED"
+            ? "Hermes/NVIDIA çalıştırması başarısız oldu. Sistem kabiliyetlerini ve sağlayıcı erişimini denetleyin."
+            : "Hermes yanıtı güvenli biçimde doğrulanıp ayrıştırılamadı. Ham çıktı, iç muhakeme ve sistem istemi güvenlik gereği gösterilmedi.";
+        return `Ajan yanıtı üretilemedi (**${code}**). ${remediation}`;
+      });
+    return ThreadDetailSchema.parse(services.database.appendMessage(input.threadId, input.content, assistantContent, input.attachmentIds));
+  });
+
+  registerHandler(IPC_CHANNELS.threadMessageUpdate, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThreadItemUpdateInputSchema.parse(unknownInput);
+    return ThreadDetailSchema.parse(services.database.updateUserMessage(input.threadId, input.itemId, input.content));
+  });
+
+  registerHandler(IPC_CHANNELS.threadMessageRegenerate, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = ThreadItemInputSchema.parse(unknownInput);
+    const current = services.database.getThread(input.threadId);
+    await enforcePermissionPolicy(event, services, { title: "NVIDIA yanıtını yenile", message: "Seçili yanıt NVIDIA NIM üzerinden yeniden üretilsin mi?", detail: "Bu işlem yeni bir dış sağlayıcı isteği oluşturur.", risky: false });
+    const targetIndex = current.items.findIndex((item) => item.id === input.itemId && item.role === "assistant");
+    if (targetIndex < 0) throw new Error("ASSISTANT_MESSAGE_NOT_FOUND");
+    const target = current.items[targetIndex];
+    const userItem = current.items.slice(0, targetIndex).reverse().find((item) => item.turnId === target?.turnId && item.role === "user");
+    if (!userItem) throw new Error("SOURCE_USER_MESSAGE_NOT_FOUND");
+    const attachmentContext = await services.attachments.buildAgentContext(input.threadId, userItem.attachments.map((item) => item.id), false);
+    const prompt = `${userItem.content || "Ekli dosyaları incele."}${attachmentContext}`;
+    const replacement = await services.agent.respond(prompt, services.projects.get(current.thread.projectId).rootPath, current.items.slice(0, targetIndex))
+      .then((response) => response.content);
+    return ThreadDetailSchema.parse(services.database.replaceAssistantMessage(input.threadId, input.itemId, replacement));
+  });
+
+  registerHandler(IPC_CHANNELS.threadRename, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThreadRenameInputSchema.parse(unknownInput);
+    return ThreadSummarySchema.parse(services.database.renameThread(input.threadId, input.title));
+  });
+
+  registerHandler(IPC_CHANNELS.threadDelete, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = ThreadIdInputSchema.parse(unknownInput);
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) throw new Error("WINDOW_NOT_FOUND");
+    const confirmation = await dialog.showMessageBox(window, {
+      type: "warning",
+      title: "DevBox — Görevi sil",
+      message: "Bu görev ve tüm yerel mesaj geçmişi silinsin mi?",
+      buttons: ["Vazgeç", "Sil"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    });
+    if (confirmation.response !== 1) return false;
+    services.database.deleteThread(input.threadId);
+    await services.attachments.purgeThreadFiles(input.threadId);
+    return true;
+  });
+
+  registerHandler(IPC_CHANNELS.attachmentSelect, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = ThreadIdInputSchema.parse(unknownInput);
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) throw new Error("WINDOW_NOT_FOUND");
+    const result = await dialog.showOpenDialog(window, {
+      title: "DevBox — Dosya ekle (dosya başına en fazla 300 MB)",
+      buttonLabel: "Ekle",
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "Tüm dosyalar", extensions: ["*"] }]
+    });
+    if (result.canceled) return AttachmentImportResultSchema.parse({ attachments: [], rejected: [] });
+    return AttachmentImportResultSchema.parse(await services.attachments.importPaths(input.threadId, result.filePaths));
+  });
+
+  registerHandler(IPC_CHANNELS.attachmentListDraft, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThreadIdInputSchema.parse(unknownInput);
+    return AttachmentSchema.array().parse(services.database.listDraftAttachments(input.threadId));
+  });
+
+  registerHandler(IPC_CHANNELS.attachmentImport, services.rendererWebContentsId, async (unknownInput) => {
+    const input = AttachmentImportPathsInputSchema.parse(unknownInput);
+    return AttachmentImportResultSchema.parse(await services.attachments.importPaths(input.threadId, input.filePaths));
+  });
+
+  registerHandler(IPC_CHANNELS.attachmentRemove, services.rendererWebContentsId, async (unknownInput) => {
+    const input = AttachmentRemoveInputSchema.parse(unknownInput);
+    await services.attachments.removeDraft(input.threadId, input.attachmentId);
+  });
+
+  registerHandler(IPC_CHANNELS.contextMenu, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = ContextMenuInputSchema.parse(unknownInput);
+    const separator: MenuItemConstructorOptions = { type: "separator" };
+    const editable: MenuItemConstructorOptions[] = [
+      { label: "Geri al", role: "undo", accelerator: "Ctrl+Z" },
+      { label: "Yinele", role: "redo", accelerator: "Ctrl+Y" }, separator,
+      { label: "Kes", role: "cut", accelerator: "Ctrl+X" },
+      { label: "Kopyala", role: "copy", accelerator: "Ctrl+C", enabled: input.hasSelection },
+      { label: "Yapıştır", role: "paste", accelerator: "Ctrl+V", enabled: input.canPaste },
+      { label: "Sil", role: "delete" }, separator,
+      { label: "Tümünü seç", role: "selectAll", accelerator: "Ctrl+A" }
+    ];
+    const templates: Record<typeof input.kind, MenuItemConstructorOptions[]> = {
+      editable,
+      selection: [{ id: "copySelection", label: "Seçileni kopyala", accelerator: "Ctrl+C", enabled: input.hasSelection }],
+      file: [{ id: "open", label: "Aç" }, separator, { id: "copy", label: "Kopyala" }, { id: "copyPath", label: "Yolu kopyala" }, { id: "copyRelativePath", label: "Göreli yolu kopyala" }, separator, { id: "rename", label: "Yeniden adlandır", accelerator: "F2" }, { id: "duplicate", label: "Çoğalt" }, { id: "reveal", label: "Dosya Gezgini'nde göster" }, separator, { id: "trash", label: "Geri Dönüşüm Kutusu'na taşı" }],
+      directory: [{ id: "newFile", label: "Yeni dosya" }, { id: "newDirectory", label: "Yeni klasör" }, separator, { id: "copyPath", label: "Yolu kopyala" }, { id: "copyRelativePath", label: "Göreli yolu kopyala" }, { id: "reveal", label: "Dosya Gezgini'nde göster" }, separator, { id: "rename", label: "Yeniden adlandır", accelerator: "F2" }, { id: "duplicate", label: "Çoğalt" }, { id: "trash", label: "Geri Dönüşüm Kutusu'na taşı" }],
+      thread: [{ id: "rename", label: "Yeniden adlandır" }, { id: "copyTitle", label: "Başlığı kopyala" }, separator, { id: "delete", label: "Görevi sil" }],
+      terminal: [{ id: "copyOutput", label: "Çıktıyı kopyala", enabled: input.hasSelection }, { label: "Tümünü seç", role: "selectAll", accelerator: "Ctrl+A" }, separator, { id: "clear", label: "Çıktıyı temizle" }],
+      blank: [{ id: "newTask", label: "Yeni görev" }, { id: "openProject", label: "Proje klasörü aç" }, separator, { label: "Yapıştır", role: "paste", enabled: input.canPaste }]
+    };
+    return await popupMenu(event, templates[input.kind]);
+  });
+
+  registerHandler(IPC_CHANNELS.appMenu, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = AppMenuInputSchema.parse(unknownInput);
+    const separator: MenuItemConstructorOptions = { type: "separator" };
+    const templates: Record<typeof input.menu, MenuItemConstructorOptions[]> = {
+      file: [{ id: "newTask", label: "Yeni görev", accelerator: "Ctrl+N" }, { id: "openProject", label: "Proje klasörü aç…", accelerator: "Ctrl+O" }, separator, { role: "close", label: "Pencereyi kapat" }, { role: "quit", label: "DevBox'tan çık" }],
+      edit: [{ label: "Geri al", role: "undo" }, { label: "Yinele", role: "redo" }, separator, { label: "Kes", role: "cut" }, { label: "Kopyala", role: "copy" }, { label: "Yapıştır", role: "paste" }, { label: "Tümünü seç", role: "selectAll" }],
+      view: [{ id: "toggleSidebar", label: "Kenar çubuğunu göster/gizle" }, { id: "toggleInspector", label: "Denetleyiciyi göster/gizle" }, { id: "toggleTerminal", label: "Görev çıktısını göster/gizle", accelerator: "Ctrl+`" }, separator, { role: "zoomIn", label: "Yakınlaştır" }, { role: "zoomOut", label: "Uzaklaştır" }, { role: "resetZoom", label: "Yakınlaştırmayı sıfırla" }, { role: "togglefullscreen", label: "Tam ekran" }],
+      help: [{ id: "shortcuts", label: "Klavye kısayolları" }, { id: "about", label: "DevBox hakkında" }]
+    };
+    return await popupMenu(event, templates[input.menu]);
+  });
+
+  registerHandler(IPC_CHANNELS.textCopy, services.rendererWebContentsId, async (unknownInput) => {
+    clipboard.writeText(TextCopyInputSchema.parse(unknownInput).text);
+  });
+
+  registerHandler(IPC_CHANNELS.settingsGet, services.rendererWebContentsId, async () => {
+    return AppSettingsSchema.parse(services.settings.get());
+  });
+
+  registerHandler(IPC_CHANNELS.settingsPatch, services.rendererWebContentsId, async (unknownInput) => {
+    const input = SettingsPatchInputSchema.parse(unknownInput);
+    return AppSettingsSchema.parse(services.settings.patch(input));
+  });
+
+  registerHandler(IPC_CHANNELS.themeImport, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ThemeImportInputSchema.parse(unknownInput);
+    return AppSettingsSchema.parse(services.settings.importTheme(input.portable));
+  });
+
+  registerHandler(IPC_CHANNELS.themeExport, services.rendererWebContentsId, async () => {
+    return services.settings.exportTheme();
+  });
+
+  registerHandler(IPC_CHANNELS.terminalList, services.rendererWebContentsId, async (unknownInput) => {
+    const input = IntegrationInspectInputSchema.parse(unknownInput ?? {});
+    return TerminalSummarySchema.array().parse(services.terminals.list(input.projectId));
+  });
+
+  registerHandler(IPC_CHANNELS.terminalStart, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = TerminalStartInputSchema.parse(unknownInput);
+    const project = services.projects.get(input.projectId);
+    await enforcePermissionPolicy(event, services, { title: "Etkileşimli terminal", message: "Seçili projede gerçek ConPTY terminali başlatılsın mı?", detail: `Terminal, kullanıcı hesabınızın yetkileriyle ${project.rootPath} dizininde komut çalıştırabilir.`, risky: true });
+    const preference = services.settings.get().terminalShell;
+    return TerminalSummarySchema.parse(services.terminals.start(input.projectId, project.rootPath, preference, input.cols, input.rows));
+  });
+
+  registerHandler(IPC_CHANNELS.terminalWrite, services.rendererWebContentsId, async (unknownInput) => {
+    const input = TerminalWriteInputSchema.parse(unknownInput);
+    services.terminals.write(input.terminalId, input.data);
+  });
+
+  registerHandler(IPC_CHANNELS.terminalResize, services.rendererWebContentsId, async (unknownInput) => {
+    const input = TerminalResizeInputSchema.parse(unknownInput);
+    return TerminalSummarySchema.parse(services.terminals.resize(input.terminalId, input.cols, input.rows));
+  });
+
+  registerHandler(IPC_CHANNELS.terminalKill, services.rendererWebContentsId, async (unknownInput) => {
+    const input = TerminalIdInputSchema.parse(unknownInput);
+    services.terminals.kill(input.terminalId);
+  });
+
+  registerHandler(IPC_CHANNELS.worktreeList, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ProjectIdInputSchema.parse(unknownInput);
+    const project = services.projects.get(input.projectId);
+    return WorktreeSchema.array().parse(await services.worktrees.list(project.rootPath));
+  });
+
+  registerHandler(IPC_CHANNELS.worktreeCreate, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = WorktreeCreateInputSchema.parse(unknownInput);
+    const project = services.projects.get(input.projectId);
+    await enforcePermissionPolicy(event, services, { title: "Git worktree oluştur", message: `“${input.name}” çalışma ağacı oluşturulsun mu?`, detail: `Kaynak ref: ${input.ref} · mod: ${input.mode}`, risky: true });
+    return WorktreeSchema.parse(await services.worktrees.create(project.rootPath, input.projectId, input.name, input.ref, input.mode));
+  });
+
+  registerHandler(IPC_CHANNELS.worktreeRemove, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = WorktreeRemoveInputSchema.parse(unknownInput);
+    const project = services.projects.get(input.projectId);
+    await enforcePermissionPolicy(event, services, { title: "Git worktree kaldır", message: `“${input.path}” çalışma ağacı kaldırılsın mı?`, detail: "Değişiklik varsa kurtarma patch'i üretilir; işlem dosya sistemini değiştirir.", risky: true });
+    return await services.worktrees.remove(project.rootPath, input.path, input.force);
+  });
+
+  registerHandler(IPC_CHANNELS.evolutionGet, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ProjectIdInputSchema.parse(unknownInput);
+    return EvolutionCampaignSchema.parse(services.evolution.get(input.projectId));
+  });
+
+  registerHandler(IPC_CHANNELS.evolutionToggle, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = EvolutionToggleInputSchema.parse(unknownInput);
+    if (input.enabled) {
+      await enforcePermissionPolicy(event, services, { title: "DevBox API gelişim döngüsü", message: "Arka plandaki gerçek NVIDIA araştırma/gelişim döngüsü etkinleştirilsin mi?", detail: "Uygulama açıkken en fazla günde dört sağlayıcı isteği yürütür. Yanıtlar kanıt kimliğiyle yerel görev geçmişine kaydedilir; model ağırlıkları eğitilmez ve kod otomatik değiştirilmez.", risky: true });
+    }
+    return EvolutionCampaignSchema.parse(services.evolution.setEnabled(input.projectId, input.enabled));
+  });
+
+  registerHandler(IPC_CHANNELS.evolutionDirective, services.rendererWebContentsId, async (unknownInput) => {
+    const input = EvolutionDirectiveInputSchema.parse(unknownInput);
+    return EvolutionCampaignSchema.parse(services.evolution.setDirective(input.projectId, input.directive));
+  });
+
+  registerHandler(IPC_CHANNELS.evolutionRun, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = ProjectIdInputSchema.parse(unknownInput);
+    await enforcePermissionPolicy(event, services, { title: "API gelişim çevrimi", message: "Sıradaki DevBox API gelişim görevi şimdi sağlık denetimli ajan sağlayıcısında çalıştırılsın mı?", detail: "Codex CLI sağlık ve oturum denetimi geçerse Codex, aksi durumda gerçek Hermes/NVIDIA fallback kullanılır. Sağlayıcı yanıtı ve durable-job kimliği oluşmadan seviye/kapsam ilerlemez.", risky: false });
+    return EvolutionCampaignSchema.parse(await services.evolution.runNow(input.projectId));
+  });
+
+  registerHandler(IPC_CHANNELS.integrationInspect, services.rendererWebContentsId, async (unknownInput) => {
+    const input = IntegrationInspectInputSchema.parse(unknownInput ?? {});
+    const cwd = input.projectId ? services.projects.get(input.projectId).rootPath : services.probeCwd;
+    return IntegrationStatusSchema.array().parse(await services.integrations.inspect(cwd));
+  });
+
+  registerHandler(IPC_CHANNELS.vercelAction, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = VercelActionInputSchema.parse(unknownInput);
+    const project = services.projects.get(input.projectId);
+    await enforcePermissionPolicy(event, services, { title: "Vercel işlemi", message: `Gerçek Vercel “${input.action}” komutu çalıştırılsın mı?`, detail: `Hedef: ${input.target || "seçili proje"} · kök: ${project.rootPath}`, risky: ["link", "preview", "production", "rollback"].includes(input.action) });
+    return CommandResultSchema.parse(await services.integrations.vercel(project.rootPath, input.action, input.target));
+  });
+
+  registerHandler(IPC_CHANNELS.githubAction, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = GitHubActionInputSchema.parse(unknownInput);
+    const project = services.projects.get(input.projectId);
+    await enforcePermissionPolicy(event, services, { title: "GitHub işlemi", message: `Gerçek GitHub “${input.action}” komutu çalıştırılsın mı?`, detail: `Hedef: ${input.target || "seçili depo"} · kök: ${project.rootPath}`, risky: ["pr-create", "pr-merge", "issue-create", "run-rerun", "release-create"].includes(input.action) });
+    return CommandResultSchema.parse(await services.integrations.github(project.rootPath, input.action, input.target));
+  });
+
+  registerHandler(IPC_CHANNELS.platformAction, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = PlatformActionInputSchema.parse(unknownInput);
+    const project = input.projectId ? services.projects.get(input.projectId) : null;
+    const cwd = project?.rootPath ?? services.probeCwd;
+    const started = performance.now();
+    const parent = BrowserWindow.fromWebContents(event.sender);
+    if (!parent) throw new Error("WINDOW_NOT_FOUND");
+    const mutatesLocalTrustOrPackages = ["ssh-pin", "package-install", "package-repair", "package-rollback"].includes(input.action);
+    await enforcePermissionPolicy(event, services, {
+      title: "Platform işlemi",
+      message: `Gerçek “${input.action}” işlemi çalıştırılsın mı?`,
+      detail: `Hedef: ${input.target || "yerel durum"} · çalışma kökü: ${cwd}`,
+      risky: mutatesLocalTrustOrPackages
+    });
+
+    if (input.action === "protocol-discover") {
+      const discovered = await services.integrations.discover(cwd);
+      return CommandResultSchema.parse(localCommandResult("devbox protocol discover", cwd, started, `${JSON.stringify(discovered, null, 2)}\n`));
+    }
+    if (input.action === "ssh-audit") {
+      const pins = await services.sshTrust.list();
+      return CommandResultSchema.parse(localCommandResult("devbox ssh audit", cwd, started, `${JSON.stringify(pins, null, 2)}\n`));
+    }
+    if (input.action === "ssh-pin") {
+      if (!input.target) throw new Error("SSH_TARGET_REQUIRED");
+      const candidate = await services.sshTrust.scan(input.target, cwd);
+      const confirmation = await dialog.showMessageBox(parent, {
+        type: "warning",
+        buttons: ["Bu anahtarı sabitle", "İptal"],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+        title: "SSH sunucu anahtarını doğrulayın",
+        message: `${candidate.host}:${candidate.port} için görülen anahtar parmak izleri`,
+        detail: `${candidate.fingerprint}\n\nBu parmak izlerini sunucu yöneticinizin güvenilir kanalından doğrulamadan sabitlemeyin.`
+      });
+      if (confirmation.response !== 0) return CommandResultSchema.parse(localCommandResult("devbox ssh pin", cwd, started, "", { cancelled: true }));
+      const pin = await services.sshTrust.pinCandidate(candidate);
+      return CommandResultSchema.parse(localCommandResult("devbox ssh pin", cwd, started, `${JSON.stringify(pin, null, 2)}\n`));
+    }
+    if (input.action === "package-list") {
+      const packages = await services.packages.list();
+      return CommandResultSchema.parse(localCommandResult("devbox package list", cwd, started, `${JSON.stringify(packages, null, 2)}\n`));
+    }
+    if (input.action === "package-install") {
+      const packageSelection = await dialog.showOpenDialog(parent, { title: "İmzalı DevBox paket klasörünü seçin", properties: ["openDirectory"] });
+      if (packageSelection.canceled || !packageSelection.filePaths[0]) return CommandResultSchema.parse(localCommandResult("devbox package install", cwd, started, "", { cancelled: true }));
+      const keySelection = await dialog.showOpenDialog(parent, { title: "Yayıncının Ed25519 public key PEM dosyasını seçin", properties: ["openFile"], filters: [{ name: "PEM public key", extensions: ["pem", "pub"] }] });
+      if (keySelection.canceled || !keySelection.filePaths[0]) return CommandResultSchema.parse(localCommandResult("devbox package install", cwd, started, "", { cancelled: true }));
+      const keyStat = await lstat(keySelection.filePaths[0]);
+      if (!keyStat.isFile() || keyStat.isSymbolicLink() || keyStat.size > 64 * 1024) throw new Error("PUBLISHER_KEY_FILE_INVALID");
+      const publicKeyPem = await readFile(keySelection.filePaths[0], "utf8");
+      const candidate = await services.packages.inspectCandidate(packageSelection.filePaths[0], publicKeyPem);
+      const confirmation = await dialog.showMessageBox(parent, {
+        type: "warning",
+        buttons: ["Doğrulandı, kur", "İptal"],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+        title: "İmzalı paketi kur",
+        message: `${candidate.manifest.kind}/${candidate.manifest.id} · ${candidate.manifest.version}`,
+        detail: `Yayıncı: ${candidate.manifest.publicKeyId}\nDosya: ${candidate.verifiedFiles}\nBoyut: ${candidate.totalBytes} bayt\nİzinler: ${candidate.manifest.permissions.join(", ") || "yok"}\n\nPublic key güven köküne kaydedilecek; paket yeniden doğrulanıp atomik olarak etkinleştirilecek.`
+      });
+      if (confirmation.response !== 0) return CommandResultSchema.parse(localCommandResult("devbox package install", cwd, started, "", { cancelled: true }));
+      const installed = await services.packages.install(packageSelection.filePaths[0], publicKeyPem);
+      return CommandResultSchema.parse(localCommandResult("devbox package install", cwd, started, `${JSON.stringify(installed, null, 2)}\n`));
+    }
+    const target = packageTarget(input.target);
+    const pointer = input.action === "package-repair"
+      ? await services.packages.repair(target.kind, target.id)
+      : await services.packages.rollback(target.kind, target.id);
+    return CommandResultSchema.parse(localCommandResult(`devbox ${input.action.replace("package-", "package ")}`, cwd, started, `${JSON.stringify(pointer, null, 2)}\n`));
+  });
+
+  return () => {
+    for (const channel of channels) ipcMain.removeHandler(channel);
+  };
+}

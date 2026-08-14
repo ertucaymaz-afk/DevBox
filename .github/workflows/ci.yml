@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify source and contracts
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Enable pinned pnpm
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.19.0 --activate
+
+      - name: Restore dependencies from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify product
+        run: pnpm verify
+
+  package:
+    name: Build unsigned review artifact
+    runs-on: windows-latest
+    timeout-minutes: 45
+    needs: verify
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Enable pinned pnpm
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.19.0 --activate
+
+      - name: Restore dependencies from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installer and verified release inventory
+        run: |
+          pnpm package:installer
+          pnpm release:prepare
+          pnpm release:verify
+
+      - name: Upload unsigned artifact for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: devbox-unsigned-${{ github.sha }}
+          path: release/devbox-package/
+          if-no-files-found: error
+          retention-days: 14

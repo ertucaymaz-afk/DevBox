@@ -1,0 +1,29 @@
+appId: com.devbox.app
+productName: DevBox
+executableName: DevBox
+artifactName: DevBox-Setup.${ext}
+npmRebuild: false
+directories:
+  output: release
+files:
+  - dist/**/*
+  - package.json
+asar: true
+asarUnpack:
+  - node_modules/node-pty/**/*
+win:
+  icon: build/icon.ico
+  target:
+    - nsis
+  requestedExecutionLevel: asInvoker
+  verifyUpdateCodeSignature: true
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: DevBox
+  uninstallDisplayName: DevBox
+  deleteAppDataOnUninstall: false

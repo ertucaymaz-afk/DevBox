@@ -1,0 +1,5 @@
+* @ertucaymaz-afk
+.github/workflows/ @ertucaymaz-afk
+electron-builder.yml @ertucaymaz-afk
+electron-builder.signed.cjs @ertucaymaz-afk
+scripts/signing-readiness.ps1 @ertucaymaz-afk

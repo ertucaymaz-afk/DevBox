@@ -1,0 +1,74 @@
+{
+  "name": "devbox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows-first, evidence-backed autonomous engineering desktop",
+  "author": "DevBox",
+  "type": "module",
+  "main": "dist/main/main/main.js",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ertucaymaz-afk/DevBox.git"
+  },
+  "homepage": "https://github.com/ertucaymaz-afk/DevBox#readme",
+  "bugs": {
+    "url": "https://github.com/ertucaymaz-afk/DevBox/issues"
+  },
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "research:generate": "node scripts/generate-research.mjs",
+    "build:main": "tsc -p tsconfig.node.json",
+    "build:renderer": "vite build",
+    "build": "pnpm clean && pnpm research:generate && pnpm build:main && pnpm build:renderer && pnpm truth:audit",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm build && playwright test",
+    "test:failure": "pnpm build:main && node scripts/failure-injection.mjs",
+    "test:soak": "pnpm build:main && node scripts/soak-smoke.mjs",
+    "truth:audit": "node scripts/verify-product-truth.mjs",
+    "start": "electron .",
+    "package:dir": "pnpm build && electron-builder --win dir",
+    "package:installer": "pnpm build && electron-builder --win nsis",
+    "signing:audit": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/signing-readiness.ps1",
+    "package:signed": "pnpm signing:audit && pnpm build && electron-builder --config electron-builder.signed.cjs --win nsis",
+    "verify:packaged": "node scripts/verify-packaged.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs",
+    "release:verify": "node scripts/verify-release.mjs",
+    "release:sync": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sync-deliverables.ps1 -Workspace .",
+    "release:source": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sync-source-archive.ps1 -Workspace .",
+    "release:install-local": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/install-local-release.ps1 -Workspace .",
+    "release:deliver": "pnpm release:prepare && pnpm release:verify && pnpm release:sync && pnpm release:source && pnpm release:install-local",
+    "release:local": "pnpm package:installer && pnpm release:deliver",
+    "verify": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "@fastify/rate-limit": "11.2.0",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "fastify": "5.11.3",
+    "lucide-react": "1.31.0",
+    "node-pty": "1.1.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.10.13",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.5",
+    "electron": "43.4.0",
+    "electron-builder": "26.15.3",
+    "typescript": "7.0.2",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}
