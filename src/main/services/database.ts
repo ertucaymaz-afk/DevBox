@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Attachment, Automation, ProjectSummary, ThreadDetail, ThreadItem, ThreadSummary } from "../../shared/contracts.js";
 
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 const GENERIC_THREAD_TITLES = new Set(["Yeni görev", "Yeni sohbet"]);
 
 export function deriveThreadTitle(content: string, hasAttachments = false): string {
@@ -38,6 +38,9 @@ type ThreadRow = {
   project_id: string;
   title: string;
   state: ThreadSummary["state"];
+  pinned: number;
+  archived: number;
+  unread: number;
   created_at: string;
   updated_at: string;
 };
@@ -269,6 +272,24 @@ export class StateDatabase {
       }
     }
 
+    if (version < 4) {
+      this.#database.exec("BEGIN IMMEDIATE;");
+      try {
+        this.#database.exec(`
+          ALTER TABLE threads ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1));
+          ALTER TABLE threads ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1));
+          ALTER TABLE threads ADD COLUMN unread INTEGER NOT NULL DEFAULT 0 CHECK (unread IN (0, 1));
+          CREATE INDEX idx_threads_navigation ON threads(archived, pinned DESC, updated_at DESC);
+          UPDATE schema_meta SET version = 4;
+        `);
+        this.#database.exec("COMMIT;");
+        version = 4;
+      } catch (error) {
+        this.#database.exec("ROLLBACK;");
+        throw error;
+      }
+    }
+
     if (version !== CURRENT_SCHEMA_VERSION) {
       throw new Error(`Unsupported state schema version: ${version}`);
     }
@@ -467,8 +488,8 @@ export class StateDatabase {
 
   public listThreads(projectId?: string): ThreadSummary[] {
     const rows = (projectId
-      ? this.#database.prepare("SELECT * FROM threads WHERE project_id = ? ORDER BY updated_at DESC").all(projectId)
-      : this.#database.prepare("SELECT * FROM threads ORDER BY updated_at DESC").all()) as unknown as ThreadRow[];
+      ? this.#database.prepare("SELECT * FROM threads WHERE project_id = ? ORDER BY archived ASC, pinned DESC, updated_at DESC").all(projectId)
+      : this.#database.prepare("SELECT * FROM threads ORDER BY archived ASC, pinned DESC, updated_at DESC").all()) as unknown as ThreadRow[];
     return rows.map(this.#mapThread);
   }
 
@@ -516,7 +537,13 @@ export class StateDatabase {
     return { thread: this.#mapThread(row), items };
   }
 
-  public appendMessage(threadId: string, content: string, assistantContent: string, attachmentIds: readonly string[] = []): ThreadDetail {
+  public appendMessage(
+    threadId: string,
+    content: string,
+    assistantContent: string,
+    attachmentIds: readonly string[] = [],
+    activities: readonly { message: string; createdAt: string }[] = []
+  ): ThreadDetail {
     const existing = this.#database.prepare("SELECT * FROM threads WHERE id = ?").get(threadId) as ThreadRow | undefined;
     if (!existing) throw new Error("THREAD_NOT_FOUND");
     const draftAttachments = this.getStoredAttachments(threadId, attachmentIds, true);
@@ -531,8 +558,12 @@ export class StateDatabase {
         .run(turnId, threadId, content, now, now);
       this.#database.prepare("INSERT INTO items(id, turn_id, sequence, type, payload_json, created_at) VALUES (?, ?, 0, 'message', ?, ?)")
         .run(userItemId, turnId, JSON.stringify({ role: "user", content }), now);
-      this.#database.prepare("INSERT INTO items(id, turn_id, sequence, type, payload_json, created_at) VALUES (?, ?, 1, 'message', ?, ?)")
-        .run(randomUUID(), turnId, JSON.stringify({ role: "assistant", content: assistantContent }), now);
+      const insertActivity = this.#database.prepare("INSERT INTO items(id, turn_id, sequence, type, payload_json, created_at) VALUES (?, ?, ?, 'activity', ?, ?)");
+      activities.forEach((activity, index) => {
+        insertActivity.run(randomUUID(), turnId, index + 1, JSON.stringify({ role: "activity", content: activity.message }), activity.createdAt);
+      });
+      this.#database.prepare("INSERT INTO items(id, turn_id, sequence, type, payload_json, created_at) VALUES (?, ?, ?, 'message', ?, ?)")
+        .run(randomUUID(), turnId, activities.length + 1, JSON.stringify({ role: "assistant", content: assistantContent }), now);
       const bindAttachment = this.#database.prepare("UPDATE attachments SET item_id = ? WHERE id = ? AND thread_id = ? AND item_id IS NULL");
       for (const attachment of draftAttachments) {
         const result = bindAttachment.run(userItemId, attachment.id, threadId);
@@ -628,6 +659,14 @@ export class StateDatabase {
     return this.#mapThread(row);
   }
 
+  public setThreadFlag(threadId: string, flag: "pinned" | "archived" | "unread", value: boolean): ThreadSummary {
+    // `flag` is a closed union owned by this process; values still use a bound parameter.
+    const result = this.#database.prepare(`UPDATE threads SET ${flag} = ? WHERE id = ?`).run(value ? 1 : 0, threadId);
+    if (result.changes !== 1) throw new Error("THREAD_NOT_FOUND");
+    const row = this.#database.prepare("SELECT * FROM threads WHERE id = ?").get(threadId) as ThreadRow;
+    return this.#mapThread(row);
+  }
+
   public deleteThread(threadId: string): void {
     const result = this.#database.prepare("DELETE FROM threads WHERE id = ?").run(threadId);
     if (result.changes !== 1) throw new Error("THREAD_NOT_FOUND");
@@ -655,6 +694,9 @@ export class StateDatabase {
       projectId: row.project_id,
       title: row.title,
       state: row.state,
+      pinned: row.pinned === 1,
+      archived: row.archived === 1,
+      unread: row.unread === 1,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };

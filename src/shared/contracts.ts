@@ -114,6 +114,12 @@ export const GitStatusSchema = z.object({
   ahead: z.number().int().nonnegative(),
   behind: z.number().int().nonnegative(),
   changes: z.array(GitChangeSchema),
+  stats: z.array(z.object({
+    path: z.string(),
+    additions: z.number().int().nonnegative().nullable(),
+    deletions: z.number().int().nonnegative().nullable(),
+    binary: z.boolean()
+  })),
   error: z.string().nullable()
 });
 
@@ -164,6 +170,9 @@ export const ThreadSummarySchema = z.object({
   projectId: z.string().min(8).max(128),
   title: z.string().min(1).max(160),
   state: ThreadStateSchema,
+  pinned: z.boolean(),
+  archived: z.boolean(),
+  unread: z.boolean(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 });
@@ -219,6 +228,15 @@ export const ThreadItemSchema = z.object({
 
 export type ThreadItem = z.infer<typeof ThreadItemSchema>;
 
+export const ThreadActivityEventSchema = z.object({
+  threadId: z.string().min(8).max(128),
+  kind: z.enum(["provider", "command", "evidence", "failure"]),
+  message: z.string().trim().min(1).max(2_000),
+  createdAt: z.string().datetime()
+}).strict();
+
+export type ThreadActivityEvent = z.infer<typeof ThreadActivityEventSchema>;
+
 export const ThreadDetailSchema = z.object({
   thread: ThreadSummarySchema,
   items: z.array(ThreadItemSchema)
@@ -234,6 +252,7 @@ export const ThreadMessageInputSchema = ThreadIdInputSchema.extend({
   attachmentIds: z.array(z.string().min(8).max(128)).max(MAX_ATTACHMENTS_PER_IMPORT).default([])
 }).strict().refine((input) => input.content.length > 0 || input.attachmentIds.length > 0, { message: "MESSAGE_CONTENT_OR_ATTACHMENT_REQUIRED" });
 export const ThreadRenameInputSchema = ThreadIdInputSchema.extend({ title: z.string().trim().min(1).max(160) }).strict();
+export const ThreadFlagInputSchema = ThreadIdInputSchema.extend({ value: z.boolean() }).strict();
 export const ThreadItemInputSchema = ThreadIdInputSchema.extend({ itemId: z.string().min(8).max(128) }).strict();
 export const ThreadItemUpdateInputSchema = ThreadItemInputSchema.extend({ content: z.string().trim().min(1).max(64_000) }).strict();
 export const AttachmentImportPathsInputSchema = ThreadIdInputSchema.extend({
@@ -241,7 +260,7 @@ export const AttachmentImportPathsInputSchema = ThreadIdInputSchema.extend({
 }).strict();
 export const AttachmentRemoveInputSchema = ThreadIdInputSchema.extend({ attachmentId: z.string().min(8).max(128) }).strict();
 
-export const ContextMenuKindSchema = z.enum(["editable", "selection", "file", "directory", "thread", "terminal", "blank"]);
+export const ContextMenuKindSchema = z.enum(["editable", "selection", "file", "directory", "terminal", "blank"]);
 export const ContextMenuInputSchema = z.object({
   kind: ContextMenuKindSchema,
   hasSelection: z.boolean().default(false),
@@ -312,6 +331,8 @@ export const AppSettingsSchema = z.object({
   sandboxPolicy: SandboxPolicySchema,
   networkAccess: z.boolean(),
   reduceMotion: z.boolean(),
+  launchIntroMode: z.enum(["once", "always", "never"]),
+  launchIntroSeen: z.boolean(),
   terminalShell: z.enum(["pwsh", "powershell", "cmd"])
 }).strict();
 
@@ -478,7 +499,9 @@ export const PlatformActionInputSchema = z.object({
 
 export const IPC_CHANNELS = {
   bootstrap: "devbox:v1:bootstrap",
+  capabilityInspect: "devbox:v1:capability:inspect",
   projectOpen: "devbox:v1:project:open",
+  projectReveal: "devbox:v1:project:reveal",
   projectTree: "devbox:v1:project:tree",
   fileRead: "devbox:v1:file:read",
   fileWrite: "devbox:v1:file:write",
@@ -495,9 +518,13 @@ export const IPC_CHANNELS = {
   threadCreate: "devbox:v1:thread:create",
   threadGet: "devbox:v1:thread:get",
   threadMessage: "devbox:v1:thread:message",
+  threadActivity: "devbox:v1:thread:activity",
   threadMessageUpdate: "devbox:v1:thread:message-update",
   threadMessageRegenerate: "devbox:v1:thread:message-regenerate",
   threadRename: "devbox:v1:thread:rename",
+  threadPin: "devbox:v1:thread:pin",
+  threadArchive: "devbox:v1:thread:archive",
+  threadUnread: "devbox:v1:thread:unread",
   threadDelete: "devbox:v1:thread:delete",
   attachmentSelect: "devbox:v1:attachment:select",
   attachmentListDraft: "devbox:v1:attachment:list-draft",

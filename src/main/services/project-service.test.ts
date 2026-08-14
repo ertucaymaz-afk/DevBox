@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -29,7 +29,10 @@ describe("project service", () => {
     const tree = await projects.tree(project.id);
     const snapshot = await projects.readFile(project.id, path.join("src", "index.ts"));
 
-    expect(project.rootPath).toBe(root);
+    // Windows runners can expose the same temp directory through both an 8.3
+    // alias (RUNNER~1) and its long path (runneradmin). Compare canonical paths
+    // so this assertion still verifies the exact directory identity.
+    expect(project.rootPath).toBe(await realpath(root));
     expect(tree.some((item) => item.name === "node_modules")).toBe(false);
     expect(snapshot.content).toContain("answer = 42");
     expect(snapshot.language).toBe("typescript");

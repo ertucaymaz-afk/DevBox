@@ -34,6 +34,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sandboxPolicy: "workspace-write",
   networkAccess: true,
   reduceMotion: false,
+  launchIntroMode: "once",
+  launchIntroSeen: false,
   terminalShell: "pwsh"
 };
 
@@ -143,6 +145,8 @@ export class SettingsService {
       sandboxPolicy: source.sandboxPolicy ?? DEFAULT_SETTINGS.sandboxPolicy,
       networkAccess: source.networkAccess ?? DEFAULT_SETTINGS.networkAccess,
       reduceMotion: source.reduceMotion ?? DEFAULT_SETTINGS.reduceMotion,
+      launchIntroMode: source.launchIntroMode ?? DEFAULT_SETTINGS.launchIntroMode,
+      launchIntroSeen: source.launchIntroSeen ?? DEFAULT_SETTINGS.launchIntroSeen,
       terminalShell: source.terminalShell ?? DEFAULT_SETTINGS.terminalShell
     });
     const repaired = normalizePolicy(repairedCandidate.success ? repairedCandidate.data : DEFAULT_SETTINGS);

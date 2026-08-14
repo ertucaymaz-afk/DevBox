@@ -226,6 +226,10 @@ export class ProjectService {
     shell.showItemInFolder(target);
   }
 
+  public revealProject(projectId: string): void {
+    shell.showItemInFolder(this.get(projectId).rootPath);
+  }
+
   public async displayPath(projectId: string, relativePath: string, absolute: boolean): Promise<string> {
     if (!absolute) return relativePath;
     const project = this.get(projectId);

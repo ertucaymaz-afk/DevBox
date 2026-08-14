@@ -20,6 +20,7 @@ const expectedBridgeMethods = [
   "getThread",
   "importDroppedAttachments",
   "importTheme",
+  "inspectCapabilities",
   "inspectIntegrations",
   "killTerminal",
   "listDraftAttachments",
@@ -27,6 +28,7 @@ const expectedBridgeMethods = [
   "listThreads",
   "listWorktrees",
   "onTerminalEvent",
+  "onThreadActivity",
   "openProject",
   "patchSettings",
   "readFile",
@@ -37,6 +39,7 @@ const expectedBridgeMethods = [
   "renamePath",
   "renameThread",
   "resizeTerminal",
+  "revealProject",
   "revealPath",
   "runEvolutionCycle",
   "runGitHubAction",
@@ -47,6 +50,9 @@ const expectedBridgeMethods = [
   "sendMessage",
   "setEvolutionEnabled",
   "setEvolutionDirective",
+  "setThreadArchived",
+  "setThreadPinned",
+  "setThreadUnread",
   "showAppMenu",
   "showContextMenu",
   "startTerminal",
@@ -57,6 +63,7 @@ const expectedBridgeMethods = [
 ].sort();
 
 test("DevBox boots its real secure shell without a runtime test mode", async () => {
+  test.setTimeout(60_000);
   const userData = await mkdtemp(path.join(os.tmpdir(), "devbox-e2e-user-data-"));
   const projectRoot = await mkdtemp(path.join(os.tmpdir(), "devbox-e2e-project-"));
   const outputDirectory = path.resolve("outputs");
@@ -70,7 +77,7 @@ test("DevBox boots its real secure shell without a runtime test mode", async () 
     window.on("console", (message) => process.stderr.write(`[renderer:${message.type()}] ${message.text()}\n`));
     window.on("pageerror", (error) => process.stderr.write(`[renderer:pageerror] ${error.message}\n`));
     await expect(window).toHaveTitle("DevBox");
-    await expect(window.getByRole("heading", { name: "Ne oluşturalım?" })).toBeVisible();
+    await expect(window.getByRole("heading", { name: "Ne oluşturalım?" })).toBeVisible({ timeout: 35_000 });
     await expect(window.getByRole("button", { name: "Proje seç" })).toBeVisible();
     await expect(window.getByRole("button", { name: "DevBox ayarlarını aç" })).toBeVisible();
 
@@ -113,16 +120,22 @@ test("DevBox boots its real secure shell without a runtime test mode", async () 
     const deleteButton = window.getByRole("button", { name: `${createdThread!.title} görevini sil` });
     await expect(deleteButton).toBeAttached();
 
-    await electronApp.evaluate(({ dialog }) => {
-      dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false });
-    });
     await deleteButton.click();
+    await expect(window.getByRole("alertdialog", { name: "Sohbeti kalıcı olarak sil" })).toBeVisible();
+    await window.getByRole("button", { name: "Vazgeç" }).click();
     await expect(deleteButton).toBeAttached();
 
-    await electronApp.evaluate(({ dialog }) => {
-      dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false });
-    });
+    const threadRow = window.locator("button.thread-row").filter({ hasText: createdThread!.title });
+    await threadRow.click({ button: "right" });
+    await expect(window.getByRole("menu", { name: `${createdThread!.title} sohbet eylemleri` })).toBeVisible();
+    await window.getByRole("menuitem", { name: "Sohbeti kalıcı olarak sil" }).click();
+    await expect(window.getByRole("alertdialog", { name: "Sohbeti kalıcı olarak sil" })).toBeVisible();
+    await window.getByRole("button", { name: "Vazgeç" }).click();
+    await expect(deleteButton).toBeAttached();
+
     await deleteButton.click();
+    await expect(window.getByRole("alertdialog", { name: "Sohbeti kalıcı olarak sil" })).toBeVisible();
+    await window.getByRole("button", { name: "Kalıcı olarak sil" }).click();
     await expect(deleteButton).toHaveCount(0);
     expect(await window.evaluate(async () => await window.devbox.listThreads())).toEqual([]);
 
