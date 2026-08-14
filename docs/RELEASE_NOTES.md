@@ -1,10 +1,10 @@
-# DevBox 0.1.2 — işlevsel önizleme
+# DevBox 0.1.3 — işlevsel önizleme
 
-Bu sürüm; gerçek LSP/DAP kontrol yüzeyini, eşleştirilmiş uzak worker yaşam döngüsünü ve temiz Windows VM dayanıklılık kapısını ekler. Sohbet ve API gelişimi iyileştirmeleri korunur.
+Bu yama sürümü; gerçek LSP/DAP kontrol yüzeyini, eşleştirilmiş uzak worker yaşam döngüsünü, Türkçe ve animasyonlu Yenilikler alanını korur. Yenilikler ekranındaki sürüm düğmesi artık kurulu sürümün gerçek GitHub etiketine gider; ön sürümleri atlayarak eski yayını açmaz.
 
 ## 📦 Arşivler
 
-- `DevBox-source-v0.1.2.zip`: düşük boyutlu, Apache-2.0 açık kaynak arşivi. `node_modules`, derleme çıktıları, installer, yerel veritabanı, kanıt kayıtları, gizli bilgiler ve cache içermez.
+- `DevBox-source-v0.1.3.zip`: düşük boyutlu, Apache-2.0 açık kaynak arşivi. `node_modules`, derleme çıktıları, installer, yerel veritabanı, kanıt kayıtları, gizli bilgiler ve cache içermez.
 - `devbox.zip`: Windows kurulum teslimi. NSIS installer, sağlama toplamı, sürüm manifesti ve üçüncü taraf bildirimlerini içerir; kaynak kod arşivi değildir.
 
 ## ✨ Görünür düzeltmeler
@@ -44,6 +44,6 @@ Uzak çalışan yalnız uygulama içinden onayla üretilen tek kullanımlık kod
 
 ## 🔐 SignPath ve imza durumu
 
-Geliştirici SignPath Foundation açık kaynak başvurusunu 14 Ağustos 2026 tarihinde gönderdi. İnceleme, kimlik doğrulama, proje onboarding’i ve sertifika tahsisi SignPath’in dış sürecidir ve henüz tamamlanmış sayılmaz. Bu nedenle installer yalnızca `release-manifest.json` açıkça `VALID` diyorsa imzalı kabul edilmelidir; mevcut v0.1.2 önizlemesi `NOT_SIGNED` olarak yayımlanır. DevBox self-signed sertifikayı genel yayın kimliği gibi sunmaz.
+Geliştirici SignPath Foundation açık kaynak başvurusunu 14 Ağustos 2026 tarihinde gönderdi. İnceleme, kimlik doğrulama, proje onboarding’i ve sertifika tahsisi SignPath’in dış sürecidir ve henüz tamamlanmış sayılmaz. Bu nedenle installer yalnızca `release-manifest.json` açıkça `VALID` diyorsa imzalı kabul edilmelidir; mevcut v0.1.3 önizlemesi `NOT_SIGNED` olarak yayımlanır. DevBox self-signed sertifikayı genel yayın kimliği gibi sunmaz.
 
 Ayrıntılar için [CHANGELOG.md](../CHANGELOG.md), [kod imzalama politikası](policies/CODE_SIGNING_POLICY.md), [SECURITY.md](../.github/SECURITY.md) ve [DEVELOPERS.md](DEVELOPERS.md) dosyalarına bakın.

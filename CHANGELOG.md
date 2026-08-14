@@ -2,6 +2,18 @@
 
 DevBox’taki kayda değer bütün değişiklikler burada tutulur. `0.x` serisi işlevsel önizleme aşamasındayken proje anlamsal sürümlemeyi izler.
 
+## [0.1.3] - 2026-08-14
+
+### Düzeltildi
+
+- Uygulamadaki **Yenilikler → Son sürümü aç** bağlantısı, ön sürümleri atlayan genel `/releases/latest` adresi yerine derleme sırasında doğrulanan kurulu sürüm numarasının etiketine gider. DevBox 0.1.3 böylece doğrudan `releases/tag/v0.1.3` sayfasını açar.
+- Depo ana sayfasındaki sürüm rozeti ve güncel yayın anlatımı v0.1.3 sayfasına bağlandı.
+
+### Doğrulama ve sınırlar
+
+- 19 test dosyası ve 37 test geçti; TypeScript typecheck, Vite/Electron üretim derlemesi ve ürün-doğruluk denetimi başarılıdır.
+- SignPath Foundation incelemesi devam ettiği için v0.1.3 Windows dosyaları da `NOT_SIGNED` olarak yayımlanır; kendinden imzalı sertifika kullanılmaz.
+
 ## [0.1.2] - 2026-08-14
 
 ### Eklendi
