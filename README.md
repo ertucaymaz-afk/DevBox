@@ -17,6 +17,8 @@ DevBox; yerel projeyle konuşmayı, dosyaları incelemeyi, değişiklikleri izle
 - Sabit konuşmalar, arşiv, okunma durumu, otomatik başlıklar ve kalıcı SQLite geçmişi
 - GitHub PR / issue / check / CI / release ve Vercel komut yolları
 - Worktree yaşam döngüsü, dayanıklı görevler, lease ve yeniden başlatma kurtarması
+- Gerçek TypeScript/JavaScript LSP diagnostics ve seçilebilir Debug Adapter üzerinden DAP kontrol yüzeyi
+- Tek kullanımlık eşleştirme, iptal edilebilir kimlik, heartbeat ve crash-recovery kullanan uzak worker protokolü
 - Loopback üzerinde bearer kimlik doğrulamalı DevBox v1 API
 - Sağlık ve oturum denetimi geçen Codex CLI öncelikli API gelişim araştırması; yalnızca gerçek çağrı başarısız olursa yapılandırılmış Hermes/NVIDIA NIM geri dönüşü
 
@@ -55,6 +57,17 @@ pnpm package:installer
 ```
 
 `pnpm verify`; TypeScript denetimini, birim/sözleşme testlerini, üretim derlemesini ve ürün-doğruluk denetimini çalıştırır. İmzalı paket yolu olan `pnpm package:signed`, kullanılabilir gerçek bir Authenticode kimliği yoksa bilinçli olarak başarısız olur.
+
+## 🌐 Uzak worker
+
+DevBox API yalnız `127.0.0.1` üzerinde dinler. Uzak bir makineyi doğrudan internete açık bir porta bağlamak yerine güvenilen SSH tüneli kullanın:
+
+1. **Eklentiler ve entegrasyonlar → Dayanıklı uzak worker’lar** bölümünden eşleştirme kodu oluşturun.
+2. Uzak makinede ekranda verilen SSH local-forward komutunu çalıştırın.
+3. Açık kaynak arşivindeki `scripts/remote-worker.mjs` dosyasını, ekranda verilen ortam değişkenleriyle başlatın.
+4. Worker ilk bağlantıda token’ı kullanıcı profilindeki `.devbox/worker-token` dosyasına yazar. Kod tekrar kullanılamaz; uygulamadan worker yetkisi kalıcı olarak kaldırılabilir.
+
+Worker yalnız `git`, `node`, `pnpm`, `npm`, `pwsh` ve `dotnet` komutlarını `shell: false` ile çalıştırır; çalışma dizini seçilen proje kökünün dışına çıkamaz. Çok saatli temiz Windows VM dayanıklılık işi `.github/workflows/windows-resilience.yml` içindedir. Workflow sonucu yayımlanmadan veya gerçek iki makine testi yapılmadan uzak ağ dayanıklılığı “kanıtlandı” diye sunulmaz.
 
 ## 🔐 Gizlilik ve güvenlik
 

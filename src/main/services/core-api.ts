@@ -11,6 +11,7 @@ import type { StateDatabase } from "./database.js";
 import type { GitService } from "./git-service.js";
 import type { ProjectService } from "./project-service.js";
 import type { SettingsService } from "./settings-service.js";
+import type { RemoteWorkerService } from "./remote-worker-service.js";
 
 type CoreApiOptions = {
   apiKey: string;
@@ -22,6 +23,7 @@ type CoreApiOptions = {
   attachments: AttachmentService;
   git: GitService;
   settings: SettingsService;
+  remoteWorkers: RemoteWorkerService;
   probeCwd: string;
   appVersion: string;
 };
@@ -45,6 +47,19 @@ const EvolutionPatchBodySchema = z.object({
   enabled: z.boolean().optional(),
   directive: z.string().trim().min(80).max(64_000).optional()
 }).strict().refine((value) => value.enabled !== undefined || value.directive !== undefined, { message: "EVOLUTION_PATCH_REQUIRED" });
+const WorkerPairBodySchema = z.object({
+  code: z.string().trim().min(10).max(128),
+  name: z.string().trim().min(1).max(80),
+  capabilities: z.array(z.string().trim().min(1).max(80)).max(64).default([])
+}).strict();
+const WorkerHeartbeatBodySchema = z.object({
+  capabilities: z.array(z.string().trim().min(1).max(80)).max(64).optional()
+}).strict();
+const WorkerSettleBodySchema = z.object({
+  state: z.enum(["SUCCEEDED", "FAILED", "CANCELLED"]),
+  result: z.unknown()
+}).strict();
+const RemoteJobBodySchema = z.object({ kind: z.string().trim().min(1).max(80), payload: z.unknown() }).strict();
 
 export class CoreApi {
   readonly #options: CoreApiOptions;
@@ -78,6 +93,7 @@ export class CoreApi {
     this.#server.addHook("onRequest", async (request, reply) => {
       const requestPath = request.url.split("?", 1)[0] ?? request.url;
       if (requestPath !== "/v1" && !requestPath.startsWith("/v1/")) return;
+      if (requestPath === "/v1/workers/pair" || requestPath.startsWith("/v1/workers/agent/")) return;
       const authorization = request.headers.authorization ?? "";
       const prefix = "Bearer ";
       if (!authorization.startsWith(prefix) || !constantTimeEqual(authorization.slice(prefix.length), this.#options.apiKey)) {
@@ -95,7 +111,13 @@ export class CoreApi {
         return await reply.code(400).send({ code: "INVALID_REQUEST", message: "Request validation failed.", requestId: request.id });
       }
       const known = error instanceof Error && /^[A-Z][A-Z0-9_]+$/u.test(error.message) ? error.message : "INTERNAL_ERROR";
-      const status = known.endsWith("_NOT_FOUND") ? 404 : known === "INTERNAL_ERROR" ? 500 : 409;
+      const status = known === "REMOTE_WORKER_UNAUTHORIZED"
+        ? 401
+        : known.endsWith("_NOT_FOUND")
+          ? 404
+          : known === "INTERNAL_ERROR"
+            ? 500
+            : 409;
       return await reply.code(status).send({ code: known, message: known === "INTERNAL_ERROR" ? "The request could not be completed." : known, requestId: request.id });
     });
 
@@ -250,6 +272,48 @@ export class CoreApi {
       requestIdFormat: "Fastify request id",
       processInstanceId: this.#instanceId
     }));
+
+    const workerToken = (authorization: string | undefined): string => {
+      const prefix = "Bearer ";
+      if (!authorization?.startsWith(prefix)) throw new Error("REMOTE_WORKER_UNAUTHORIZED");
+      return authorization.slice(prefix.length);
+    };
+    this.#server.post("/v1/workers/pair", async (request, reply) => {
+      const body = WorkerPairBodySchema.parse(request.body);
+      return await reply.code(201).send(this.#options.remoteWorkers.pair(body.code, body.name, body.capabilities));
+    });
+    this.#server.post("/v1/workers/agent/heartbeat", async (request) => {
+      const body = WorkerHeartbeatBodySchema.parse(request.body ?? {});
+      return { worker: this.#options.remoteWorkers.heartbeat(workerToken(request.headers.authorization), body.capabilities) };
+    });
+    this.#server.post("/v1/workers/agent/lease", async (request) => ({
+      job: this.#options.remoteWorkers.lease(workerToken(request.headers.authorization))
+    }));
+    this.#server.post("/v1/workers/agent/jobs/:id/start", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      return { job: this.#options.remoteWorkers.start(workerToken(request.headers.authorization), params.id) };
+    });
+    this.#server.post("/v1/workers/agent/jobs/:id/heartbeat", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      return { job: this.#options.remoteWorkers.heartbeatJob(workerToken(request.headers.authorization), params.id) };
+    });
+    this.#server.post("/v1/workers/agent/jobs/:id/settle", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      const body = WorkerSettleBodySchema.parse(request.body);
+      return { job: this.#options.remoteWorkers.settle(workerToken(request.headers.authorization), params.id, body.state, body.result) };
+    });
+    this.#server.post("/v1/workers/pairings", async (_request, reply) => (
+      await reply.code(201).send({ ...this.#options.remoteWorkers.createPairing(), endpoint: this.origin })
+    ));
+    this.#server.get("/v1/workers", async () => ({ items: this.#options.remoteWorkers.list() }));
+    this.#server.delete("/v1/workers/:id", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      return { worker: this.#options.remoteWorkers.revoke(params.id) };
+    });
+    this.#server.post("/v1/workers/jobs", async (request, reply) => {
+      const body = RemoteJobBodySchema.parse(request.body);
+      return await reply.code(202).send({ job: this.#options.remoteWorkers.enqueue(body.kind, body.payload) });
+    });
 
     await this.#server.listen({ host: "127.0.0.1", port: 0 });
     const readiness = await this.#server.inject({ method: "GET", url: "/health/ready" });

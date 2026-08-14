@@ -509,6 +509,50 @@ kbd { padding: 2px 5px; border: 1px solid var(--border-strong); border-radius: 4
 .code-editor textarea { width: 100%; height: 100%; min-width: 0; min-height: 0; padding: 12px 16px 40px; overflow: auto; resize: none; border: 0; outline: 0; background: transparent; color: #d8dde0; font: 13px/20px "Cascadia Code", "Cascadia Mono", Consolas, monospace; tab-size: 2; white-space: pre; }
 .status-bar { height: 24px; display: flex; justify-content: flex-end; gap: 16px; align-items: center; padding: 0 10px; border-top: 1px solid var(--border-subtle); background: var(--bg-sidebar); color: var(--text-muted); font-size: 10px; }
 .status-bar span:first-child { margin-right: auto; color: var(--accent); }
+.diagnostics-tray { position: fixed; right: 18px; bottom: 42px; z-index: 44; width: min(520px, calc(100vw - 330px)); max-height: 250px; overflow: auto; border: 1px solid var(--border); border-radius: 9px; background: rgba(19,21,22,.98); box-shadow: 0 16px 45px rgba(0,0,0,.42); }
+.diagnostics-tray:not(.open) { width: auto; overflow: hidden; }
+.diagnostics-tray header { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 31px; padding: 0 10px; border-bottom: 1px solid var(--border-subtle); background: #17191a; color: var(--text-muted); font-size: 10px; }
+.diagnostics-tray header span { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-weight: 700; }
+.diagnostics-tray > button { width: 100%; display: grid; grid-template-columns: 16px minmax(0,1fr) auto; align-items: center; gap: 8px; min-height: 30px; padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,.035); color: var(--text-secondary); text-align: left; }
+.diagnostics-tray > button:hover { background: var(--bg-hover); color: var(--text); }
+.diagnostics-tray > button.error svg { color: var(--danger); }
+.diagnostics-tray > button.warning svg { color: var(--warning); }
+.diagnostics-tray > button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diagnostics-tray > button code { color: var(--text-muted); font-size: 10px; }
+.debugger-console { display: grid; gap: 14px; }
+.debugger-console .panel-title { margin: 0; }
+.debugger-console .panel-title h2 { margin: 0 0 4px; font-size: 14px; }
+.debugger-console .panel-title span { color: var(--text-muted); font-size: 11px; }
+.debugger-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.debugger-grid label { display: grid; gap: 5px; color: var(--text-muted); font-size: 10px; }
+.debugger-grid input, .debugger-grid textarea { width: 100%; border: 1px solid var(--border); border-radius: 6px; background: #0d0f10; color: var(--text-secondary); font: 11px/1.45 "Cascadia Code", Consolas, monospace; }
+.debugger-grid input { min-height: 32px; padding: 0 9px; }
+.debugger-grid textarea { min-height: 92px; padding: 8px 9px; resize: vertical; }
+.debugger-grid .debug-config { grid-column: 1 / -1; }
+.debug-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.debug-actions button { min-height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-panel); color: var(--text-secondary); }
+.debug-actions button.danger { color: var(--danger); }
+.debugger-references { margin-top: 10px; }
+.remote-worker-console .panel-title > div { min-width: 0; }
+.remote-worker-console .panel-title h2 { margin: 0 0 4px; font-size: 14px; }
+.remote-worker-console .panel-title span { color: var(--text-muted); font-size: 11px; }
+.worker-pairing { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; margin-top: 12px; padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--accent) 5%, #0d0f10); }
+.worker-pairing > strong { color: var(--accent); font: 700 18px/1.2 "Cascadia Code", Consolas, monospace; letter-spacing: 1.2px; }
+.worker-pairing > span { align-self: center; color: var(--text-muted); font-size: 10px; text-align: right; }
+.worker-pairing > code { grid-column: 1 / -1; padding: 8px; overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: 5px; background: #090b0c; color: var(--text-secondary); font-size: 10px; white-space: pre; }
+.worker-pairing > button { justify-self: start; min-height: 29px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border-radius: 5px; background: var(--bg-active); color: var(--text-secondary); }
+.worker-list { display: grid; gap: 7px; margin-top: 12px; }
+.worker-list > span { padding: 12px; border: 1px dashed var(--border); border-radius: 7px; color: var(--text-muted); font-size: 11px; text-align: center; }
+.worker-list article { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 7px; background: #0d0f10; }
+.worker-list article > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.worker-list article small { overflow: hidden; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.worker-list article > button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; border-radius: 5px; background: rgba(240,113,120,.09); color: var(--danger); }
+.remote-job { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; margin-top: 12px; }
+.remote-job > span { grid-column: 1 / -1; color: var(--text-muted); font-size: 10px; }
+.remote-job textarea { min-height: 72px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 6px; resize: vertical; background: #0d0f10; color: var(--text-secondary); font: 11px/1.45 "Cascadia Code", Consolas, monospace; }
+.remote-job > button { align-self: end; min-height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 6px; background: var(--accent); color: #07130f; font-weight: 700; }
+.inline-success { margin-top: 10px; padding: 9px 10px; border: 1px solid rgba(79,209,122,.25); border-radius: 6px; background: rgba(79,209,122,.07); color: var(--success); font-size: 11px; }
+.debug-response { max-height: 260px; overflow: auto; margin: 0; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 6px; background: #090b0c; color: #b9c1c5; font: 11px/1.5 "Cascadia Code", Consolas, monospace; }
 .editor-empty { grid-row: 1 / -1; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-disabled); text-align: center; }
 .editor-empty > svg { margin-bottom: 16px; color: #30363a; }
 .editor-empty strong { color: var(--text-muted); font-size: 18px; }

@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Attachment, Automation, ProjectSummary, ThreadDetail, ThreadItem, ThreadSummary } from "../../shared/contracts.js";
 
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 const GENERIC_THREAD_TITLES = new Set(["Yeni görev", "Yeni sohbet"]);
 
 export function deriveThreadTitle(content: string, hasAttachments = false): string {
@@ -109,6 +109,26 @@ type DurableJobRow = {
   lease_expires_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type RemoteWorker = {
+  id: string;
+  name: string;
+  capabilities: string[];
+  status: "ONLINE" | "OFFLINE" | "REVOKED";
+  lastSeenAt: string;
+  pairedAt: string;
+  revokedAt: string | null;
+};
+
+type RemoteWorkerRow = {
+  id: string;
+  name: string;
+  token_hash: string;
+  capabilities_json: string;
+  last_seen_at: string;
+  paired_at: string;
+  revoked_at: string | null;
 };
 
 export type StoredAttachment = Attachment & { storedPath: string };
@@ -290,6 +310,38 @@ export class StateDatabase {
       }
     }
 
+    if (version < 5) {
+      this.#database.exec("BEGIN IMMEDIATE;");
+      try {
+        this.#database.exec(`
+          CREATE TABLE worker_pairings (
+            id TEXT PRIMARY KEY,
+            code_hash TEXT NOT NULL UNIQUE,
+            expires_at TEXT NOT NULL,
+            used_at TEXT,
+            created_at TEXT NOT NULL
+          );
+          CREATE TABLE remote_workers (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            capabilities_json TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            paired_at TEXT NOT NULL,
+            revoked_at TEXT
+          );
+          CREATE INDEX idx_worker_pairings_expiry ON worker_pairings(expires_at, used_at);
+          CREATE INDEX idx_remote_workers_seen ON remote_workers(revoked_at, last_seen_at DESC);
+          UPDATE schema_meta SET version = 5;
+        `);
+        this.#database.exec("COMMIT;");
+        version = 5;
+      } catch (error) {
+        this.#database.exec("ROLLBACK;");
+        throw error;
+      }
+    }
+
     if (version !== CURRENT_SCHEMA_VERSION) {
       throw new Error(`Unsupported state schema version: ${version}`);
     }
@@ -363,6 +415,112 @@ export class StateDatabase {
     const bounded = Math.max(1, Math.min(500, Math.trunc(limit)));
     const rows = this.#database.prepare("SELECT * FROM durable_jobs ORDER BY created_at ASC LIMIT ?").all(bounded) as unknown as DurableJobRow[];
     return rows.map((row) => this.#mapDurableJob(row));
+  }
+
+  public createWorkerPairing(codeHash: string, expiresAt: string): void {
+    const now = new Date().toISOString();
+    this.#database.prepare("DELETE FROM worker_pairings WHERE expires_at <= ? OR used_at IS NOT NULL").run(now);
+    this.#database.prepare(`
+      INSERT INTO worker_pairings(id, code_hash, expires_at, used_at, created_at)
+      VALUES (?, ?, ?, NULL, ?)
+    `).run(randomUUID(), codeHash, expiresAt, now);
+  }
+
+  public consumePairingAndCreateWorker(input: {
+    codeHash: string;
+    workerId: string;
+    name: string;
+    tokenHash: string;
+    capabilities: string[];
+  }): RemoteWorker {
+    const now = new Date().toISOString();
+    this.#database.exec("BEGIN IMMEDIATE;");
+    try {
+      const pairing = this.#database.prepare(`
+        SELECT id FROM worker_pairings
+        WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?
+      `).get(input.codeHash, now) as { id: string } | undefined;
+      if (!pairing) throw new Error("WORKER_PAIRING_INVALID_OR_EXPIRED");
+      this.#database.prepare("UPDATE worker_pairings SET used_at = ? WHERE id = ?").run(now, pairing.id);
+      this.#database.prepare(`
+        INSERT INTO remote_workers(id, name, token_hash, capabilities_json, last_seen_at, paired_at, revoked_at)
+        VALUES (?, ?, ?, ?, ?, ?, NULL)
+      `).run(input.workerId, input.name, input.tokenHash, JSON.stringify(input.capabilities), now, now);
+      this.#database.exec("COMMIT;");
+      return this.getRemoteWorker(input.workerId);
+    } catch (error) {
+      this.#database.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  public getRemoteWorkerByTokenHash(tokenHash: string): RemoteWorker | null {
+    const row = this.#database.prepare("SELECT * FROM remote_workers WHERE token_hash = ?").get(tokenHash) as RemoteWorkerRow | undefined;
+    return row ? this.#mapRemoteWorker(row) : null;
+  }
+
+  public getRemoteWorker(id: string): RemoteWorker {
+    const row = this.#database.prepare("SELECT * FROM remote_workers WHERE id = ?").get(id) as RemoteWorkerRow | undefined;
+    if (!row) throw new Error("REMOTE_WORKER_NOT_FOUND");
+    return this.#mapRemoteWorker(row);
+  }
+
+  public listRemoteWorkers(): RemoteWorker[] {
+    const rows = this.#database.prepare("SELECT * FROM remote_workers ORDER BY paired_at DESC").all() as unknown as RemoteWorkerRow[];
+    return rows.map((row) => this.#mapRemoteWorker(row));
+  }
+
+  public heartbeatRemoteWorker(id: string, capabilities?: string[]): RemoteWorker {
+    const now = new Date().toISOString();
+    const result = capabilities
+      ? this.#database.prepare(`
+          UPDATE remote_workers SET last_seen_at = ?, capabilities_json = ?
+          WHERE id = ? AND revoked_at IS NULL
+        `).run(now, JSON.stringify(capabilities), id)
+      : this.#database.prepare("UPDATE remote_workers SET last_seen_at = ? WHERE id = ? AND revoked_at IS NULL").run(now, id);
+    if (result.changes !== 1) throw new Error("REMOTE_WORKER_REVOKED_OR_MISSING");
+    return this.getRemoteWorker(id);
+  }
+
+  public revokeRemoteWorker(id: string): RemoteWorker {
+    const now = new Date().toISOString();
+    const result = this.#database.prepare(`
+      UPDATE remote_workers SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL
+    `).run(now, id);
+    if (result.changes !== 1) throw new Error("REMOTE_WORKER_REVOKED_OR_MISSING");
+    return this.getRemoteWorker(id);
+  }
+
+  public leaseNextRemoteJob(workerId: string, leaseMs = 30_000, maxAttempts = 3): DurableJob | null {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const expiresAt = new Date(now.getTime() + Math.max(1_000, Math.min(10 * 60_000, leaseMs))).toISOString();
+    this.#database.exec("BEGIN IMMEDIATE;");
+    try {
+      const row = this.#database.prepare(`
+        SELECT * FROM durable_jobs
+        WHERE kind LIKE 'remote:%' AND attempt < ? AND (
+          state = 'QUEUED' OR
+          (state IN ('LEASED', 'RUNNING') AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?)
+        )
+        ORDER BY created_at ASC LIMIT 1
+      `).get(maxAttempts, nowIso) as DurableJobRow | undefined;
+      if (!row) {
+        this.#database.exec("COMMIT;");
+        return null;
+      }
+      this.#database.prepare(`
+        UPDATE durable_jobs
+        SET state = 'LEASED', attempt = attempt + 1, lease_owner = ?, lease_expires_at = ?, updated_at = ?
+        WHERE id = ?
+      `).run(workerId, expiresAt, nowIso, row.id);
+      const leased = this.#database.prepare("SELECT * FROM durable_jobs WHERE id = ?").get(row.id) as DurableJobRow;
+      this.#database.exec("COMMIT;");
+      return this.#mapDurableJob(leased);
+    } catch (error) {
+      this.#database.exec("ROLLBACK;");
+      throw error;
+    }
   }
 
   public leaseNextDurableJob(workerId: string, leaseMs = 30_000, maxAttempts = 3): DurableJob | null {
@@ -746,6 +904,19 @@ export class StateDatabase {
       leaseExpiresAt: row.lease_expires_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at
+    };
+  }
+
+  #mapRemoteWorker(row: RemoteWorkerRow): RemoteWorker {
+    const lastSeen = Date.parse(row.last_seen_at);
+    return {
+      id: row.id,
+      name: row.name,
+      capabilities: JSON.parse(row.capabilities_json) as string[],
+      status: row.revoked_at ? "REVOKED" : Date.now() - lastSeen <= 90_000 ? "ONLINE" : "OFFLINE",
+      lastSeenAt: row.last_seen_at,
+      pairedAt: row.paired_at,
+      revokedAt: row.revoked_at
     };
   }
 }

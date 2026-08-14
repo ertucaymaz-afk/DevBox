@@ -71,7 +71,8 @@ import type {
   ThreadItem,
   ThreadSummary,
   AppSettings,
-  PermissionProfile
+  PermissionProfile,
+  EditorDiagnostic
 } from "../shared/contracts";
 import {
   AutomationWorkspace,
@@ -133,6 +134,13 @@ function formatThreadTime(value: string): string {
 
 function exactDateTime(value: string): string {
   return new Date(value).toLocaleString("tr-TR", { dateStyle: "long", timeStyle: "short" });
+}
+
+function editorOffset(content: string, line: number, character: number): number {
+  const lines = content.split(/\r?\n/u);
+  let offset = 0;
+  for (let index = 0; index < Math.min(line, lines.length); index += 1) offset += (lines[index]?.length ?? 0) + 1;
+  return Math.min(content.length, offset + Math.min(character, lines[line]?.length ?? 0));
 }
 
 function stateClass(state: Capability["state"] | ThreadSummary["state"]): string {
@@ -422,6 +430,8 @@ export function App(): ReactNode {
   const [tree, setTree] = useState<ProjectTreeNode[]>([]);
   const [file, setFile] = useState<FileSnapshot | null>(null);
   const [editorText, setEditorText] = useState("");
+  const [diagnostics, setDiagnostics] = useState<EditorDiagnostic[]>([]);
+  const [diagnosticsState, setDiagnosticsState] = useState<"idle" | "loading" | "ready" | "unsupported" | "failed">("idle");
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
   const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
   const [terminalResult, setTerminalResult] = useState<CommandResult | null>(null);
@@ -450,6 +460,7 @@ export function App(): ReactNode {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const terminalRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const diagnosticsVersion = useRef(0);
   const conversationRef = useRef<HTMLDivElement>(null);
   const introStartedAt = useRef(0);
 
@@ -804,6 +815,8 @@ export function App(): ReactNode {
       const snapshot = await window.devbox.readFile(selectedProject.id, node.relativePath);
       setFile(snapshot);
       setEditorText(snapshot.content);
+      setDiagnostics([]);
+      setDiagnosticsState("idle");
       setView("files");
     } catch (error) {
       setNotice(errorMessage(error));
@@ -811,6 +824,45 @@ export function App(): ReactNode {
       setBusy(null);
     }
   }, [selectedProject]);
+
+  useEffect(() => {
+    if (!selectedProject || !file) return;
+    const supported = ["typescript", "typescriptreact", "javascript", "javascriptreact"].includes(file.language);
+    if (!supported) {
+      setDiagnostics([]);
+      setDiagnosticsState("unsupported");
+      return;
+    }
+    const version = ++diagnosticsVersion.current;
+    let active = true;
+    setDiagnosticsState("loading");
+    const timer = setTimeout(() => {
+      void window.devbox.getLanguageDiagnostics(
+        selectedProject.id,
+        file.relativePath,
+        file.language as "typescript" | "typescriptreact" | "javascript" | "javascriptreact",
+        editorText,
+        version
+      ).then((result) => {
+        if (!active || version !== diagnosticsVersion.current) return;
+        setDiagnostics(result.diagnostics);
+        setDiagnosticsState("ready");
+      }).catch(() => {
+        if (!active || version !== diagnosticsVersion.current) return;
+        setDiagnostics([]);
+        setDiagnosticsState("failed");
+      });
+    }, 650);
+    return () => { active = false; clearTimeout(timer); };
+  }, [editorText, file, selectedProject]);
+
+  const focusDiagnostic = useCallback((diagnostic: EditorDiagnostic): void => {
+    const start = editorOffset(editorText, diagnostic.range.start.line, diagnostic.range.start.character);
+    const end = editorOffset(editorText, diagnostic.range.end.line, diagnostic.range.end.character);
+    const editor = document.querySelector<HTMLTextAreaElement>(".code-editor textarea");
+    editor?.focus();
+    editor?.setSelectionRange(start, Math.max(start + 1, end));
+  }, [editorText]);
 
   const saveFile = useCallback(async (): Promise<void> => {
     if (!selectedProject || !file || editorText === file.content) return;
@@ -1110,6 +1162,10 @@ export function App(): ReactNode {
 
       {terminalOpen && <section className="terminal-pane" aria-label="Görev çıktısı"><div className="terminal-heading"><div><SquareTerminal size={14} /><strong>GÖREV ÇIKTISI</strong>{busy?.startsWith("task:") && <LoaderCircle className="spin" size={13} />}</div><div>{terminalResult && <span>{terminalResult.durationMs} ms · çıkış {terminalResult.exitCode ?? terminalResult.exitReason}</span>}<button onClick={() => setTerminalResult(null)}>Temizle</button><button onClick={() => setTerminalOpen(false)} aria-label="Kapat"><X size={14} /></button></div></div><div className="terminal-output" tabIndex={0} ref={terminalRef} onContextMenu={(event) => { event.preventDefault(); const selection = window.getSelection()?.toString() ?? ""; void window.devbox.showContextMenu("terminal", selection.length > 0).then((action) => { if (action === "copyOutput") void window.devbox.copyText(selection); if (action === "clear") setTerminalResult(null); }); }}>{terminalResult ? <><div><span className="prompt">PS&gt;</span> {terminalResult.commandDisplay}</div>{terminalResult.stdout && <pre>{terminalResult.stdout}</pre>}{terminalResult.stderr && <pre className="stderr">{terminalResult.stderr}</pre>}<div className={terminalResult.exitCode === 0 ? "exit-ok" : "exit-bad"}>Süreç {terminalResult.exitReason} · {terminalResult.durationMs} ms{terminalResult.truncated ? " · çıktı kesildi" : ""}</div></> : <p>Test, tür denetimi veya derleme çalıştırıldığında gerçek süreç çıktısı burada görünür.</p>}</div></section>}
 
+      {view === "files" && file && <aside className={`diagnostics-tray ${diagnostics.length > 0 ? "open" : ""}`} aria-label="Dil sunucusu tanıları">
+        <header><span><Activity size={13} /> Problems</span><strong>{diagnosticsState === "loading" ? "LSP çalışıyor…" : diagnosticsState === "unsupported" ? "Bu dil için kapalı" : diagnosticsState === "failed" ? "LSP kullanılamıyor" : `${diagnostics.length} tanı`}</strong></header>
+        {diagnostics.slice(0, 80).map((diagnostic, index) => <button key={`${diagnostic.range.start.line}:${diagnostic.range.start.character}:${index}`} className={diagnostic.severity} onClick={() => focusDiagnostic(diagnostic)} title={diagnostic.message}><AlertTriangle size={13} /><span>{diagnostic.message}</span><code>{diagnostic.range.start.line + 1}:{diagnostic.range.start.character + 1}</code></button>)}
+      </aside>}
       {notice && <div className={`toast ${notice === "Sohbet silindi." ? "success" : ""}`} role="status">{notice === "Sohbet silindi." ? <CheckCircle2 size={18} /> : <AlertTriangle size={16} />}<span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Bildirimi kapat"><X size={14} /></button></div>}
       {threadMenu && <ThreadContextMenu menu={threadMenu} hasProject={bootstrap.projects.some((project) => project.id === threadMenu.summary.projectId)} onAction={async (action) => await executeThreadAction(threadMenu.summary, action)} onClose={() => setThreadMenu(null)} />}
       {confirmation && <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} />}

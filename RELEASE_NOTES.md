@@ -1,10 +1,10 @@
-# DevBox 0.1.1 — işlevsel önizleme
+# DevBox 0.1.2 — işlevsel önizleme
 
-Bu sürüm, sohbet ekranındaki günlük kullanım sorunlarını ve API gelişimi sağlayıcı rotasını birlikte ele alıyor.
+Bu sürüm; gerçek LSP/DAP kontrol yüzeyini, eşleştirilmiş uzak worker yaşam döngüsünü ve temiz Windows VM dayanıklılık kapısını ekler. Sohbet ve API gelişimi iyileştirmeleri korunur.
 
 ## 📦 Arşivler
 
-- `DevBox-source-v0.1.1.zip`: düşük boyutlu, Apache-2.0 açık kaynak arşivi. `node_modules`, derleme çıktıları, installer, yerel veritabanı, kanıt kayıtları, gizli bilgiler ve cache içermez.
+- `DevBox-source-v0.1.2.zip`: düşük boyutlu, Apache-2.0 açık kaynak arşivi. `node_modules`, derleme çıktıları, installer, yerel veritabanı, kanıt kayıtları, gizli bilgiler ve cache içermez.
 - `devbox.zip`: Windows kurulum teslimi. NSIS installer, sağlama toplamı, sürüm manifesti ve üçüncü taraf bildirimlerini içerir; kaynak kod arşivi değildir.
 
 ## ✨ Görünür düzeltmeler
@@ -25,16 +25,22 @@ DevBox ilk olarak sağlık ve oturum denetimi geçen resmî Codex CLI yolunu sal
 
 Bu alan model eğitimi veya kendi kendine kod yazma iddiası taşımaz. Araştırma ve backlog görevleri; sağlayıcı, zaman, durable-job ve hata kanıtlarıyla SQLite WAL içinde kalıcıdır. Uygulama yeniden açıldığında önceki çevrimler korunur. Kaynak kod değişikliği kullanıcı onayı olmadan yapılmaz.
 
+## 🧩 LSP, DAP ve uzak worker
+
+TypeScript/JavaScript dosyaları, kurulu gerçek language-server sürecine LSP üzerinden gönderilir; diagnostics satır/sütunları editör seçimine bağlanır. Debugger, kullanıcı tarafından seçilmiş kurulu bir Debug Adapter olmadan oturum açmaz. DAP paneli thread, stack, scope, variables, breakpoint ve yürütme kontrollerini gerçek protokol yanıtlarıyla gösterir.
+
+Uzak worker yalnız uygulama içinden onayla üretilen tek kullanımlık kodla eşleşir. Kalıcı token bir kez verilir, veritabanında yalnız özeti saklanır. Worker komutları allowlist ve çalışma-kökü sınırına tabidir; ağ kesilirse üst sınırlı geri çekilmeyle yeniden bağlanır, süresi dolan lease yeniden kuyruğa alınır. Bu sürüm çok makineli protokolü sağlar; gerçek iki-host ağ bölünmesi kanıtı henüz ayrı release kapısıdır.
+
 ## ✅ Doğrulama
 
 - TypeScript typecheck
-- 17 dosyada 32 birim/sözleşme testi
+- LSP süreci, uzak-worker API/lease ve SQLite v5 dâhil birim/sözleşme testleri
 - Vite/Electron üretim build’i
 - Ürün-doğruluk denetimi
 - Gerçek Electron Playwright E2E: secure preload, clipboard, boş sohbet, sabitleme, silme, ayar kapatma, PR/Eklenti ayrımı, API gelişimi ve terminal çıkışları
 
 ## 🔐 SignPath ve imza durumu
 
-Geliştirici SignPath Foundation açık kaynak başvurusunu 14 Ağustos 2026 tarihinde gönderdi. İnceleme, kimlik doğrulama, proje onboarding’i ve sertifika tahsisi SignPath’in dış sürecidir ve henüz tamamlanmış sayılmaz. Bu nedenle installer yalnızca `release-manifest.json` açıkça `VALID` diyorsa imzalı kabul edilmelidir; mevcut v0.1.1 önizlemesi `NOT_SIGNED` olarak yayımlanır. DevBox self-signed sertifikayı genel yayın kimliği gibi sunmaz.
+Geliştirici SignPath Foundation açık kaynak başvurusunu 14 Ağustos 2026 tarihinde gönderdi. İnceleme, kimlik doğrulama, proje onboarding’i ve sertifika tahsisi SignPath’in dış sürecidir ve henüz tamamlanmış sayılmaz. Bu nedenle installer yalnızca `release-manifest.json` açıkça `VALID` diyorsa imzalı kabul edilmelidir; mevcut v0.1.2 önizlemesi `NOT_SIGNED` olarak yayımlanır. DevBox self-signed sertifikayı genel yayın kimliği gibi sunmaz.
 
 Ayrıntılar için [CHANGELOG.md](CHANGELOG.md), [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md), [SECURITY.md](SECURITY.md) ve [DEVELOPERS.md](DEVELOPERS.md) dosyalarına bakın.

@@ -21,14 +21,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout reviewed source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 
       - name: Use Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
+          package-manager-cache: false
 
       - name: Enable pinned pnpm
         shell: pwsh
@@ -49,14 +50,15 @@ jobs:
     needs: verify
     steps:
       - name: Checkout reviewed source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 
       - name: Use Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
+          package-manager-cache: false
 
       - name: Enable pinned pnpm
         shell: pwsh
@@ -74,7 +76,7 @@ jobs:
           pnpm release:verify
 
       - name: Upload unsigned artifact for review
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: devbox-unsigned-${{ github.sha }}
           path: release/devbox-package/

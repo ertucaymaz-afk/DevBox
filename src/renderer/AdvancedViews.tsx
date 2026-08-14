@@ -23,6 +23,10 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import type {
   AppSettings,
   CommandResult,
+  DebugResponse,
+  DebugSession,
+  RemoteWorker,
+  WorkerPairing,
   EvolutionCampaign,
   IntegrationStatus,
   ProjectSummary,
@@ -259,8 +263,25 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
   const [busy, setBusy] = useState<string | null>(null);
   const [target, setTarget] = useState("");
   const [platformTarget, setPlatformTarget] = useState("");
+  const [debugExecutable, setDebugExecutable] = useState("");
+  const [debugArguments, setDebugArguments] = useState("[]");
+  const [debugConfiguration, setDebugConfiguration] = useState('{\n  "program": "",\n  "cwd": ""\n}');
+  const [debugSession, setDebugSession] = useState<DebugSession | null>(null);
+  const [debugResponse, setDebugResponse] = useState<DebugResponse | null>(null);
+  const [debugThreadId, setDebugThreadId] = useState("1");
+  const [debugFrameId, setDebugFrameId] = useState("0");
+  const [debugVariablesReference, setDebugVariablesReference] = useState("0");
+  const [breakpointSource, setBreakpointSource] = useState("");
+  const [breakpointLines, setBreakpointLines] = useState("");
+  const [remoteWorkers, setRemoteWorkers] = useState<RemoteWorker[]>([]);
+  const [workerPairing, setWorkerPairing] = useState<WorkerPairing | null>(null);
+  const [remoteJobPayload, setRemoteJobPayload] = useState('{"command":"node","args":["--version"],"cwd":"."}');
+  const [workerNotice, setWorkerNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const reload = useCallback(async () => setStatuses(await window.devbox.inspectIntegrations(project?.id)), [project?.id]);
+  const reload = useCallback(async () => {
+    const [integrationItems, workerItems] = await Promise.all([window.devbox.inspectIntegrations(project?.id), window.devbox.listRemoteWorkers()]);
+    setStatuses(integrationItems); setRemoteWorkers(workerItems);
+  }, [project?.id]);
   useEffect(() => { void reload().catch((caught) => setError(failure(caught))); }, [reload]);
   const github = async (action: Parameters<typeof window.devbox.runGitHubAction>[1]): Promise<void> => {
     if (!project) return;
@@ -282,11 +303,63 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
     catch (caught) { setError(failure(caught)); }
     finally { setBusy(null); }
   };
+  const startDebugger = async (): Promise<void> => {
+    if (!project || !debugExecutable.trim()) return;
+    setBusy("debug-start"); setError(null);
+    try {
+      const args = JSON.parse(debugArguments) as unknown;
+      const configuration = JSON.parse(debugConfiguration) as unknown;
+      if (!Array.isArray(args) || args.some((value) => typeof value !== "string")) throw new Error("Adapter argümanları JSON string dizisi olmalıdır.");
+      if (!configuration || typeof configuration !== "object" || Array.isArray(configuration)) throw new Error("Debugger yapılandırması JSON nesnesi olmalıdır.");
+      setDebugSession(await window.devbox.startDebugSession(project.id, debugExecutable.trim(), args, "launch", configuration as Record<string, unknown>));
+      setDebugResponse(null);
+    } catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
+  const debugCommand = async (command: Parameters<typeof window.devbox.runDebugCommand>[1], args: Record<string, unknown> = {}): Promise<void> => {
+    if (!debugSession) return;
+    setBusy(`debug-${command}`); setError(null);
+    try {
+      const response = await window.devbox.runDebugCommand(debugSession.id, command, args);
+      setDebugSession(response.session); setDebugResponse(response);
+    } catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
+  const stopDebugger = async (): Promise<void> => {
+    if (!debugSession) return;
+    setBusy("debug-stop");
+    try { await window.devbox.stopDebugSession(debugSession.id); setDebugSession(null); setDebugResponse(null); }
+    catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
+  const createWorkerPairing = async (): Promise<void> => {
+    setBusy("worker-pairing"); setError(null);
+    try { setWorkerPairing(await window.devbox.createWorkerPairing()); }
+    catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
+  const revokeWorker = async (workerId: string): Promise<void> => {
+    setBusy(`worker-revoke-${workerId}`); setError(null);
+    try { await window.devbox.revokeRemoteWorker(workerId); setRemoteWorkers(await window.devbox.listRemoteWorkers()); }
+    catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
+  const enqueueRemoteJob = async (): Promise<void> => {
+    setBusy("worker-job"); setError(null); setWorkerNotice(null);
+    try {
+      const payload = JSON.parse(remoteJobPayload) as unknown;
+      const job = await window.devbox.enqueueRemoteJob("command", payload);
+      setWorkerNotice(`Uzak görev kuyruğa alındı: ${job.id} · ${job.state}`);
+    } catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
   const visibleStatuses = scope === "github" ? statuses.filter((status) => status.kind === "github") : statuses;
   return <section className="advanced-page">
     <div className="advanced-heading"><div><span className="advanced-eyebrow">{scope === "github" ? "GITHUB WORKFLOW" : "TOOLS & SERVICES"}</span><h1>{scope === "github" ? "GitHub pull request’leri" : "Eklentiler ve entegrasyonlar"}</h1><p>{scope === "github" ? "PR, issue, check, CI çalışması ve release işlemleri gerçek gh CLI oturumu ve seçili Git deposu üzerinden yürütülür." : "GitHub, Vercel, SSH, LSP/DAP, imzalı toolkit ve yayın kapılarının gerçek çalışma zamanı durumu."}</p></div><button onClick={() => void reload()} disabled={Boolean(busy)}><RefreshCw className={busy === "inspect" ? "spin" : ""} size={14} /> Yeniden denetle</button></div>
     <div className="integration-grid">{visibleStatuses.map((status) => <article key={status.kind}><div className="integration-title"><span>{status.kind === "github" ? <GitBranch size={17} /> : status.kind === "vercel" ? <Globe2 size={17} /> : <ShieldCheck size={17} />}</span><div><strong>{status.kind.toLocaleUpperCase("tr-TR")}</strong><small>{status.version ?? "sürüm yok"}{status.account ? ` · ${status.account}` : ""}</small></div><Status value={status.state} /></div><p>{status.detail}</p><footer>{status.commands.join(" · ")}</footer></article>)}</div>
     {scope === "all" && <section className="integration-console platform-console"><div className="console-controls"><label><span>Yerel hedef · SSH için host:port, paket için kind/id</span><input value={platformTarget} onChange={(event) => setPlatformTarget(event.target.value)} placeholder="örn. server.example:22 veya plugin/devbox.toolkit" /></label><div><button onClick={() => void platform("protocol-discover")}><Activity size={14} /> LSP/DAP keşfet</button><button onClick={() => void platform("ssh-audit")}><ShieldCheck size={14} /> SSH pinlerini denetle</button><button onClick={() => void platform("ssh-pin")} disabled={!platformTarget.trim()}><ShieldCheck size={14} /> SSH anahtarı sabitle</button><button onClick={() => void platform("package-list")}><Activity size={14} /> Paket envanteri</button><button onClick={() => void platform("package-install")}><Upload size={14} /> İmzalı paket kur</button><button onClick={() => void platform("package-repair")} disabled={!/^(plugin|mcp|toolkit|update)\/[a-z0-9][a-z0-9._-]{1,127}$/u.test(platformTarget)}><RefreshCw size={14} /> Paketi onar</button><button onClick={() => void platform("package-rollback")} disabled={!/^(plugin|mcp|toolkit|update)\/[a-z0-9][a-z0-9._-]{1,127}$/u.test(platformTarget)}><RefreshCw size={14} /> Paketi geri al</button></div></div></section>}
+    {scope === "all" && <section className="integration-console remote-worker-console"><div className="panel-title"><div><h2>Dayanıklı uzak worker’lar</h2><span>Tek kullanımlık eşleştirme, bearer kimliği, heartbeat, süreli lease, crash recovery ve yetki iptali.</span></div><button onClick={() => void createWorkerPairing()} disabled={Boolean(busy)}><ShieldCheck size={14} /> Eşleştirme kodu</button></div>{workerPairing && <div className="worker-pairing"><strong>{workerPairing.code}</strong><span>{new Date(workerPairing.expiresAt).toLocaleString("tr-TR")} tarihine kadar bir kez kullanılabilir.</span><code>{`ssh -N -L 43110:127.0.0.1:${new URL(workerPairing.endpoint).port} <kullanıcı>@<devbox-makinesi>`}</code><code>{`$env:DEVBOX_URL='http://127.0.0.1:43110'; $env:DEVBOX_PAIRING_CODE='${workerPairing.code}'; $env:DEVBOX_WORKER_ROOT='<proje-kökü>'; node scripts/remote-worker.mjs`}</code><button onClick={() => void window.devbox.copyText(workerPairing.code)}><Copy size={13} /> Kodu kopyala</button></div>}<div className="worker-list">{remoteWorkers.length === 0 ? <span>Eşleştirilmiş worker yok.</span> : remoteWorkers.map((worker) => <article key={worker.id}><div><strong>{worker.name}</strong><small>{worker.id} · {new Date(worker.lastSeenAt).toLocaleString("tr-TR")}</small><small>{worker.capabilities.join(" · ") || "Bildirilen yetenek yok"}</small></div><Status value={worker.status} />{worker.status !== "REVOKED" && <button className="danger" onClick={() => void revokeWorker(worker.id)}><CircleStop size={13} /> Yetkiyi kaldır</button>}</article>)}</div><label className="remote-job"><span>Uzak komut işi · yalnız worker allowlist’i çalıştırır</span><textarea value={remoteJobPayload} onChange={(event) => setRemoteJobPayload(event.target.value)} /><button onClick={() => void enqueueRemoteJob()} disabled={remoteWorkers.every((worker) => worker.status === "REVOKED") || Boolean(busy)}><Upload size={14} /> Kuyruğa al</button></label>{workerNotice && <div className="inline-success">{workerNotice}</div>}</section>}
+    {scope === "all" && <section className="integration-console debugger-console"><div className="panel-title"><div><h2>Gerçek DAP debugger</h2><span>Yalnız seçtiğiniz kurulu Debug Adapter süreciyle konuşur; adapter olmadan oturum başlamaz.</span></div><Status value={debugSession?.state ?? "UNAVAILABLE"} /></div><div className="debugger-grid"><label><span>Adapter yürütülebilir dosyası</span><input value={debugExecutable} onChange={(event) => setDebugExecutable(event.target.value)} placeholder="C:\\tools\\codelldb.exe" disabled={Boolean(debugSession)} /></label><label><span>Adapter argümanları · JSON dizi</span><input value={debugArguments} onChange={(event) => setDebugArguments(event.target.value)} disabled={Boolean(debugSession)} /></label><label className="debug-config"><span>Launch yapılandırması · JSON nesnesi</span><textarea value={debugConfiguration} onChange={(event) => setDebugConfiguration(event.target.value)} disabled={Boolean(debugSession)} /></label></div>{debugSession && <div className="debugger-grid debugger-references"><label><span>Thread kimliği</span><input value={debugThreadId} onChange={(event) => setDebugThreadId(event.target.value)} inputMode="numeric" /></label><label><span>Frame kimliği</span><input value={debugFrameId} onChange={(event) => setDebugFrameId(event.target.value)} inputMode="numeric" /></label><label><span>Variables reference</span><input value={debugVariablesReference} onChange={(event) => setDebugVariablesReference(event.target.value)} inputMode="numeric" /></label><label><span>Breakpoint kaynak yolu</span><input value={breakpointSource} onChange={(event) => setBreakpointSource(event.target.value)} placeholder="C:\\project\\src\\main.ts" /></label><label><span>Breakpoint satırları</span><input value={breakpointLines} onChange={(event) => setBreakpointLines(event.target.value)} placeholder="12, 24, 38" /></label></div>}<div className="debug-actions">{!debugSession ? <button className="primary" onClick={() => void startDebugger()} disabled={!project || !debugExecutable.trim() || Boolean(busy)}><Play size={14} /> Adapter ile başlat</button> : <><button onClick={() => void debugCommand("continue", { threadId: Number(debugThreadId) })}><Play size={14} /> Devam</button><button onClick={() => void debugCommand("pause", { threadId: Number(debugThreadId) })}><CircleStop size={14} /> Duraklat</button><button onClick={() => void debugCommand("next", { threadId: Number(debugThreadId) })}><ArrowUpRight size={14} /> Satır atla</button><button onClick={() => void debugCommand("stepIn", { threadId: Number(debugThreadId) })}><ArrowUpRight size={14} /> İçeri gir</button><button onClick={() => void debugCommand("stepOut", { threadId: Number(debugThreadId) })}><ArrowUpRight size={14} /> Dışarı çık</button><button onClick={() => void debugCommand("threads")}><Activity size={14} /> Thread’ler</button><button onClick={() => void debugCommand("stackTrace", { threadId: Number(debugThreadId) })}><Activity size={14} /> Stack</button><button onClick={() => void debugCommand("scopes", { frameId: Number(debugFrameId) })}><Activity size={14} /> Scope’lar</button><button onClick={() => void debugCommand("variables", { variablesReference: Number(debugVariablesReference) })}><Activity size={14} /> Değişkenler</button><button onClick={() => void debugCommand("setBreakpoints", { source: { path: breakpointSource }, breakpoints: breakpointLines.split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value > 0).map((line) => ({ line })) })} disabled={!breakpointSource.trim() || !breakpointLines.trim()}><Activity size={14} /> Breakpoint uygula</button><button className="danger" onClick={() => void stopDebugger()}><CircleStop size={14} /> Oturumu bitir</button></>}</div>{debugResponse && <pre className="debug-response">{JSON.stringify(debugResponse.body, null, 2)}</pre>}</section>}
     {project && <section className="integration-console"><div className="console-controls"><label><span>{scope === "github" ? "Hedef; PR/run numarası, issue başlığı veya release etiketi" : "Hedef; PR/run no, başlık, tag veya deployment URL"}</span><input value={target} onChange={(event) => setTarget(event.target.value)} placeholder={scope === "github" ? "örn. 42, hata başlığı veya v1.2.0" : "örn. 42, v1.2.0 veya deployment-url"} /></label><div><button onClick={() => void github("pr-list")}><GitBranch size={14} /> PR’lar</button><button onClick={() => void github("pr-create")} disabled={!target.trim()}><Upload size={14} /> PR oluştur</button><button onClick={() => void github("pr-merge")} disabled={!/^\d+$/u.test(target)}><Check size={14} /> PR birleştir</button><button onClick={() => void github("issue-list")}><GitBranch size={14} /> Issue’lar</button><button onClick={() => void github("issue-create")} disabled={!target.trim()}><Upload size={14} /> Issue oluştur</button><button onClick={() => void github("checks")}><Check size={14} /> Checks</button><button onClick={() => void github("run-list")}><Activity size={14} /> CI çalışmaları</button><button onClick={() => void github("run-log")} disabled={!/^\d+$/u.test(target)}><Activity size={14} /> CI logu</button><button onClick={() => void github("run-rerun")} disabled={!/^\d+$/u.test(target)}><RefreshCw size={14} /> CI tekrar</button><button onClick={() => void github("release-list")}><Upload size={14} /> Release’ler</button><button onClick={() => void github("release-create")} disabled={!target.trim()}><Upload size={14} /> Release oluştur</button>{scope === "all" && <><button onClick={() => void vercel("link")}><Globe2 size={14} /> Vercel bağla</button><button onClick={() => void vercel("preview")}><ArrowUpRight size={14} /> Preview</button><button onClick={() => void vercel("production")}><Upload size={14} /> Production</button><button onClick={() => void vercel("inspect")}><Globe2 size={14} /> Inspect</button><button onClick={() => void vercel("logs")}><Activity size={14} /> Logs</button><button onClick={() => void vercel("rollback")}><RefreshCw size={14} /> Rollback</button></>}</div></div></section>}
     {busy && <div className="console-busy"><LoaderCircle className="spin" size={14} /> {busy} çalışıyor…</div>}
     {result && <div className="command-evidence"><header><span>{result.commandDisplay}</span><Status value={result.exitCode === 0 ? "SUCCEEDED" : result.exitReason === "CANCELLED" ? "CANCELLED" : "FAILED"} /><button onClick={() => void window.devbox.copyText(`${result.stdout}\n${result.stderr}`)}><Copy size={13} /> Kopyala</button></header><pre>{result.stdout || result.stderr || (result.exitReason === "CANCELLED" ? "İşlem kullanıcı tarafından iptal edildi." : "Komut çıktı üretmedi.")}</pre><footer>{result.durationMs} ms · {result.exitReason} · çıkış {result.exitCode ?? "—"}</footer></div>}

@@ -13,8 +13,10 @@ import { CoreApi } from "./services/core-api.js";
 import { StateDatabase } from "./services/database.js";
 import { GitService } from "./services/git-service.js";
 import { IntegrationService } from "./services/integration-service.js";
+import { DebugService, LanguageService } from "./services/language-debug-service.js";
 import { PackageLifecycleService } from "./services/package-lifecycle-service.js";
 import { ProjectService } from "./services/project-service.js";
+import { RemoteWorkerService } from "./services/remote-worker-service.js";
 import { SettingsService } from "./services/settings-service.js";
 import { SshTrustService } from "./services/ssh-trust-service.js";
 import { TaskService } from "./services/task-service.js";
@@ -43,6 +45,7 @@ let terminals: TerminalService | null = null;
 let evolution: ApiEvolutionService | null = null;
 let commandRunner: CommandRunner | null = null;
 let unregisterIpc: (() => void) | null = null;
+let debugService: DebugService | null = null;
 
 function rendererRoot(): string {
   return path.resolve(app.getAppPath(), "dist", "renderer");
@@ -131,11 +134,14 @@ async function start(): Promise<void> {
   const git = new GitService(runner);
   const tasks = new TaskService(runner);
   const settings = new SettingsService(database);
+  const remoteWorkers = new RemoteWorkerService(database);
   evolution = new ApiEvolutionService(database, projects, agent, settings);
   const worktrees = new WorktreeService(runner, path.join(app.getPath("userData"), "worktrees"));
   const packages = new PackageLifecycleService(path.join(app.getPath("userData"), "signed-runtime"));
   const sshTrust = new SshTrustService(path.join(app.getPath("userData"), "ssh", "known-hosts"), runner);
   const integrations = new IntegrationService(runner, packages, sshTrust);
+  const language = new LanguageService(projects);
+  debugService = new DebugService(projects);
   coreApi = new CoreApi({
     apiKey: apiKey.value,
     database,
@@ -146,6 +152,7 @@ async function start(): Promise<void> {
     git,
     evolution,
     settings,
+    remoteWorkers,
     probeCwd: app.getPath("userData"),
     appVersion: app.getVersion()
   });
@@ -171,6 +178,9 @@ async function start(): Promise<void> {
     integrations,
     packages,
     sshTrust,
+    language,
+    debug: debugService,
+    remoteWorkers,
     database,
     probeCwd: app.getPath("userData"),
     rendererWebContentsId: mainWindow.webContents.id
@@ -204,6 +214,8 @@ app.on("before-quit", (event) => {
   evolution = null;
   const runner = commandRunner;
   commandRunner = null;
+  debugService?.close();
+  debugService = null;
   unregisterIpc?.();
   unregisterIpc = null;
   void (async () => {

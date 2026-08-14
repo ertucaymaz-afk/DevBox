@@ -2,6 +2,30 @@
 
 All notable DevBox changes are recorded here. DevBox follows semantic versioning while the `0.x` line remains a functional preview.
 
+## [0.1.2] - 2026-08-14
+
+### Eklendi
+
+- Kurulu `typescript-language-server` süreciyle gerçek LSP `initialize`, `didOpen` ve `publishDiagnostics` akışı; TypeScript/JavaScript editöründe satır-sütun seçimine giden hata listesi.
+- Kullanıcının seçtiği gerçek Debug Adapter sürecine bağlanan DAP konsolu; launch/attach, devam, duraklat, adım, thread, stack, scope, değişken ve breakpoint komutları.
+- On dakika geçerli tek kullanımlık eşleştirme kodu, yalnız bir kez gösterilen bearer kimliği, heartbeat, 45 saniyelik lease, crash recovery ve yetki iptali kullanan uzak worker protokolü.
+- Uzak worker için komut allowlist’i, proje-kökü sınırı, çıktı sınırı ve yeniden bağlanırken üst sınırlı geri çekilme uygulayan `scripts/remote-worker.mjs` çalıştırıcısı.
+- Haftalık veya elle başlatılabilen temiz `windows-latest` dayanıklılık iş akışı; varsayılan üç saatlik gerçek CPU/RAM/I/O yükü, failure-injection ve kanıt arşivi.
+
+### Değiştirildi
+
+- GitHub Actions `checkout`, `setup-node` ve `upload-artifact` kullanımları Node 24 tabanlı resmî v6 sürümlerine taşındı.
+- DevBox durum veritabanı şeması v5’e çıkarıldı; eşleştirme sırları ve worker token’ları düz metin yerine SHA-256 kimlikleriyle saklanır.
+- DAP oturum durumu, kabul edilen komuttan tahmin edilmek yerine adapter’ın gerçek `stopped`, `continued`, `terminated` ve `exited` olaylarından güncellenir.
+- Worker API kimlik doğrulama hataları HTTP 401, geçersiz yaşam döngüsü geçişleri ayrık hata kodlarıyla raporlanır.
+
+### Doğrulama ve sınırlar
+
+- TypeScript, gerçek language-server entegrasyon testi, loopback worker eşleştirme/lease testi ve SQLite v5/crash-recovery sözleşmeleri release kapısına eklendi.
+- Yerel smoke testi bu sürüm turunda kullanıcı isteğiyle çalıştırılmadı. Çok saatli soak, temiz GitHub-hosted Windows VM iş akışına kondu; workflow sonucu oluşmadan “geçti” sayılmaz.
+- Fiziksel güç kesintisi, sürücü arızası ve gerçek çok makineli ağ bölünmesi GitHub-hosted VM tarafından kanıtlanmış değildir; bunlar ayrı donanım/uzak-host doğrulama kapısı olarak açık kalır.
+- SignPath Foundation başvurusu dış incelemededir; v0.1.2 dosyaları gerçek sertifika sağlanana kadar `NOT_SIGNED` kalır.
+
 ## [0.1.1] - 2026-08-14
 
 ### Eklendi

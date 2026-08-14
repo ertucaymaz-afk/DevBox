@@ -30,7 +30,7 @@ describe("state database", () => {
 
     database.upsertProject({ id: "project-12345678", name: "sample", rootPath: directory, isGitRepository: true, createdAt: now, updatedAt: now });
 
-    expect(database.integrityCheck()).toEqual({ ok: true, detail: "ok", schemaVersion: 4 });
+    expect(database.integrityCheck()).toEqual({ ok: true, detail: "ok", schemaVersion: 5 });
     expect(database.listProjects()).toHaveLength(1);
     expect(database.getProject("project-12345678")).toMatchObject({ name: "sample", rootPath: directory, isGitRepository: true });
     expect(database.listThreads()).toEqual([]);
@@ -89,5 +89,21 @@ describe("state database", () => {
     expect(database.getDurableJob(second.id)).toMatchObject({ state: "QUEUED", leaseOwner: null, attempt: 1 });
     expect(database.leaseNextDurableJob("worker-c", 1_000)?.attempt).toBe(2);
     expect(database.settleDurableJob(second.id, "worker-c", "SUCCEEDED", { ok: true }).state).toBe("SUCCEEDED");
+  });
+
+  it("keeps remote jobs isolated from local jobs and persists worker revocation", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "devbox-remote-job-test-"));
+    temporaryDirectories.push(directory);
+    const database = new StateDatabase(path.join(directory, "state.sqlite"));
+    databases.push(database);
+    database.createWorkerPairing("pairing-hash", new Date(Date.now() + 60_000).toISOString());
+    const worker = database.consumePairingAndCreateWorker({
+      codeHash: "pairing-hash", workerId: "worker-12345678", name: "worker", tokenHash: "token-hash", capabilities: ["node"]
+    });
+    database.enqueueDurableJob("agent-turn", { local: true });
+    const remote = database.enqueueDurableJob("remote:command", { command: "node", args: ["--version"] });
+    expect(database.leaseNextRemoteJob(worker.id)?.id).toBe(remote.id);
+    expect(database.listRemoteWorkers()[0]).toMatchObject({ id: worker.id, status: "ONLINE", capabilities: ["node"] });
+    expect(database.revokeRemoteWorker(worker.id)).toMatchObject({ status: "REVOKED" });
   });
 });

@@ -1,11 +1,12 @@
 import { monitorEventLoopDelay } from "node:perf_hooks";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { CommandRunner } from "../dist/main/main/services/command-runner.js";
 
 const workspace = path.resolve(new URL("..", import.meta.url).pathname.replace(/^\/(?:[A-Za-z]:)/u, (match) => match.slice(1)));
 const requestedSeconds = Number(process.env.DEVBOX_SOAK_SECONDS ?? "20");
-const durationSeconds = Number.isFinite(requestedSeconds) ? Math.max(5, Math.min(3_600, Math.trunc(requestedSeconds))) : 20;
+const durationSeconds = Number.isFinite(requestedSeconds) ? Math.max(5, Math.min(21_600, Math.trunc(requestedSeconds))) : 20;
 const deadline = performance.now() + durationSeconds * 1_000;
 const runner = new CommandRunner();
 const lag = monitorEventLoopDelay({ resolution: 20 });
@@ -14,8 +15,12 @@ let iterations = 0;
 let failures = 0;
 let peakRss = process.memoryUsage().rss;
 let peakHeap = process.memoryUsage().heapUsed;
+let bytesWritten = 0;
+const ioRoot = path.join(os.tmpdir(), `devbox-soak-${process.pid}`);
+await mkdir(ioRoot, { recursive: true });
 
 lag.enable();
+try {
 while (performance.now() < deadline) {
   const batch = await Promise.all(Array.from({ length: 4 }, (_, index) => runner.run({
     executable: process.execPath,
@@ -26,10 +31,19 @@ while (performance.now() < deadline) {
   })));
   iterations += batch.length;
   failures += batch.filter((result) => result.exitCode !== 0 || result.exitReason !== "EXITED").length;
+  const ioPath = path.join(ioRoot, `sample-${iterations % 32}.bin`);
+  const ioBlock = Buffer.alloc(512 * 1024, iterations % 251);
+  await writeFile(ioPath, ioBlock);
+  const ioStat = await stat(ioPath);
+  if (ioStat.size !== ioBlock.length) failures += 1;
+  bytesWritten += ioBlock.length;
   const memory = process.memoryUsage();
   peakRss = Math.max(peakRss, memory.rss);
   peakHeap = Math.max(peakHeap, memory.heapUsed);
   samples.push({ atMs: Math.round(performance.now()), rss: memory.rss, heapUsed: memory.heapUsed });
+}
+} finally {
+  await rm(ioRoot, { recursive: true, force: true });
 }
 lag.disable();
 
@@ -37,10 +51,11 @@ const report = {
   schemaVersion: 1,
   generatedAt: new Date().toISOString(),
   verdict: failures === 0 ? "PASS" : "FAIL",
-  scope: "short-local-command-runner-soak",
+  scope: durationSeconds >= 10_800 ? "clean-windows-vm-long-soak" : "bounded-local-soak",
   durationSeconds,
   iterations,
   failures,
+  bytesWritten,
   peakRssBytes: peakRss,
   peakHeapBytes: peakHeap,
   eventLoopDelayMs: {
@@ -50,7 +65,7 @@ const report = {
   },
   startRssBytes: samples[0]?.rss ?? null,
   endRssBytes: samples.at(-1)?.rss ?? null,
-  limitations: ["This 20-second default smoke does not replace the requested multi-hour CPU/RAM/I/O soak on clean Windows VMs."],
+  limitations: durationSeconds >= 10_800 ? [] : ["The default short run does not replace the scheduled multi-hour clean Windows VM soak."],
   sampleCount: samples.length
 };
 

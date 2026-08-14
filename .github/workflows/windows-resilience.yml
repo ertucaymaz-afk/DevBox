@@ -1,0 +1,65 @@
+name: Windows resilience
+
+on:
+  workflow_dispatch:
+    inputs:
+      soak_seconds:
+        description: Clean-VM soak duration in seconds (300-21600)
+        required: true
+        default: "10800"
+  schedule:
+    - cron: "17 1 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-resilience-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  clean-windows-vm:
+    name: Real CPU RAM I/O and failure recovery
+    runs-on: windows-latest
+    timeout-minutes: 390
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Enable pinned pnpm
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.19.0 --activate
+
+      - name: Restore exact dependency graph
+        run: pnpm install --frozen-lockfile
+
+      - name: Build runtime under test
+        run: pnpm build:main
+
+      - name: Inject real process timeout cancellation output pressure and lease crash
+        run: node scripts/failure-injection.mjs
+
+      - name: Run clean-VM CPU RAM I/O soak
+        shell: pwsh
+        env:
+          DEVBOX_SOAK_SECONDS: ${{ inputs.soak_seconds || '10800' }}
+        run: node scripts/soak-smoke.mjs
+
+      - name: Upload resilience evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-resilience-${{ github.run_id }}
+          path: outputs/*.json
+          if-no-files-found: error
+          retention-days: 30

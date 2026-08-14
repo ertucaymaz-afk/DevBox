@@ -12,6 +12,11 @@ import {
   BootstrapSchema,
   CapabilitySchema,
   CommandResultSchema,
+  DebugCommandInputSchema,
+  DebugResponseSchema,
+  DebugSessionInputSchema,
+  DebugSessionSchema,
+  DebugStartInputSchema,
   ContextMenuInputSchema,
   EvolutionCampaignSchema,
   EvolutionDirectiveInputSchema,
@@ -28,11 +33,18 @@ import {
   IntegrationInspectInputSchema,
   IntegrationStatusSchema,
   IPC_CHANNELS,
+  LanguageDiagnosticsInputSchema,
+  LanguageDiagnosticsResultSchema,
   PathCopyInputSchema,
   PlatformActionInputSchema,
   ProjectIdInputSchema,
   ProjectSummarySchema,
   ProjectTreeNodeSchema,
+  RemoteJobInputSchema,
+  RemoteWorkerIdInputSchema,
+  RemoteWorkerSchema,
+  WorkerPairingSchema,
+  DurableJobSummarySchema,
   SettingsPatchInputSchema,
   TaskRunInputSchema,
   TextCopyInputSchema,
@@ -65,8 +77,10 @@ import type { AttachmentService } from "./services/attachment-service.js";
 import type { CoreApi } from "./services/core-api.js";
 import type { GitService } from "./services/git-service.js";
 import type { IntegrationService } from "./services/integration-service.js";
+import type { DebugService, LanguageService } from "./services/language-debug-service.js";
 import type { PackageLifecycleService } from "./services/package-lifecycle-service.js";
 import type { ProjectService } from "./services/project-service.js";
+import type { RemoteWorkerService } from "./services/remote-worker-service.js";
 import type { SettingsService } from "./services/settings-service.js";
 import type { SshTrustService } from "./services/ssh-trust-service.js";
 import type { TaskService } from "./services/task-service.js";
@@ -88,6 +102,9 @@ type IpcServices = {
   integrations: IntegrationService;
   packages: PackageLifecycleService;
   sshTrust: SshTrustService;
+  language: LanguageService;
+  debug: DebugService;
+  remoteWorkers: RemoteWorkerService;
   database: import("./services/database.js").StateDatabase;
   probeCwd: string;
   rendererWebContentsId: number;
@@ -642,6 +659,68 @@ export function registerIpcHandlers(services: IpcServices): () => void {
       ? await services.packages.repair(target.kind, target.id)
       : await services.packages.rollback(target.kind, target.id);
     return CommandResultSchema.parse(localCommandResult(`devbox ${input.action.replace("package-", "package ")}`, cwd, started, `${JSON.stringify(pointer, null, 2)}\n`));
+  });
+
+  registerHandler(IPC_CHANNELS.languageDiagnostics, services.rendererWebContentsId, async (unknownInput) => {
+    const input = LanguageDiagnosticsInputSchema.parse(unknownInput);
+    return LanguageDiagnosticsResultSchema.parse(await services.language.diagnostics(input));
+  });
+
+  registerHandler(IPC_CHANNELS.debugStart, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = DebugStartInputSchema.parse(unknownInput);
+    await enforcePermissionPolicy(event, services, {
+      title: "Debugger başlat",
+      message: "Seçilen gerçek Debug Adapter süreci başlatılsın mı?",
+      detail: `Adapter: ${input.executable}\nİstek: ${input.request}`,
+      risky: true
+    });
+    return DebugSessionSchema.parse(await services.debug.start(input));
+  });
+
+  registerHandler(IPC_CHANNELS.debugCommand, services.rendererWebContentsId, async (unknownInput) => {
+    const input = DebugCommandInputSchema.parse(unknownInput);
+    return DebugResponseSchema.parse(await services.debug.command(input.sessionId, input.command, input.arguments));
+  });
+
+  registerHandler(IPC_CHANNELS.debugStop, services.rendererWebContentsId, async (unknownInput) => {
+    const input = DebugSessionInputSchema.parse(unknownInput);
+    await services.debug.stop(input.sessionId);
+  });
+
+  registerHandler(IPC_CHANNELS.workerPairingCreate, services.rendererWebContentsId, async (_unknownInput, event) => {
+    await enforcePermissionPolicy(event, services, {
+      title: "Uzak worker eşleştir",
+      message: "On dakika geçerli tek kullanımlık worker eşleştirme kodu oluşturulsun mu?",
+      detail: "Kod yalnız güvenilen makineye aktarılmalıdır. Worker kalıcı bearer kimliğini eşleştirme sırasında bir kez alır.",
+      risky: true
+    });
+    return WorkerPairingSchema.parse({ ...services.remoteWorkers.createPairing(), endpoint: services.coreApi.origin });
+  });
+
+  registerHandler(IPC_CHANNELS.workerList, services.rendererWebContentsId, async () => (
+    RemoteWorkerSchema.array().parse(services.remoteWorkers.list())
+  ));
+
+  registerHandler(IPC_CHANNELS.workerRevoke, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = RemoteWorkerIdInputSchema.parse(unknownInput);
+    await enforcePermissionPolicy(event, services, {
+      title: "Worker yetkisini kaldır",
+      message: "Bu uzak worker kimliği kalıcı olarak iptal edilsin mi?",
+      detail: `Worker: ${input.workerId}`,
+      risky: true
+    });
+    return RemoteWorkerSchema.parse(services.remoteWorkers.revoke(input.workerId));
+  });
+
+  registerHandler(IPC_CHANNELS.workerJobEnqueue, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = RemoteJobInputSchema.parse(unknownInput);
+    await enforcePermissionPolicy(event, services, {
+      title: "Uzak görev kuyruğa al",
+      message: "Görev eşleştirilmiş bir uzak worker tarafından çalıştırılmak üzere kuyruğa alınsın mı?",
+      detail: `İş türü: remote:${input.kind}`,
+      risky: true
+    });
+    return DurableJobSummarySchema.parse(services.remoteWorkers.enqueue(input.kind, input.payload));
   });
 
   return () => {

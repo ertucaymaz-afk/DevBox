@@ -497,6 +497,68 @@ export const PlatformActionInputSchema = z.object({
   target: z.string().trim().max(512).default("")
 }).strict();
 
+export const SourcePositionSchema = z.object({ line: z.number().int().nonnegative(), character: z.number().int().nonnegative() }).strict();
+export const SourceRangeSchema = z.object({ start: SourcePositionSchema, end: SourcePositionSchema }).strict();
+export const EditorDiagnosticSchema = z.object({
+  severity: z.enum(["error", "warning", "information", "hint"]),
+  message: z.string().min(1).max(16_000),
+  source: z.string().max(160).nullable(),
+  code: z.union([z.string(), z.number()]).nullable(),
+  range: SourceRangeSchema
+}).strict();
+export type EditorDiagnostic = z.infer<typeof EditorDiagnosticSchema>;
+export const LanguageDiagnosticsInputSchema = FileReadInputSchema.extend({
+  language: z.enum(["typescript", "typescriptreact", "javascript", "javascriptreact"]),
+  content: z.string().max(1_048_576),
+  version: z.number().int().positive()
+}).strict();
+export const LanguageDiagnosticsResultSchema = z.object({
+  provider: z.literal("typescript-language-server"),
+  diagnostics: z.array(EditorDiagnosticSchema).max(10_000),
+  durationMs: z.number().int().nonnegative()
+}).strict();
+export type LanguageDiagnosticsResult = z.infer<typeof LanguageDiagnosticsResultSchema>;
+
+export const DebugStartInputSchema = ProjectIdInputSchema.extend({
+  executable: z.string().trim().min(1).max(32_768),
+  arguments: z.array(z.string().max(8_192)).max(128).default([]),
+  request: z.enum(["launch", "attach"]),
+  configuration: z.record(z.string(), z.unknown())
+}).strict();
+export const DebugSessionInputSchema = z.object({ sessionId: z.string().uuid() }).strict();
+export const DebugCommandInputSchema = DebugSessionInputSchema.extend({
+  command: z.enum(["continue", "pause", "next", "stepIn", "stepOut", "threads", "stackTrace", "scopes", "variables", "setBreakpoints"]),
+  arguments: z.record(z.string(), z.unknown()).default({})
+}).strict();
+export const DebugSessionSchema = z.object({
+  id: z.string().uuid(),
+  state: z.enum(["STARTING", "RUNNING", "PAUSED", "STOPPED", "FAILED"]),
+  adapter: z.string(),
+  capabilities: z.record(z.string(), z.unknown()),
+  lastEvent: z.record(z.string(), z.unknown()).nullable()
+}).strict();
+export type DebugSession = z.infer<typeof DebugSessionSchema>;
+export const DebugResponseSchema = z.object({ session: DebugSessionSchema, body: z.unknown() }).strict();
+export type DebugResponse = z.infer<typeof DebugResponseSchema>;
+
+export const RemoteWorkerSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(80),
+  capabilities: z.array(z.string().min(1).max(80)).max(64),
+  status: z.enum(["ONLINE", "OFFLINE", "REVOKED"]),
+  lastSeenAt: z.string().datetime(),
+  pairedAt: z.string().datetime(),
+  revokedAt: z.string().datetime().nullable()
+}).strict();
+export type RemoteWorker = z.infer<typeof RemoteWorkerSchema>;
+export const WorkerPairingSchema = z.object({ code: z.string().min(10).max(128), expiresAt: z.string().datetime(), endpoint: z.string().url() }).strict();
+export type WorkerPairing = z.infer<typeof WorkerPairingSchema>;
+export const RemoteWorkerIdInputSchema = z.object({ workerId: z.string().uuid() }).strict();
+export const RemoteJobInputSchema = z.object({ kind: z.string().trim().min(1).max(80), payload: z.unknown() }).strict();
+export const DurableJobSummarySchema = z.object({
+  id: z.string().uuid(), kind: z.string(), state: z.string(), attempt: z.number().int().nonnegative(), createdAt: z.string().datetime()
+}).passthrough();
+
 export const IPC_CHANNELS = {
   bootstrap: "devbox:v1:bootstrap",
   capabilityInspect: "devbox:v1:capability:inspect",
@@ -554,4 +616,12 @@ export const IPC_CHANNELS = {
   vercelAction: "devbox:v1:integration:vercel",
   githubAction: "devbox:v1:integration:github",
   platformAction: "devbox:v1:integration:platform"
+  ,languageDiagnostics: "devbox:v1:language:diagnostics"
+  ,debugStart: "devbox:v1:debug:start"
+  ,debugCommand: "devbox:v1:debug:command"
+  ,debugStop: "devbox:v1:debug:stop"
+  ,workerPairingCreate: "devbox:v1:worker:pairing-create"
+  ,workerList: "devbox:v1:worker:list"
+  ,workerRevoke: "devbox:v1:worker:revoke"
+  ,workerJobEnqueue: "devbox:v1:worker:job-enqueue"
 } as const;

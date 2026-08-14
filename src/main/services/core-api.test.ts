@@ -12,6 +12,7 @@ import { StateDatabase } from "./database.js";
 import { GitService } from "./git-service.js";
 import { ProjectService } from "./project-service.js";
 import { SettingsService } from "./settings-service.js";
+import { RemoteWorkerService } from "./remote-worker-service.js";
 
 const temporaryDirectories: string[] = [];
 const databases: StateDatabase[] = [];
@@ -44,6 +45,7 @@ describe("loopback core API", () => {
       attachments: new AttachmentService(database, path.join(root, "attachments")),
       git: new GitService(runner),
       settings,
+      remoteWorkers: new RemoteWorkerService(database),
       probeCwd: root,
       appVersion: "0.1.0-test"
     });
@@ -66,6 +68,29 @@ describe("loopback core API", () => {
       headers: { authorization: "Bearer test-only-api-key", "content-type": "application/json" },
       body: JSON.stringify({ content: "API mesajı" })
     });
+    const pairingResponse = await fetch(`${origin}/v1/workers/pairings`, {
+      method: "POST", headers: { authorization: "Bearer test-only-api-key" }
+    });
+    const pairing = await pairingResponse.json() as { code: string };
+    const workerResponse = await fetch(`${origin}/v1/workers/pair`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: pairing.code, name: "test-worker", capabilities: ["node"] })
+    });
+    const credential = await workerResponse.json() as { token: string; worker: { id: string } };
+    const reusedPairing = await fetch(`${origin}/v1/workers/pair`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: pairing.code, name: "second-worker", capabilities: ["node"] })
+    });
+    const unauthenticatedWorker = await fetch(`${origin}/v1/workers/agent/lease`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}"
+    });
+    const remoteJobResponse = await fetch(`${origin}/v1/workers/jobs`, {
+      method: "POST", headers: { authorization: "Bearer test-only-api-key", "content-type": "application/json" },
+      body: JSON.stringify({ kind: "command", payload: { command: "node", args: ["--version"] } })
+    });
+    const remoteLease = await fetch(`${origin}/v1/workers/agent/lease`, {
+      method: "POST", headers: { authorization: `Bearer ${credential.token}`, "content-type": "application/json" }, body: "{}"
+    });
 
     expect(new URL(origin).hostname).toBe("127.0.0.1");
     expect(health.status).toBe(200);
@@ -86,5 +111,13 @@ describe("loopback core API", () => {
         { role: "assistant", content: "Gerçek servis sözleşmesi için izole test yanıtı." }
       ]
     });
+    expect(pairingResponse.status).toBe(201);
+    expect(workerResponse.status).toBe(201);
+    expect(reusedPairing.status).toBe(409);
+    expect(unauthenticatedWorker.status).toBe(401);
+    expect(credential.token).toMatch(/^dvw_/u);
+    expect(remoteJobResponse.status).toBe(202);
+    expect(remoteLease.status).toBe(200);
+    expect(await remoteLease.json()).toMatchObject({ job: { kind: "remote:command", leaseOwner: credential.worker.id } });
   });
 });
