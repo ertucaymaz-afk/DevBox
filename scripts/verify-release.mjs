@@ -3,7 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const target = path.resolve(process.argv[2] ?? "release/devbox-package");
-const allowed = new Set(["DevBox-Setup.exe", "SHA256SUMS.txt", "THIRD-PARTY-NOTICES.txt", "release-manifest.json"]);
+const allowed = new Set(["DevBox-Setup.exe", "SHA256SUMS.txt", "THIRD-PARTY-NOTICES.txt", "release-manifest.json", "sbom.cdx.json"]);
 const files = (await readdir(target)).sort();
 if (files.length !== allowed.size || files.some((file) => !allowed.has(file))) throw new Error(`Unexpected release inventory: ${files.join(", ")}`);
 
@@ -11,13 +11,26 @@ const manifest = JSON.parse(await readFile(path.join(target, "release-manifest.j
 const installer = await readFile(path.join(target, "DevBox-Setup.exe"));
 const digest = createHash("sha256").update(installer).digest("hex");
 if (digest !== manifest.installer.sha256 || installer.byteLength !== manifest.installer.bytes) throw new Error("Installer hash/size does not match release-manifest.json");
+if (manifest.source?.repository !== "git+https://github.com/ertucaymaz-afk/DevBox.git" || !/^[a-f0-9]{40}$/u.test(manifest.source?.commit ?? "")) {
+  throw new Error("Release manifest does not identify the public DevBox repository and an exact source commit");
+}
+
+const sbom = JSON.parse(await readFile(path.join(target, "sbom.cdx.json"), "utf8"));
+if (sbom.bomFormat !== "CycloneDX" || sbom.specVersion !== "1.5" || sbom.metadata?.component?.name !== "DevBox" || sbom.metadata?.component?.version !== manifest.version) {
+  throw new Error("CycloneDX SBOM identity does not match the release manifest");
+}
 
 const sums = await readFile(path.join(target, "SHA256SUMS.txt"), "utf8");
+const hashedFiles = new Set();
 for (const line of sums.trim().split(/\r?\n/u)) {
   const match = line.match(/^([a-f0-9]{64}) \*(.+)$/u);
   if (!match) throw new Error(`Malformed SHA256SUMS line: ${line}`);
   const actual = createHash("sha256").update(await readFile(path.join(target, match[2]))).digest("hex");
   if (actual !== match[1]) throw new Error(`Hash mismatch: ${match[2]}`);
+  hashedFiles.add(match[2]);
+}
+for (const required of ["DevBox-Setup.exe", "THIRD-PARTY-NOTICES.txt", "release-manifest.json", "sbom.cdx.json"]) {
+  if (!hashedFiles.has(required)) throw new Error(`SHA256SUMS does not cover required release file: ${required}`);
 }
 
 const forbiddenNames = files.filter((file) => /(?:^|[._-])(\.env|node_modules|src|test-results|playwright-report|logs?)(?:$|[._-])/iu.test(file));
