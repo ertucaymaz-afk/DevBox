@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "executionDate": "2026-08-14",
+  "purpose": "Execution-day primary-source recheck for DevBox requirements. Research evidence alone never marks an implementation task PASS.",
+  "truthContract": {
+    "researchIsImplementation": false,
+    "researchIsRuntimeReadiness": false,
+    "passRequiresImplementationAndVerification": true
+  },
+  "sources": [
+    {
+      "id": "OPENAI-CODEX-APP-SERVER-2026-08-14",
+      "vendor": "OpenAI",
+      "tier": "PRIMARY",
+      "url": "https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md",
+      "checkedAt": "2026-08-14",
+      "findings": [
+        "A client initializes each app-server connection with initialize and initialized before other requests.",
+        "The current protocol exposes Thread -> Turn -> Item lifecycle operations including thread/start, thread/resume, thread/fork, turn/start and turn/interrupt with typed notifications.",
+        "model/list returns the model catalog available to the current Codex build, including advertised reasoning efforts and related catalog metadata.",
+        "modelProvider/capabilities/read exposes provider-level capabilities.",
+        "Runtime capability discovery is therefore preferred over invented CLI-version-to-model compatibility thresholds."
+      ],
+      "devboxImpact": [
+        "Do not infer GPT model support from a hardcoded Codex semver threshold.",
+        "Use app-server model/list as the manual-model catalog when the installed Codex runtime is available; selected-model execution remains the final live task compatibility evidence.",
+        "Keep typed thread/turn/item semantics and runtime progress grounded in real provider events."
+      ]
+    },
+    {
+      "id": "OPENAI-CODEX-APP-2026-08-14",
+      "vendor": "OpenAI",
+      "tier": "PRIMARY",
+      "url": "https://openai.com/index/introducing-the-codex-app/",
+      "checkedAt": "2026-08-14",
+      "findings": [
+        "The Codex app is available on Windows as of the March 4, 2026 update.",
+        "Projects and separate threads support multiple agents working in parallel.",
+        "Built-in worktree support isolates concurrent work on a repository.",
+        "Automations can run scheduled work and surface results in a review queue."
+      ],
+      "devboxImpact": [
+        "Maintain Windows-first multi-agent, worktree and review-queue parity targets as benchmark requirements, not copied branding."
+      ]
+    },
+    {
+      "id": "NVIDIA-NIM-LLM-API-2026-08-14",
+      "vendor": "NVIDIA",
+      "tier": "PRIMARY",
+      "url": "https://docs.nvidia.com/nim/large-language-models/latest/reference/api-reference.html",
+      "checkedAt": "2026-08-14",
+      "findings": [
+        "NIM LLM exposes OpenAI-compatible inference endpoints including chat/completions, completions, responses and models where supported by the running backend/version.",
+        "Management endpoints include health/live, health/ready, metadata, version, license, manifest and metrics.",
+        "Liveness only proves the container is running; readiness is distinct, and DevBox still requires a minimal inference for provider READY evidence."
+      ],
+      "devboxImpact": [
+        "Keep NVIDIA as a provider adapter, not the DevBox public API.",
+        "Use /v1/models for live model discovery and perform a minimal inference before provider READY.",
+        "Support a configured local/self-hosted NIM base URL without silently assuming hosted NVIDIA."
+      ]
+    },
+    {
+      "id": "NVIDIA-HOSTED-MODELS-2026-08-14",
+      "vendor": "NVIDIA",
+      "tier": "PRIMARY",
+      "url": "https://docs.nvidia.com/nim-operator/latest/guardrail.html",
+      "checkedAt": "2026-08-14",
+      "findings": [
+        "NVIDIA documents https://integrate.api.nvidia.com/v1 as the default hosted-model base URL.",
+        "The hosted model catalog is available at https://integrate.api.nvidia.com/v1/models and requires provider credentials.",
+        "A locally hosted NIM can use its own configured endpoint instead of the hosted base URL."
+      ],
+      "devboxImpact": [
+        "Hosted NVIDIA model discovery uses /v1/models with NVIDIA_API_KEY; local NIM can use DEVBOX_NVIDIA_NIM_BASE_URL.",
+        "Credential material must never be returned to renderer or activity/evidence payloads."
+      ]
+    },
+    {
+      "id": "HERMES-AGENT-RELEASE-2026-08-14",
+      "vendor": "Nous Research",
+      "tier": "PRIMARY",
+      "url": "https://github.com/NousResearch/hermes-agent/releases",
+      "checkedAt": "2026-08-14",
+      "findings": [
+        "Latest stable release observed during this check: Hermes Agent v0.18.2, tag v2026.7.7.2.",
+        "The release page identifies commit 9de9c25 and shows verified signing metadata."
+      ],
+      "devboxImpact": [
+        "Resolve latest stable at execution/install time and record exact tag, commit and integrity provenance instead of hardcoding a forever-version.",
+        "Do not surface Hermes as the DevBox product brand."
+      ]
+    },
+    {
+      "id": "VERCEL-ENVIRONMENTS-2026-08-14",
+      "vendor": "Vercel",
+      "tier": "PRIMARY",
+      "url": "https://vercel.com/docs/deployments/environments",
+      "checkedAt": "2026-08-14",
+      "findings": [
+        "Vercel documents Local, Preview and Production as default environments.",
+        "Custom Environments are documented for Pro and Enterprise workflows."
+      ],
+      "devboxImpact": [
+        "Do not flatten Local, Preview, Production and Custom Environments into one generic deployment state."
+      ]
+    },
+    {
+      "id": "VERCEL-QUEUES-2026-08-14",
+      "vendor": "Vercel",
+      "tier": "PRIMARY",
+      "url": "https://vercel.com/docs/queues",
+      "checkedAt": "2026-08-14",
+      "findings": [
+        "Queues is documented as durable event streaming with consumer groups, retries and at-least-once delivery semantics.",
+        "Consumers must be designed for idempotency because redelivery is possible.",
+        "Queues is the lower-level message primitive; Workflow is the higher-level durable multi-step orchestration abstraction."
+      ],
+      "devboxImpact": [
+        "Model Queue and Workflow separately and require idempotent consumers for at-least-once queue delivery."
+      ]
+    }
+  ]
+}
