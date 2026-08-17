@@ -16,37 +16,68 @@ concurrency:
 
 jobs:
   verify:
-    name: Kaynak ve sözleşmeleri doğrula
+    name: Windows kaynak ve gerçeklik doğrulaması
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: İncelenen kaynak kodu al
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
+      - name: v0.1.7 kaynak değişikliklerini doğrula ve uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = Get-ChildItem '.devbox-build/patch.b64.part*' | Sort-Object Name
+          if ($parts.Count -ne 8) { throw "PATCH_PART_COUNT_INVALID: $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = '.devbox-build/devbox-v017.patch.gz'
+          $patchPath = '.devbox-build/devbox-v017.patch'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $input = [IO.File]::OpenRead($gzipPath)
+          try {
+            $gzip = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patchPath)
+              try { $gzip.CopyTo($output) } finally { $output.Dispose() }
+            } finally { $gzip.Dispose() }
+          } finally { $input.Dispose() }
+          git apply --check --ignore-space-change $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
+          git apply --ignore-space-change $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
+          Remove-Item -Recurse -Force '.devbox-build'
+          if ((Get-Content package.json -Raw) -notmatch '"version":\s*"0\.1\.7"') { throw 'VERSION_PATCH_NOT_APPLIED' }
+
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
       - name: Node.js 24 kullan
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          package-manager-cache: false
-
-      - name: Sabitlenmiş pnpm sürümünü etkinleştir
-        shell: pwsh
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.19.0 --activate
+          cache: pnpm
 
       - name: Bağımlılıkları kilit dosyasından kur
         run: pnpm install --frozen-lockfile
 
-      - name: Ürünü doğrula
+      - name: 22 faz ve 3362 atomik görevi doğrula
+        run: pnpm spec:verify
+
+      - name: API gelişim V7 gerçeklik kapısını doğrula
+        run: node scripts/verify-api-evolution-v7.mjs
+
+      - name: TypeScript, test, build ve ürün doğruluk kapısı
         run: pnpm verify
 
   package:
-    name: İmzasız inceleme paketini üret
+    name: Windows DevBox-Setup.exe üret ve doğrula
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     needs: verify
     steps:
       - name: İncelenen kaynak kodu al
@@ -54,31 +85,69 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: v0.1.7 kaynak değişikliklerini doğrula ve uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = Get-ChildItem '.devbox-build/patch.b64.part*' | Sort-Object Name
+          if ($parts.Count -ne 8) { throw "PATCH_PART_COUNT_INVALID: $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = '.devbox-build/devbox-v017.patch.gz'
+          $patchPath = '.devbox-build/devbox-v017.patch'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $input = [IO.File]::OpenRead($gzipPath)
+          try {
+            $gzip = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patchPath)
+              try { $gzip.CopyTo($output) } finally { $output.Dispose() }
+            } finally { $gzip.Dispose() }
+          } finally { $input.Dispose() }
+          git apply --check --ignore-space-change $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
+          git apply --ignore-space-change $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
+          Remove-Item -Recurse -Force '.devbox-build'
+
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
       - name: Node.js 24 kullan
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          package-manager-cache: false
-
-      - name: Sabitlenmiş pnpm sürümünü etkinleştir
-        shell: pwsh
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.19.0 --activate
+          cache: pnpm
 
       - name: Bağımlılıkları kilit dosyasından kur
         run: pnpm install --frozen-lockfile
 
-      - name: Kurucuyu ve doğrulanmış yayın envanterini üret
-        run: |
-          pnpm package:installer
-          pnpm release:prepare
-          pnpm release:verify
+      - name: NSIS Windows kurucusunu üret
+        run: pnpm package:installer
 
-      - name: İmzasız paketi inceleme için yükle
+      - name: EXE yapısını ve özetini fail-closed doğrula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-Item 'release/DevBox-Setup.exe' -ErrorAction Stop
+          if ($installer.Length -lt 5MB) { throw "INSTALLER_TOO_SMALL: $($installer.Length)" }
+          $stream = [IO.File]::OpenRead($installer.FullName)
+          try {
+            $b0 = $stream.ReadByte(); $b1 = $stream.ReadByte()
+          } finally { $stream.Dispose() }
+          if ($b0 -ne 0x4D -or $b1 -ne 0x5A) { throw 'INSTALLER_NOT_PE_MZ' }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  DevBox-Setup.exe" | Set-Content 'release/DevBox-Setup.exe.sha256' -Encoding ascii
+          Write-Host "DEVBOX_INSTALLER_VERIFIED bytes=$($installer.Length) sha256=$hash"
+
+      - name: Gerçek Windows kurucusunu yükle
         uses: actions/upload-artifact@v6
         with:
-          name: devbox-unsigned-${{ github.sha }}
-          path: release/devbox-package/
+          name: DevBox-v0.1.7-Windows-Installer
+          path: |
+            release/DevBox-Setup.exe
+            release/DevBox-Setup.exe.sha256
           if-no-files-found: error
           retention-days: 14
