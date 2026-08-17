@@ -27,24 +27,33 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: v0.1.7 kaynak değişikliklerini doğrula ve uygula
+      - name: v0.1.7 kaynak değişikliklerini bütünlük denetimiyle uygula
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $parts = Get-ChildItem '.devbox-build/patch.b64.part*' | Sort-Object Name
-          if ($parts.Count -ne 8) { throw "PATCH_PART_COUNT_INVALID: $($parts.Count)" }
-          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $partPaths = 0..7 | ForEach-Object { ".devbox-build/patch.b64.part{0:D2}" -f $_ }
+          foreach ($partPath in $partPaths) {
+            if (-not (Test-Path -LiteralPath $partPath -PathType Leaf)) { throw "PATCH_PART_MISSING:$partPath" }
+          }
+          $encoded = ($partPaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw }) -join ''
           $gzipPath = '.devbox-build/devbox-v017.patch.gz'
           $patchPath = '.devbox-build/devbox-v017.patch'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $expectedGzipSha256 = 'd20e56c1f49589d489d4e92aba029219e898141f6031ea99a05d48158c30218f'
+          $actualGzipSha256 = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualGzipSha256 -ne $expectedGzipSha256) { throw "PATCH_GZIP_SHA256_MISMATCH:$actualGzipSha256" }
           python -c "import gzip,pathlib; p=pathlib.Path(r'.devbox-build/devbox-v017.patch.gz'); pathlib.Path(r'.devbox-build/devbox-v017.patch').write_bytes(gzip.decompress(p.read_bytes()))"
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_GZIP_DECODE_FAILED' }
+          $expectedPatchSha256 = '50c3f604eec27a53f0dd378abebb51a366b80fe4333edbf49aebda283fa9a2eb'
+          $actualPatchSha256 = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualPatchSha256 -ne $expectedPatchSha256) { throw "PATCH_SHA256_MISMATCH:$actualPatchSha256" }
           git apply --check --ignore-space-change $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
           git apply --ignore-space-change $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
           Remove-Item -Recurse -Force '.devbox-build'
           if ((Get-Content package.json -Raw) -notmatch '"version":\s*"0\.1\.7"') { throw 'VERSION_PATCH_NOT_APPLIED' }
+          Write-Host "DEVBOX_PATCH_VERIFIED gzip=$actualGzipSha256 patch=$actualPatchSha256"
 
       - name: pnpm 11.19.0 kur
         uses: pnpm/action-setup@v4
@@ -81,23 +90,33 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: v0.1.7 kaynak değişikliklerini doğrula ve uygula
+      - name: v0.1.7 kaynak değişikliklerini bütünlük denetimiyle uygula
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $parts = Get-ChildItem '.devbox-build/patch.b64.part*' | Sort-Object Name
-          if ($parts.Count -ne 8) { throw "PATCH_PART_COUNT_INVALID: $($parts.Count)" }
-          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $partPaths = 0..7 | ForEach-Object { ".devbox-build/patch.b64.part{0:D2}" -f $_ }
+          foreach ($partPath in $partPaths) {
+            if (-not (Test-Path -LiteralPath $partPath -PathType Leaf)) { throw "PATCH_PART_MISSING:$partPath" }
+          }
+          $encoded = ($partPaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw }) -join ''
           $gzipPath = '.devbox-build/devbox-v017.patch.gz'
           $patchPath = '.devbox-build/devbox-v017.patch'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $expectedGzipSha256 = 'd20e56c1f49589d489d4e92aba029219e898141f6031ea99a05d48158c30218f'
+          $actualGzipSha256 = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualGzipSha256 -ne $expectedGzipSha256) { throw "PATCH_GZIP_SHA256_MISMATCH:$actualGzipSha256" }
           python -c "import gzip,pathlib; p=pathlib.Path(r'.devbox-build/devbox-v017.patch.gz'); pathlib.Path(r'.devbox-build/devbox-v017.patch').write_bytes(gzip.decompress(p.read_bytes()))"
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_GZIP_DECODE_FAILED' }
+          $expectedPatchSha256 = '50c3f604eec27a53f0dd378abebb51a366b80fe4333edbf49aebda283fa9a2eb'
+          $actualPatchSha256 = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualPatchSha256 -ne $expectedPatchSha256) { throw "PATCH_SHA256_MISMATCH:$actualPatchSha256" }
           git apply --check --ignore-space-change $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
           git apply --ignore-space-change $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
           Remove-Item -Recurse -Force '.devbox-build'
+          if ((Get-Content package.json -Raw) -notmatch '"version":\s*"0\.1\.7"') { throw 'VERSION_PATCH_NOT_APPLIED' }
+          Write-Host "DEVBOX_PATCH_VERIFIED gzip=$actualGzipSha256 patch=$actualPatchSha256"
 
       - name: pnpm 11.19.0 kur
         uses: pnpm/action-setup@v4
