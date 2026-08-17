@@ -37,14 +37,8 @@ jobs:
           $gzipPath = '.devbox-build/devbox-v017.patch.gz'
           $patchPath = '.devbox-build/devbox-v017.patch'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
-          $input = [IO.File]::OpenRead($gzipPath)
-          try {
-            $gzip = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
-            try {
-              $output = [IO.File]::Create($patchPath)
-              try { $gzip.CopyTo($output) } finally { $output.Dispose() }
-            } finally { $gzip.Dispose() }
-          } finally { $input.Dispose() }
+          python -c "import gzip,pathlib; p=pathlib.Path(r'.devbox-build/devbox-v017.patch.gz'); pathlib.Path(r'.devbox-build/devbox-v017.patch').write_bytes(gzip.decompress(p.read_bytes()))"
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_GZIP_DECODE_FAILED' }
           git apply --check --ignore-space-change $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
           git apply --ignore-space-change $patchPath
@@ -97,14 +91,8 @@ jobs:
           $gzipPath = '.devbox-build/devbox-v017.patch.gz'
           $patchPath = '.devbox-build/devbox-v017.patch'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
-          $input = [IO.File]::OpenRead($gzipPath)
-          try {
-            $gzip = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
-            try {
-              $output = [IO.File]::Create($patchPath)
-              try { $gzip.CopyTo($output) } finally { $output.Dispose() }
-            } finally { $gzip.Dispose() }
-          } finally { $input.Dispose() }
+          python -c "import gzip,pathlib; p=pathlib.Path(r'.devbox-build/devbox-v017.patch.gz'); pathlib.Path(r'.devbox-build/devbox-v017.patch').write_bytes(gzip.decompress(p.read_bytes()))"
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_GZIP_DECODE_FAILED' }
           git apply --check --ignore-space-change $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
           git apply --ignore-space-change $patchPath
