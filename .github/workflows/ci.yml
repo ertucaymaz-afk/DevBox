@@ -2,7 +2,9 @@ name: DevBox doğrulama
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - codex/v0.1.7-real-self-evolution
   pull_request:
     branches: [main]
   workflow_dispatch:
