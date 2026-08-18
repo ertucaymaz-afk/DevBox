@@ -85,7 +85,15 @@ const ADAPTIVE_FOCUS: ReadonlyArray<{ track: EvolutionTrack; title: string; obje
   { track: "security", title: "Fail-closed güvenlik", objective: "izin, path sınırı, secret, supply-chain veya provider doğrulamasında somut bir bypass/fail-open ihtimali bul ve negatif testle kapat" },
   { track: "architecture", title: "Eşzamanlılık ve dayanıklılık", objective: "queue, crash/restart, durable job, worktree veya state geçişlerinde yarış/iyileşme kusuru bul ve deterministik olarak düzelt" },
   { track: "api", title: "API sözleşmesi", objective: "Core API hata semantiği, idempotency, doğrulama veya kaynak modelinde gerçek bir eksik bul ve uyumluluk testiyle düzelt" },
+  { track: "observability", title: "Gözlemlenebilirlik", objective: "başarısız veya yavaş bir akışın kök nedenini gizleyen telemetry/evidence boşluğu bul; gizli değer sızdırmadan ölçülebilir kanıt ekle" },
+  { track: "quality", title: "Hata yaşam döngüsü", objective: "OPEN/RESOLVED/REJECTED finding yaşam döngüsünde false-PASS, stale finding veya sahiplik kusuru bul ve regresyonla kapat" },
+  { track: "performance", title: "Hafıza ve bağlam bütçesi", objective: "kalıcı hafıza, FTS, konuşma bağlamı veya cache katmanında hız/isabet/RAM dengesini bozan somut bir darboğaz bul ve ölçülebilir biçimde düzelt" },
+  { track: "architecture", title: "FIFO ve IPC yarışları", objective: "aynı thread sıralaması, cross-thread paralellik, IPC lifecycle veya re-entrancy tarafında gerçek bir yarış/leak bul ve deterministik testle kapat" },
+  { track: "release", title: "Release ve rollback", objective: "build, installer, update, repair, rollback veya release gate zincirinde yanlış PASS/yanlış SKIP ihtimali bul ve fail-closed kanıt ekle" },
+  { track: "integrations", title: "Cloud continuity", objective: "masaüstü kapanması/restart sonrasında DevAPI cloud snapshot, komut ACK veya cursor sürekliliğinde gerçek bir eksik bul ve idempotent şekilde düzelt" },
+  { track: "integrations", title: "Companion ve eklenti yaşam döngüsü", objective: "yerel companion/MCP/toolkit discovery, capability handshake, disconnect/reconnect veya izin sınırında somut entegrasyon kusuru bul ve düzelt" },
   { track: "accessibility", title: "Erişilebilirlik", objective: "klavye, focus, reduced-motion, aria veya okunabilirlikte gerçek bir sorun bul ve doğrulanabilir biçimde düzelt" },
+  { track: "design", title: "Tema eşdeğerliği", objective: "koyu ve gündüz modları arasında kontrast, yüzey, focus, editor, terminal veya DevAPI anlamını bozan gerçek bir tutarsızlık bul ve iki temada doğrula" },
   { track: "integrations", title: "Araç entegrasyonu", objective: "mevcut açık kaynak/izinli araç zincirinde doğrulanabilir bir entegrasyon veya health-check eksikliği bul ve sahte READY üretmeden tamamla" },
   { track: "supply-chain", title: "Bağımlılık güveni", objective: "kilit dosyası, kaynak kimliği, binary/tool doğrulaması veya güncelleme zincirinde somut bir güven açığı bul ve fail-closed kapat" },
   { track: "documentation", title: "Gerçeklik ve işletilebilirlik", objective: "kullanıcıya yanlış güven verebilecek güncelliğini yitirmiş bir ürün sözleşmesi/diagnostic açıklaması bul ve gerçek runtime davranışıyla eşleştir" }
@@ -260,9 +268,16 @@ export class ApiEvolutionService {
     for (const project of this.#projects.list()) {
       const before = this.get(project.id);
       const recovered = this.#spec.recoverRunning(project.id);
-      if (recovered > 0) {
+      const adaptive = this.#adaptiveState(project.id);
+      const interruptedAdaptive = adaptive.current?.state === "RUNNING" ? adaptive.current : null;
+      if (interruptedAdaptive) {
+        this.#saveAdaptive(project.id, { ...adaptive, current: { ...interruptedAdaptive, state: "RECOVERY_REQUIRED", lastError: "Uygulama önceki adaptif görev çalışırken kapandı; stale RUNNING durumu güvenli recovery gerektiriyor.", retryAfterAt: null, updatedAt: new Date().toISOString() } });
+      }
+      if (recovered > 0 || interruptedAdaptive) {
         const now = new Date().toISOString();
-        const detail = `${recovered} yarım kalmış atomik görev RECOVERY_REQUIRED durumuna alındı. Kör tekrar yapılmadı; Şimdi çalıştır ile açık recovery yeniden denemesi gerekir.`;
+        const detail = interruptedAdaptive
+          ? `${interruptedAdaptive.task.taskId} yarım kalmış adaptif görev RECOVERY_REQUIRED durumuna alındı; stale RUNNING_COMMAND/PLANNING durumu korunmadı. Şimdi çalıştır açık recovery yeniden denemesidir.`
+          : `${recovered} yarım kalmış atomik görev RECOVERY_REQUIRED durumuna alındı. Kör tekrar yapılmadı; Şimdi çalıştır ile açık recovery yeniden denemesi gerekir.`;
         this.#save({
           ...before,
           isRunning: false,

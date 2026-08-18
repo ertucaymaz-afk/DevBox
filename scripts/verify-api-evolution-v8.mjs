@@ -35,8 +35,13 @@ function check(name, condition, detail = "") {
 }
 function hasAll(source, needles) { return needles.every((needle) => source.includes(needle)); }
 
-check("v015-version", /"version"\s*:\s*"0\.1\.15"/u.test(pkg));
-check("v8-is-release-script", pkg.includes('"evolution:verify": "node scripts/verify-api-evolution-v8.mjs"'));
+const manifest = JSON.parse(pkg);
+const versionParts = String(manifest.version ?? "0.0.0").split(".").map((part) => Number.parseInt(part, 10));
+const [versionMajor = 0, versionMinor = 0, versionPatch = 0] = versionParts;
+const meetsV8Minimum = versionMajor > 0 || versionMinor > 1 || (versionMajor === 0 && versionMinor === 1 && versionPatch >= 15);
+check("v8-min-version", meetsV8Minimum, String(manifest.version ?? "missing"));
+const inheritedVerifier = /^node scripts\/verify-api-evolution-v(\d+)\.mjs$/u.exec(String(manifest.scripts?.["evolution:verify"] ?? ""));
+check("v8-inherited-release-script", Boolean(inheritedVerifier && Number(inheritedVerifier[1]) >= 8), String(manifest.scripts?.["evolution:verify"] ?? "missing"));
 
 check("finding-lifecycle", hasAll(finding, ["fingerprint", "CRITICAL", "HIGH", "OPEN", "RESOLVED", "REJECTED", "occurrences", "appendEvent", "reconcileCampaign"]));
 check("finding-ownership", hasAll(finding, ["typescript", "release", "project", "security", "integration", "ownerForTrack"]));

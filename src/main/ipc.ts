@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import type { Bootstrap } from "../shared/contracts.js";
 import {
   AppMenuInputSchema,
@@ -84,12 +84,14 @@ import {
   WorktreeSchema
 } from "../shared/contracts.js";
 import { CloudControlStatusSchema, DevApiControlSnapshotSchema, EvolutionFindingSchema, FindingTransitionInputSchema, ProjectIdControlInputSchema, ReleaseGateRunInputSchema, ReleaseGateRunSchema } from "../shared/devapi-control-contracts.js";
+import { RemixRotaCommandResultSchema, RemixRotaEventSchema, RemixRotaInvokeInputSchema, RemixRotaStatusSchema } from "../shared/remixrota-contracts.js";
 import type { CapabilityService } from "./services/capability-service.js";
 import { isWorkspaceMutationRequest, type AgentService } from "./services/agent-service.js";
 import type { ApiEvolutionService } from "./services/api-evolution-service.js";
 import type { CloudControlService } from "./services/cloud-control-service.js";
 import type { EvolutionFindingService } from "./services/evolution-finding-service.js";
 import type { ReleaseGateService } from "./services/release-gate-service.js";
+import type { RemixRotaService } from "./services/remixrota-service.js";
 import type { AttachmentService } from "./services/attachment-service.js";
 import type { CoreApi } from "./services/core-api.js";
 import type { GitService } from "./services/git-service.js";
@@ -119,6 +121,7 @@ type IpcServices = {
   findings: EvolutionFindingService;
   releaseGate: ReleaseGateService;
   cloudControl: CloudControlService;
+  remixRota: RemixRotaService;
   attachments: AttachmentService;
   projects: ProjectService;
   selfDevelopmentProjectId: string | null;
@@ -621,9 +624,16 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     return AppSettingsSchema.parse(services.settings.get());
   });
 
-  registerHandler(IPC_CHANNELS.settingsPatch, services.rendererWebContentsId, async (unknownInput) => {
+  registerHandler(IPC_CHANNELS.settingsPatch, services.rendererWebContentsId, async (unknownInput, event) => {
     const input = SettingsPatchInputSchema.parse(unknownInput);
-    return AppSettingsSchema.parse(services.settings.patch(input));
+    const next = AppSettingsSchema.parse(services.settings.patch(input));
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window && "theme" in input) {
+      const light = next.theme.base === "light" || (next.theme.base === "system" && !nativeTheme.shouldUseDarkColors);
+      window.setBackgroundColor(light ? "#F6F3EF" : "#0B0D0E");
+      window.setTitleBarOverlay({ color: light ? "#FFFDFA" : "#191B1D", symbolColor: light ? "#342A25" : "#F3F5F6", height: 40 });
+    }
+    return next;
   });
 
   registerHandler(IPC_CHANNELS.themeImport, services.rendererWebContentsId, async (unknownInput) => {
@@ -750,6 +760,18 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     const input = ProjectIdControlInputSchema.parse(unknownInput);
     return CloudControlStatusSchema.parse(await services.cloudControl.sync(input.projectId));
   });
+
+  registerHandler(IPC_CHANNELS.remixRotaInspect, services.rendererWebContentsId, async () => RemixRotaStatusSchema.parse(await services.remixRota.inspect()));
+  registerHandler(IPC_CHANNELS.remixRotaSelectExecutable, services.rendererWebContentsId, async (_unknownInput, event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) throw new Error("WINDOW_NOT_FOUND");
+    const selection = await dialog.showOpenDialog(window, { title: "DevBox — RemixRota.exe seç", buttonLabel: "Doğrula", properties: ["openFile"], filters: [{ name: "RemixRota", extensions: ["exe"] }] });
+    if (selection.canceled || !selection.filePaths[0]) return RemixRotaStatusSchema.parse(await services.remixRota.inspect());
+    return RemixRotaStatusSchema.parse(await services.remixRota.configureExecutable(selection.filePaths[0]));
+  });
+  registerHandler(IPC_CHANNELS.remixRotaConnect, services.rendererWebContentsId, async () => RemixRotaStatusSchema.parse(await services.remixRota.connect()));
+  registerHandler(IPC_CHANNELS.remixRotaDisconnect, services.rendererWebContentsId, async () => { services.remixRota.disconnect(); return RemixRotaStatusSchema.parse(await services.remixRota.inspect()); });
+  registerHandler(IPC_CHANNELS.remixRotaInvoke, services.rendererWebContentsId, async (unknownInput) => { const input = RemixRotaInvokeInputSchema.parse(unknownInput); return RemixRotaCommandResultSchema.parse(await services.remixRota.invoke(input)); });
 
   registerHandler(IPC_CHANNELS.integrationInspect, services.rendererWebContentsId, async (unknownInput) => {
     const input = IntegrationInspectInputSchema.parse(unknownInput ?? {});
@@ -929,9 +951,15 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     if (!target || target.isDestroyed()) return;
     target.webContents.send(IPC_CHANNELS.evolutionActivity, EvolutionActivityEventSchema.parse(activity));
   });
+  const unsubscribeRemixRota = services.remixRota.subscribe((activity) => {
+    const target = BrowserWindow.getAllWindows().find((window) => window.webContents.id === services.rendererWebContentsId);
+    if (!target || target.isDestroyed()) return;
+    target.webContents.send(IPC_CHANNELS.remixRotaEvent, RemixRotaEventSchema.parse(activity));
+  });
 
   return () => {
     unsubscribeEvolution();
+    unsubscribeRemixRota();
     for (const channel of channels) ipcMain.removeHandler(channel);
   };
 }

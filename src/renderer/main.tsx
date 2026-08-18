@@ -2,6 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./styles.css";
+import "./light-theme-v016.css";
+import "./remixrota-v016.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("DevBox renderer root was not found.");

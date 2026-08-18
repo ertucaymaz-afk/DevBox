@@ -76,6 +76,12 @@ const CHANNELS = Object.freeze({
   ,evolutionFindingTransition: "devbox:v1:devapi:finding-transition"
   ,releaseGateRun: "devbox:v1:devapi:release-gate-run"
   ,cloudControlSync: "devbox:v1:devapi:cloud-sync"
+  ,remixRotaInspect: "devbox:v1:remixrota:inspect"
+  ,remixRotaSelectExecutable: "devbox:v1:remixrota:select-executable"
+  ,remixRotaConnect: "devbox:v1:remixrota:connect"
+  ,remixRotaDisconnect: "devbox:v1:remixrota:disconnect"
+  ,remixRotaInvoke: "devbox:v1:remixrota:invoke"
+  ,remixRotaEvent: "devbox:v1:remixrota:event"
   ,integrationInspect: "devbox:v1:integration:inspect"
   ,vercelAction: "devbox:v1:integration:vercel"
   ,githubAction: "devbox:v1:integration:github"
@@ -185,6 +191,16 @@ const bridge: DevBoxBridge = Object.freeze({
   transitionEvolutionFinding: async (projectId: string, findingId: string, status: "RESOLVED" | "REJECTED", resolution: string) => await ipcRenderer.invoke(CHANNELS.evolutionFindingTransition, { projectId, findingId, status, resolution }),
   runReleaseGate: async (projectId: string, mode: "PREFLIGHT" | "FULL") => await ipcRenderer.invoke(CHANNELS.releaseGateRun, { projectId, mode }),
   syncDevApiCloud: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.cloudControlSync, { projectId }),
+  inspectRemixRota: async () => await ipcRenderer.invoke(CHANNELS.remixRotaInspect),
+  selectRemixRotaExecutable: async () => await ipcRenderer.invoke(CHANNELS.remixRotaSelectExecutable),
+  connectRemixRota: async () => await ipcRenderer.invoke(CHANNELS.remixRotaConnect),
+  disconnectRemixRota: async () => await ipcRenderer.invoke(CHANNELS.remixRotaDisconnect),
+  invokeRemixRota: async (command: Parameters<DevBoxBridge["invokeRemixRota"]>[0], args: Record<string, unknown> = {}) => await ipcRenderer.invoke(CHANNELS.remixRotaInvoke, { command, arguments: args }),
+  onRemixRotaEvent: (listener: Parameters<DevBoxBridge["onRemixRotaEvent"]>[0]) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown): void => listener(payload as Parameters<typeof listener>[0]);
+    ipcRenderer.on(CHANNELS.remixRotaEvent, handler);
+    return () => ipcRenderer.removeListener(CHANNELS.remixRotaEvent, handler);
+  },
   inspectIntegrations: async (projectId?: string) => await ipcRenderer.invoke(CHANNELS.integrationInspect, projectId ? { projectId } : {}),
   runVercelAction: async (projectId: string, action: "link" | "preview" | "production" | "inspect" | "logs" | "rollback", target = "") => await ipcRenderer.invoke(CHANNELS.vercelAction, { projectId, action, target }),
   runGitHubAction: async (projectId: string, action: "pr-list" | "pr-create" | "pr-merge" | "issue-list" | "issue-create" | "checks" | "run-list" | "run-log" | "run-rerun" | "release-list" | "release-create", target = "") => await ipcRenderer.invoke(CHANNELS.githubAction, { projectId, action, target }),

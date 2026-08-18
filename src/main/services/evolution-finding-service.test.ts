@@ -4,7 +4,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { EvolutionCampaign } from "../../shared/contracts.js";
 import { StateDatabase } from "./database.js";
-import { EvolutionFindingService } from "./evolution-finding-service.js";
+import { EvolutionFindingService, FINDING_OWNERS } from "./evolution-finding-service.js";
+import { FindingSummarySchema } from "../../shared/devapi-control-contracts.js";
 
 const temporaryDirectories: string[] = [];
 const databases: StateDatabase[] = [];
@@ -47,6 +48,13 @@ function campaign(projectId: string, taskState: EvolutionCampaign["tasks"][numbe
 }
 
 describe("EvolutionFindingService", () => {
+  it("returns a strict zero count for every finding owner even when no findings exist", async () => {
+    const { service, projectId } = await fixture();
+    const summary = FindingSummarySchema.parse(service.summary(projectId));
+    expect(Object.keys(summary.byOwner).sort()).toEqual([...FINDING_OWNERS].sort());
+    for (const owner of FINDING_OWNERS) expect(summary.byOwner[owner]).toBe(0);
+  });
+
   it("deduplicates by fingerprint and preserves occurrence history", async () => {
     const { service, projectId } = await fixture();
     const first = service.report({ projectId, source: "typescript", key: "a.ts:1:1:TS2322", title: "TS2322", detail: "first", severity: "HIGH", owner: "typescript", evidence: ["a.ts:1:1"] });

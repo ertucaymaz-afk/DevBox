@@ -28,6 +28,7 @@ import {
   ListChecks,
   LoaderCircle,
   MessageSquarePlus,
+  Music2,
   Paperclip,
   PanelRight,
   Pencil,
@@ -90,8 +91,9 @@ import {
 import { WhatsNewWorkspace } from "./WhatsNewWorkspace";
 import { CanvasInspector } from "./CanvasInspector";
 import { DevApiControlWorkspace } from "./DevApiControlWorkspace";
+import { RemixRotaWorkspace } from "./RemixRotaWorkspace";
 
-type View = "thread" | "files" | "git" | "runs" | "sites" | "capabilities" | "settings" | "terminal" | "worktrees" | "devapi" | "automations" | "integrations" | "skills" | "pullRequests" | "whatsNew";
+type View = "thread" | "files" | "git" | "runs" | "sites" | "capabilities" | "settings" | "terminal" | "worktrees" | "devapi" | "music" | "automations" | "integrations" | "skills" | "pullRequests" | "whatsNew";
 type PromptState = {
   title: string;
   label: string;
@@ -1207,6 +1209,7 @@ export function App(): ReactNode {
               : view === "terminal" ? "Terminal"
                 : view === "worktrees" ? "Worktree’ler"
                   : view === "devapi" ? "DevAPI komuta merkezi"
+                    : view === "music" ? "RemixRota müzik merkezi"
                     : view === "automations" ? "API görev motoru"
                     : view === "integrations" ? "Eklentiler ve entegrasyonlar"
                       : view === "skills" ? "Beceriler ve taşınabilir eklentiler"
@@ -1243,6 +1246,7 @@ export function App(): ReactNode {
             <button className={view === "pullRequests" ? "active" : ""} onClick={() => setView("pullRequests")}><CircleDot size={16} /><span>Pull request’ler</span></button>
             <button className={view === "sites" ? "active" : ""} onClick={() => setView("sites")}><Globe2 size={16} /><span>Siteler</span></button>
             <button className={view === "devapi" ? "active" : ""} onClick={() => setView("devapi")}><ListChecks size={16} /><span>DevAPI</span></button>
+            <button className={view === "music" ? "active" : ""} onClick={() => setView("music")}><Music2 size={16} /><span>Müzik</span></button>
             <button className={view === "automations" ? "active" : ""} onClick={() => setView("automations")}><Activity size={16} /><span>Görev motoru</span></button>
             <button className={view === "integrations" ? "active" : ""} onClick={() => setView("integrations")}><Plug size={16} /><span>Eklentiler</span></button>
             <button className={view === "skills" ? "active" : ""} onClick={() => setView("skills")}><Sparkles size={16} /><span>Beceriler</span></button>
@@ -1295,6 +1299,7 @@ export function App(): ReactNode {
             {view === "terminal" && <TerminalWorkspace project={selectedProject} settings={appSettings} />}
             {view === "worktrees" && <WorktreeWorkspace project={selectedProject} />}
             {view === "devapi" && <DevApiControlWorkspace project={selfDevelopmentProject ?? selectedProject} />}
+            {view === "music" && <RemixRotaWorkspace />}
             {view === "automations" && <AutomationWorkspace project={selfDevelopmentProject ?? selectedProject} />}
             {view === "integrations" && <IntegrationWorkspace project={selectedProject} />}
             {view === "skills" && <CatalogWorkspace />}

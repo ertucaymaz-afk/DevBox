@@ -2,21 +2,21 @@ import type { DevBoxTheme } from "./contracts.js";
 
 export const DEVBOX_DAY_THEME: DevBoxTheme = {
   version: 1,
-  name: "DevBox Gündüz",
+  name: "DevBox Alev Gündüz",
   base: "light",
-  accent: "#1769AA",
-  surface: "#F5F7F9",
-  ink: "#182027",
-  sidebar: "#E9EEF2",
-  panel: "#FFFFFF",
-  border: "#C6D0D8",
-  muted: "#5F6B75",
-  success: "#18794E",
-  warning: "#9A6700",
-  danger: "#B4232D",
+  accent: "#D93624",
+  surface: "#F6F3EF",
+  ink: "#201C1A",
+  sidebar: "#EEE9E4",
+  panel: "#FFFDFA",
+  border: "#D6CBC4",
+  muted: "#81756D",
+  success: "#19764A",
+  warning: "#A45B12",
+  danger: "#A61F2B",
   uiFont: "Segoe UI Variable Text",
   codeFont: "Cascadia Code",
-  codeThemeId: "devbox-daylight",
+  codeThemeId: "devbox-flame-daylight",
   contrast: "normal"
 };
 
