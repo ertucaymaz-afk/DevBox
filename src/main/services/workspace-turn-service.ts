@@ -82,13 +82,13 @@ function signature(entry: SnapshotEntry | undefined): string {
 function changeKind(before: SnapshotEntry | undefined, after: SnapshotEntry | undefined): ThreadWorkspaceChange["kind"] {
   if (!before && after) {
     if (!after.exists || /D/u.test(after.state)) return "deleted";
-    // A clean tracked file is absent from the baseline dirty snapshot. If it becomes M/T/etc.
-    // during this turn it is a modification, not a newly-created file. Only Git add/untracked
-    // states (A/?) or generic non-Git discovery are classified as added.
     if (after.state === "GENERIC" || /[A?]/u.test(after.state)) return "added";
     return "modified";
   }
-  if (before && !after) return "reverted";
+  if (before && !after) {
+    if (before.state === "GENERIC" || /[A?]/u.test(before.state)) return "deleted";
+    return "reverted";
+  }
   if (after && (!after.exists || /D/u.test(after.state))) return "deleted";
   return "modified";
 }
@@ -144,16 +144,27 @@ export class WorkspaceTurnService {
       if (signature(beforeEntry) === signature(afterEntry)) continue;
       const stat = stats.get(relative);
       const kind = changeKind(beforeEntry, afterEntry);
-      const newlyCreatedText = kind === "added" && afterEntry?.exists && !afterEntry.binary;
+      let diskAfterEntry = afterEntry;
+      if (kind === "reverted" && !afterEntry) {
+        try { diskAfterEntry = inspectFile(after.rootPath, relative, "CLEAN"); }
+        catch { diskAfterEntry = undefined; }
+      }
+      const newlyCreatedText = kind === "added" && diskAfterEntry?.exists && !diskAfterEntry.binary;
+      const deleted = kind === "deleted";
+      const reverted = kind === "reverted";
       changes.push({
         path: relative,
         kind,
         beforeSha256: beforeEntry?.sha256 && /^[a-f0-9]{64}$/u.test(beforeEntry.sha256) ? beforeEntry.sha256 : null,
-        afterSha256: afterEntry?.sha256 && /^[a-f0-9]{64}$/u.test(afterEntry.sha256) ? afterEntry.sha256 : null,
-        additions: stat?.additions ?? (newlyCreatedText ? afterEntry.lineCount : null),
-        deletions: stat?.deletions ?? (kind === "deleted" && beforeEntry?.lineCount !== null ? beforeEntry?.lineCount ?? null : null),
-        binary: afterEntry?.binary ?? beforeEntry?.binary ?? false,
-        verified: kind === "deleted" ? afterEntry?.exists === false || afterEntry === undefined : Boolean(afterEntry?.exists && afterEntry.sha256)
+        afterSha256: diskAfterEntry?.sha256 && /^[a-f0-9]{64}$/u.test(diskAfterEntry.sha256) ? diskAfterEntry.sha256 : null,
+        additions: stat?.additions ?? (newlyCreatedText ? diskAfterEntry.lineCount : null),
+        deletions: stat?.deletions ?? (deleted && beforeEntry?.lineCount !== null ? beforeEntry?.lineCount ?? null : null),
+        binary: diskAfterEntry?.binary ?? beforeEntry?.binary ?? false,
+        verified: deleted
+          ? diskAfterEntry?.exists === false || diskAfterEntry === undefined
+          : reverted
+            ? Boolean(diskAfterEntry?.exists && diskAfterEntry.sha256)
+            : Boolean(diskAfterEntry?.exists && diskAfterEntry.sha256)
       });
     }
 
