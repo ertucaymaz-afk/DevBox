@@ -20,3 +20,12 @@ for (const file of targets) {
 }
 
 await import("./apply-v011-hardening.mjs");
+
+const packagePath = "package.json";
+let manifest = await readFile(packagePath, "utf8");
+const concurrentTest = '"test": "vitest run --config config/vitest.config.ts"';
+const serializedTest = '"test": "vitest run --config config/vitest.config.ts --maxWorkers=1 --minWorkers=1"';
+if (manifest.includes(concurrentTest)) manifest = manifest.replace(concurrentTest, serializedTest);
+else if (!manifest.includes(serializedTest)) throw new Error("PATCH_ANCHOR_MISSING:windows-electron-test-serialization");
+await writeFile(packagePath, manifest, "utf8");
+console.log("DEVBOX_V011_WINDOWS_TEST_SERIALIZED");
