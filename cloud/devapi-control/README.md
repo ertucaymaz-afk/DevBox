@@ -1,46 +1,50 @@
-# DevBox DevAPI Cloud Control
+# DevBox DevAPI Cloud Control v0.1.19
 
-Bu dizin DevBox masaüstü uygulamasından bağımsız çalışan kalıcı DevAPI kontrol düzlemidir. Statik dashboard ile Vercel Functions aynı root directory altında dağıtılır. Kalıcı state için Postgres uyumlu `DATABASE_URL` zorunludur.
+Bu dizin DevBox masaüstünden bağımsız çalışan kalıcı DevAPI kontrol düzlemidir. Statik dashboard ve Vercel Functions aynı root altında dağıtılır. Kalıcı state için Postgres uyumlu `DATABASE_URL` zorunludur.
 
-## Production sözleşmesi
+## Vercel root
 
-Vercel projesinin **Root Directory** değeri `cloud/devapi-control` olmalıdır. Runtime Node.js 24.x kullanır.
+`cloud/devapi-control`
 
-Production ortam değişkenleri:
+Node.js 24.x.
 
-- `DATABASE_URL`: Neon/Postgres bağlantı dizesi. Snapshot history, project state ve command audit burada kalır.
-- `DEVBOX_CONTROL_PLANE_TOKEN`: en az 32 karakter. Masaüstü bearer + HMAC imzasında kullanılır. DevBox Windows ortamındaki aynı isimli değerle birebir aynı olmalıdır.
-- `DEVBOX_CONTROL_ADMIN_TOKEN`: en az 32 karakter ve desktop token'dan ayrı olmalıdır. Web dashboard state okuma ve komut üretme yetkisidir.
+## Production env
 
-DevBox masaüstünde ayrıca:
+- `DATABASE_URL`
+- `DEVBOX_CONTROL_PLANE_TOKEN`: desktop bearer + HMAC, minimum 32 karakter
+- `DEVBOX_CONTROL_ADMIN_TOKEN`: web admin için ayrı minimum 32 karakter
 
-- `DEVBOX_CONTROL_PLANE_URL=https://<control-plane-domain>`
-- `DEVBOX_CONTROL_PLANE_TOKEN=<Vercel ile aynı desktop token>`
+Desktop:
 
-Admin token masaüstüne verilmez. Desktop token tarayıcı dashboard'una verilmez.
+- `DEVBOX_CONTROL_PLANE_URL=https://<devapi-production-domain>`
+- `DEVBOX_CONTROL_PLANE_TOKEN=<aynı desktop token>`
 
-## Fail-closed davranış
+Admin token desktop'a verilmez; desktop token tarayıcıya verilmez.
 
-`GET /api/v1/health` yalnız kaba `READY` / `UNCONFIGURED` durumu ve sürümü döndürür; hangi secret veya altyapı bileşeninin eksik olduğunu public olarak açıklamaz. Üç production gereksiniminden biri eksikse HTTP 503 döner.
+## Endpointler
 
-Desktop snapshot akışı HMAC timestamp doğrulamasından geçmeden yazılamaz. Cloud komutları yalnız şu allowlist ile sınırlıdır:
-
-- `evolution.setEnabled`
-- `evolution.run`
-- `evolution.cancel`
-
-Arbitrary shell, dosya yolu veya serbest komut payload'ı cloud command API üzerinden çalıştırılmaz.
+- `GET /api/v1/health`: secret detaylarını ifşa etmeyen READY/UNCONFIGURED health.
+- `GET /api/v1/public-state`: kimliksiz fakat sanitize edilmiş ürün/evolution özeti. Tam snapshot, finding item/evidence, komut payload, path veya prompt dönmez.
+- `GET /api/v1/projects`: admin inventory.
+- `GET /api/v1/state`: admin tam state/history/audit.
+- `GET/PATCH /api/v1/commands`: desktop HMAC poll/ACK.
+- `POST /api/v1/commands`: admin allowlist komut üretimi.
+- `POST /api/v1/snapshot`: desktop HMAC snapshot.
 
 ## Komut lifecycle
 
-Komutlar `PENDING` olarak yaratılır. DevBox komutu gerçek yerel servise uyguladıktan sonra HMAC ile `APPLIED` ACK gönderir. Geçici uygulama hataları `RETRYING` olarak kaydedilir. Aynı komut beş başarısız uygulama denemesinden sonra `FAILED` olur ve FIFO kuyruğunun geri kalanını sonsuza kadar bloke etmez.
+`PENDING → RETRYING → APPLIED / FAILED`
 
-Yerel idempotency marker, uygulama başarılı olduktan sonra ACK ağı kesilirse komutun tekrar uygulanmasını önler. Bir sonraki poll yalnız ACK'i tekrarlar.
+İzinli komutlar yalnız `evolution.setEnabled`, `evolution.run`, `evolution.cancel`. Arbitrary shell/file payload yoktur. Desktop idempotency marker, ACK ağı koptuğunda aynı command'ın yeniden uygulanmasını engeller.
 
-Terminal (`APPLIED` / `FAILED`) komut kayıtları 90 gün veya proje başına son 2000 kayıt sınırından eski olduklarında temizlenir. Snapshot history proje başına son 500 kayıtla sınırlandırılır.
+## Kalıcılık
 
-## Cloud sürekliliği
+Snapshot history proje başına son 500 kayıtla, terminal command history ise 90 gün veya 2000 kayıtla sınırlandırılır. Desktop çevrimdışıyken daha önce yazılmış state Postgres'te kalır ve komutlar desktop geri gelene kadar pending kalabilir.
 
-`/api/v1/projects` admin kimliğiyle cloud'a en az bir kez snapshot göndermiş projeleri listeler. Dashboard project ID ezberletmez; envanterden seçim yapılabilir. `/api/v1/state` son snapshot, history ve command audit verisini döndürür.
+## Production kabul
 
-Masaüstü uygulaması silinse veya çalışmasa bile daha önce yazılmış snapshot/history verisi Postgres'te kalır. Masaüstü çevrimdışıyken yeni cloud komutları `PENDING` kalır ve desktop yeniden bağlandığında FIFO ile tüketilir.
+Deployment yalnız aşağıdaki üç kontrol gerçek cevap verirse DevBox ekosisteminde bağlı kabul edilir:
+
+1. `/` HTTP 200 ve dashboard sürümü v0.1.19,
+2. `/api/v1/health` 200 READY veya yapılandırma eksikse açık 503 UNCONFIGURED,
+3. `/api/v1/public-state` gerçek snapshot varsa 200 ve sanitize schema; DB/state yoksa açık 503/404.
