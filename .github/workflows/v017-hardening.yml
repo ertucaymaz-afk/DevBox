@@ -43,10 +43,19 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          node --check scripts/apply-v017-hardening2.mjs
-          if ($LASTEXITCODE -ne 0) { throw 'V017_HARDENING_SCRIPT_SYNTAX_FAILED' }
-          node scripts/apply-v017-hardening2.mjs
-          if ($LASTEXITCODE -ne 0) { throw 'V017_HARDENING_PATCH_FAILED' }
+          $patchers = @(
+            'scripts/apply-v017-findings.mjs',
+            'scripts/apply-v017-theme-main.mjs',
+            'scripts/apply-v017-theme-renderer.mjs',
+            'scripts/apply-v017-remix-service.mjs',
+            'scripts/apply-v017-remix-ui-tests.mjs'
+          )
+          foreach ($patcher in $patchers) {
+            node --check $patcher
+            if ($LASTEXITCODE -ne 0) { throw "V017_PATCHER_SYNTAX_FAILED:$patcher" }
+            node $patcher
+            if ($LASTEXITCODE -ne 0) { throw "V017_PATCH_FAILED:$patcher" }
+          }
           git diff --check
           if ($LASTEXITCODE -ne 0) { throw 'V017_DIFF_CHECK_FAILED' }
       - name: Tam ürün doğrulaması
