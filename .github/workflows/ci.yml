@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - codex/v0.1.7-real-self-evolution
+      - codex/v0.1.8-direct-self-development
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -27,36 +27,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: v0.1.7 kaynak değişikliklerini bütünlük denetimiyle uygula
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $partPaths = 0..7 | ForEach-Object { ".devbox-build/patch.b64.part{0:D2}" -f $_ }
-          foreach ($partPath in $partPaths) {
-            if (-not (Test-Path -LiteralPath $partPath -PathType Leaf)) { throw "PATCH_PART_MISSING:$partPath" }
-          }
-          $encoded = ($partPaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw }) -join ''
-          $gzipPath = '.devbox-build/devbox-v017.patch.gz'
-          $patchPath = '.devbox-build/devbox-v017.patch'
-          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
-          $expectedGzipSha256 = 'd20e56c1f49589d489d4e92aba029219e898141f6031ea99a05d48158c30218f'
-          $actualGzipSha256 = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualGzipSha256 -ne $expectedGzipSha256) { throw "PATCH_GZIP_SHA256_MISMATCH:$actualGzipSha256" }
-          python -c "import gzip,pathlib; p=pathlib.Path(r'.devbox-build/devbox-v017.patch.gz'); pathlib.Path(r'.devbox-build/devbox-v017.patch').write_bytes(gzip.decompress(p.read_bytes()))"
-          if ($LASTEXITCODE -ne 0) { throw 'PATCH_GZIP_DECODE_FAILED' }
-          $expectedPatchSha256 = '50c3f604eec27a53f0dd378abebb51a366b80fe4333edbf49aebda283fa9a2eb'
-          $actualPatchSha256 = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualPatchSha256 -ne $expectedPatchSha256) { throw "PATCH_SHA256_MISMATCH:$actualPatchSha256" }
-          git apply --check --ignore-space-change $patchPath
-          if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
-          git apply --ignore-space-change $patchPath
-          if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
-          & '.devbox-build/apply-v017-type-hotfix.ps1'
-          if ($LASTEXITCODE -ne 0) { throw 'TYPE_HOTFIX_FAILED' }
-          Remove-Item -Recurse -Force '.devbox-build'
-          if ((Get-Content package.json -Raw) -notmatch '"version":\s*"0\.1\.7"') { throw 'VERSION_PATCH_NOT_APPLIED' }
-          Write-Host "DEVBOX_PATCH_VERIFIED gzip=$actualGzipSha256 patch=$actualPatchSha256"
-
       - name: pnpm 11.19.0 kur
         uses: pnpm/action-setup@v4
         with:
@@ -75,8 +45,8 @@ jobs:
       - name: 22 faz ve 3362 atomik görevi doğrula
         run: pnpm spec:verify
 
-      - name: API gelişim V7 gerçeklik kapısını doğrula
-        run: node scripts/verify-api-evolution-v7.mjs
+      - name: API gelişim gerçeklik kapısını doğrula
+        run: pnpm evolution:verify
 
       - name: TypeScript, test, build ve ürün doğruluk kapısı
         run: pnpm verify
@@ -91,36 +61,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: false
-
-      - name: v0.1.7 kaynak değişikliklerini bütünlük denetimiyle uygula
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $partPaths = 0..7 | ForEach-Object { ".devbox-build/patch.b64.part{0:D2}" -f $_ }
-          foreach ($partPath in $partPaths) {
-            if (-not (Test-Path -LiteralPath $partPath -PathType Leaf)) { throw "PATCH_PART_MISSING:$partPath" }
-          }
-          $encoded = ($partPaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw }) -join ''
-          $gzipPath = '.devbox-build/devbox-v017.patch.gz'
-          $patchPath = '.devbox-build/devbox-v017.patch'
-          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
-          $expectedGzipSha256 = 'd20e56c1f49589d489d4e92aba029219e898141f6031ea99a05d48158c30218f'
-          $actualGzipSha256 = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualGzipSha256 -ne $expectedGzipSha256) { throw "PATCH_GZIP_SHA256_MISMATCH:$actualGzipSha256" }
-          python -c "import gzip,pathlib; p=pathlib.Path(r'.devbox-build/devbox-v017.patch.gz'); pathlib.Path(r'.devbox-build/devbox-v017.patch').write_bytes(gzip.decompress(p.read_bytes()))"
-          if ($LASTEXITCODE -ne 0) { throw 'PATCH_GZIP_DECODE_FAILED' }
-          $expectedPatchSha256 = '50c3f604eec27a53f0dd378abebb51a366b80fe4333edbf49aebda283fa9a2eb'
-          $actualPatchSha256 = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualPatchSha256 -ne $expectedPatchSha256) { throw "PATCH_SHA256_MISMATCH:$actualPatchSha256" }
-          git apply --check --ignore-space-change $patchPath
-          if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
-          git apply --ignore-space-change $patchPath
-          if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
-          & '.devbox-build/apply-v017-type-hotfix.ps1'
-          if ($LASTEXITCODE -ne 0) { throw 'TYPE_HOTFIX_FAILED' }
-          Remove-Item -Recurse -Force '.devbox-build'
-          if ((Get-Content package.json -Raw) -notmatch '"version":\s*"0\.1\.7"') { throw 'VERSION_PATCH_NOT_APPLIED' }
-          Write-Host "DEVBOX_PATCH_VERIFIED gzip=$actualGzipSha256 patch=$actualPatchSha256"
 
       - name: pnpm 11.19.0 kur
         uses: pnpm/action-setup@v4
@@ -175,7 +115,7 @@ jobs:
           if (-not (Test-Path '.packaged-app/build/icon.ico' -PathType Leaf)) { throw 'STAGE_ICON_MISSING' }
           Write-Host 'DEVBOX_STAGE_READY projectRoot=.packaged-app package=ok main=ok node_modules=ok build=ok vendor=ok asar=false afterPack=fail-closed'
 
-      - name: NSIS eksik upstream include dosyasını doğrula ve yerel builder'a bağla
+      - name: NSIS upstream include dosyasını doğrula ve yerel builder'a bağla
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -221,7 +161,7 @@ jobs:
       - name: Gerçek Windows kurucusunu yükle
         uses: actions/upload-artifact@v6
         with:
-          name: DevBox-v0.1.7-Windows-Installer
+          name: DevBox-v0.1.8-Windows-Installer
           path: |
             release/DevBox-Setup.exe
             release/DevBox-Setup.exe.sha256

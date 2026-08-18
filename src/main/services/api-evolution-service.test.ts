@@ -3,6 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentService } from "./agent-service.js";
+import type { CommandRunner } from "./command-runner.js";
+import { DevelopmentSpecService } from "./development-spec-service.js";
+import type { GitService } from "./git-service.js";
 import { ApiEvolutionService } from "./api-evolution-service.js";
 import { StateDatabase } from "./database.js";
 import { ProjectService } from "./project-service.js";
@@ -21,7 +24,8 @@ function createService(database: StateDatabase): ApiEvolutionService {
   const settings = new SettingsService(database);
   // This persistence test never executes an agent cycle. Keeping the collaborator
   // intentionally empty makes an accidental provider call fail instead of hiding it.
-  return new ApiEvolutionService(database, projects, {} as AgentService, settings);
+  const spec = new DevelopmentSpecService(database, path.resolve("specs", "development", "geliştirme-spec-task-graph.json"));
+  return new ApiEvolutionService(database, projects, {} as AgentService, settings, spec, {} as GitService, {} as CommandRunner);
 }
 
 describe("API evolution persistence", () => {
@@ -45,7 +49,10 @@ describe("API evolution persistence", () => {
 
     const firstService = createService(firstDatabase);
     const initial = firstService.get(projectId);
-    expect(initial.tasks).toHaveLength(14);
+    expect(initial.tasks).toHaveLength(0);
+    expect(initial.spec.phaseCount).toBe(22);
+    expect(initial.spec.totalTaskCount).toBe(3362);
+    expect(initial.spec.remainingCount).toBe(3362);
     expect(initial.dailyCycleLimit).toBeNull();
     expect(initial.intervalMinutes).toBe(60);
     expect(initial.provider).toContain("OpenAI Codex CLI");
@@ -78,8 +85,9 @@ describe("API evolution persistence", () => {
     expect(reopened.level).toBe(7);
     expect(reopened.lifetimeLevel).toBe(7);
     expect(reopened.migrationFloorLevel).toBe(7);
-    expect(reopened.tasks).toHaveLength(14);
-    expect(new Set(reopened.tasks.map((task) => task.track)).size).toBe(14);
+    expect(reopened.tasks).toHaveLength(0);
+    expect(reopened.spec.totalTaskCount).toBe(3362);
+    expect(reopened.spec.queuePreview[0]?.taskId).toBe("MAX-01-001");
     expect(reopened.provider).toContain("OpenAI Codex CLI");
     expect(reopenedDatabase.integrityCheck()).toMatchObject({ ok: true, detail: "ok" });
   });

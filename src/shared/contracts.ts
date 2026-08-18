@@ -354,6 +354,7 @@ export const BootstrapSchema = z.object({
     apiVersion: z.literal("v1")
   }),
   projects: z.array(ProjectSummarySchema),
+  selfDevelopmentProjectId: z.string().min(8).max(128).nullable(),
   capabilities: z.array(CapabilitySchema)
 });
 
@@ -487,18 +488,125 @@ export const AutomationCreateInputSchema = ProjectIdInputSchema.extend({
 export const AutomationIdInputSchema = z.object({ automationId: z.string().uuid() }).strict();
 
 export const EvolutionTrackSchema = z.enum(["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain"]);
+export type EvolutionTrack = z.infer<typeof EvolutionTrackSchema>;
+export const EvolutionTaskStateSchema = z.enum(["QUEUED", "PREPARING", "RUNNING", "VERIFYING", "REVIEWING", "SUCCEEDED", "FAILED", "BLOCKED_EXTERNAL", "CANCELLED", "RECOVERY_REQUIRED"]);
+export const EvolutionRoutingModeSchema = z.enum(["AUTO", "LOCKED"]);
+export const EvolutionProviderIdSchema = z.enum(["codex", "hermes-nvidia"]);
+export const EvolutionReasoningEffortSchema = z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+export const EvolutionRoutingSchema = z.object({
+  mode: EvolutionRoutingModeSchema,
+  provider: EvolutionProviderIdSchema,
+  model: z.string().trim().min(1).max(160),
+  reasoningEffort: EvolutionReasoningEffortSchema,
+  allowFallback: z.boolean()
+}).strict();
+export type EvolutionRouting = z.infer<typeof EvolutionRoutingSchema>;
+
+export const EvolutionRuntimeStageSchema = z.enum([
+  "IDLE", "QUEUEING", "PREPARING", "PROVIDER_CHECK", "AUTH_CHECK", "MODEL_ATTEMPT", "PLANNING", "INSPECTING",
+  "EDITING", "RUNNING_COMMAND", "TESTING", "VERIFYING", "REVIEWING", "WAITING", "BACKOFF", "SETTLING",
+  "COMPLETED", "FAILED", "BLOCKED_EXTERNAL", "CANCELLED", "RECOVERY_REQUIRED"
+]);
+export const EvolutionActivityEventSchema = z.object({
+  id: z.string().uuid(),
+  sequence: z.number().int().nonnegative(),
+  projectId: z.string().min(8).max(128),
+  taskId: z.string().uuid().nullable(),
+  specTaskId: z.string().min(1).max(160).nullable(),
+  durableJobId: z.string().min(1).max(160).nullable(),
+  stage: EvolutionRuntimeStageSchema,
+  kind: z.enum(["state", "provider", "command", "evidence", "waiting", "failure"]),
+  provider: z.string().min(1).max(80).nullable(),
+  model: z.string().min(1).max(160).nullable(),
+  message: z.string().min(1).max(2_000),
+  createdAt: z.string().datetime()
+}).strict();
+export type EvolutionActivityEvent = z.infer<typeof EvolutionActivityEventSchema>;
+
+export const EvolutionRuntimeSchema = z.object({
+  stage: EvolutionRuntimeStageSchema,
+  detail: z.string().min(1).max(2_000),
+  waitingReason: z.string().max(1_000).nullable(),
+  activeTaskId: z.string().uuid().nullable(),
+  activeSpecTaskId: z.string().min(1).max(160).nullable(),
+  activePhaseId: z.string().min(1).max(32).nullable(),
+  durableJobId: z.string().min(1).max(160).nullable(),
+  provider: z.string().min(1).max(80).nullable(),
+  model: z.string().min(1).max(160).nullable(),
+  worktreePath: z.string().max(32_768).nullable(),
+  startedAt: z.string().datetime().nullable(),
+  updatedAt: z.string().datetime()
+}).strict();
+export type EvolutionRuntime = z.infer<typeof EvolutionRuntimeSchema>;
+
+export const EvolutionSpecQueueItemSchema = z.object({
+  taskId: z.string().min(1).max(160),
+  phaseId: z.string().min(1).max(32),
+  title: z.string().min(1).max(1_000),
+  sourceLine: z.number().int().positive().nullable(),
+  state: z.enum(["TODO", "RUNNING", "PASS", "FAILED", "BLOCKED_EXTERNAL", "CANCELLED", "RECOVERY_REQUIRED"]),
+  attempts: z.number().int().nonnegative(),
+  blockReason: z.string().max(1_000).nullable(),
+  lastError: z.string().max(1_000).nullable(),
+  updatedAt: z.string().datetime().nullable(),
+  requirementCount: z.number().int().nonnegative(),
+  testCount: z.number().int().nonnegative(),
+  failureTestCount: z.number().int().nonnegative()
+}).strict();
+export const EvolutionPhaseSummarySchema = z.object({
+  phaseId: z.string().regex(/^FAZ-\d{2}$/u),
+  title: z.string().min(1).max(500),
+  taskCount: z.number().int().nonnegative(),
+  passCount: z.number().int().nonnegative(),
+  failedCount: z.number().int().nonnegative(),
+  blockedCount: z.number().int().nonnegative(),
+  runningCount: z.number().int().nonnegative(),
+  recoveryCount: z.number().int().nonnegative(),
+  remainingCount: z.number().int().nonnegative(),
+  currentTaskIndex: z.number().int().nonnegative().nullable(),
+  gateState: z.enum(["TODO", "RUNNING", "PASS", "FAILED", "BLOCKED_EXTERNAL", "RECOVERY_REQUIRED"])
+}).strict();
+export type EvolutionPhaseSummary = z.infer<typeof EvolutionPhaseSummarySchema>;
+export const EvolutionSpecSummarySchema = z.object({
+  sourceSha256: z.string().regex(/^[A-Fa-f0-9]{64}$/u),
+  phaseCount: z.number().int().positive(),
+  totalTaskCount: z.number().int().nonnegative(),
+  passCount: z.number().int().nonnegative(),
+  failedCount: z.number().int().nonnegative(),
+  blockedCount: z.number().int().nonnegative(),
+  runningCount: z.number().int().nonnegative(),
+  recoveryCount: z.number().int().nonnegative(),
+  remainingCount: z.number().int().nonnegative(),
+  currentPhaseId: z.string().regex(/^FAZ-\d{2}$/u).nullable(),
+  currentPhaseTitle: z.string().max(500).nullable(),
+  currentTaskIndex: z.number().int().nonnegative().nullable(),
+  currentPhaseTaskCount: z.number().int().nonnegative().nullable(),
+  currentGateState: z.enum(["TODO", "RUNNING", "PASS", "FAILED", "BLOCKED_EXTERNAL", "RECOVERY_REQUIRED"]).nullable(),
+  phaseSummaries: z.array(EvolutionPhaseSummarySchema).length(22),
+  queuePreview: z.array(EvolutionSpecQueueItemSchema).max(80)
+}).strict();
+export type EvolutionSpecSummary = z.infer<typeof EvolutionSpecSummarySchema>;
+
 export const EvolutionTaskSchema = z.object({
   id: z.string().uuid(),
+  specTaskId: z.string().min(1).max(160).nullable(),
+  phaseId: z.string().min(1).max(32).nullable(),
+  sourceLine: z.number().int().positive().nullable(),
   track: EvolutionTrackSchema,
-  title: z.string().min(1).max(160),
+  title: z.string().min(1).max(1_000),
   prompt: z.string().min(1).max(64_000),
-  state: z.enum(["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"]),
+  state: EvolutionTaskStateSchema,
   provider: z.string().nullable(),
   model: z.string().nullable(),
   threadId: z.string().min(8).max(128).nullable(),
-  evidence: z.array(z.string().min(1).max(256)).max(20),
+  durableJobId: z.string().min(1).max(160).nullable(),
+  evidence: z.array(z.string().min(1).max(256)).max(40),
   error: z.string().max(1_000).nullable(),
+  attempts: z.number().int().nonnegative(),
+  blockReason: z.string().max(1_000).nullable(),
+  retryAfterAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
+  startedAt: z.string().datetime().nullable(),
   completedAt: z.string().datetime().nullable()
 }).strict();
 export type EvolutionTask = z.infer<typeof EvolutionTaskSchema>;
@@ -506,9 +614,9 @@ export type EvolutionTask = z.infer<typeof EvolutionTaskSchema>;
 export const EvolutionLearningSchema = z.object({
   id: z.string().uuid(),
   track: EvolutionTrackSchema,
-  title: z.string().min(1).max(160),
+  title: z.string().min(1).max(1_000),
   summary: z.string().min(1).max(1_200),
-  evidence: z.array(z.string().min(1).max(256)).max(20),
+  evidence: z.array(z.string().min(1).max(256)).max(40),
   learnedAt: z.string().datetime()
 }).strict();
 export type EvolutionLearning = z.infer<typeof EvolutionLearningSchema>;
@@ -519,6 +627,10 @@ export const EvolutionCampaignSchema = z.object({
   enabled: z.boolean(),
   isRunning: z.boolean(),
   directive: z.string().trim().min(80).max(64_000),
+  routing: EvolutionRoutingSchema,
+  runtime: EvolutionRuntimeSchema,
+  activity: z.array(EvolutionActivityEventSchema).max(240),
+  spec: EvolutionSpecSummarySchema,
   score: z.number().int().min(0).max(100),
   level: z.number().int().min(1),
   lifetimeLevel: z.number().int().min(1),
@@ -532,7 +644,7 @@ export const EvolutionCampaignSchema = z.object({
   stage: z.string().min(1).max(80),
   provider: z.string().min(1).max(80),
   model: z.string().min(1).max(160),
-  modelEffort: z.literal("high"),
+  modelEffort: EvolutionReasoningEffortSchema,
   lastProvider: z.string().min(1).max(80).nullable(),
   lastModel: z.string().min(1).max(160).nullable(),
   completedCycles: z.number().int().nonnegative(),
@@ -545,13 +657,43 @@ export const EvolutionCampaignSchema = z.object({
   nextCycleAt: z.string().datetime().nullable(),
   lastCycleDurationMs: z.number().int().nonnegative().nullable(),
   lastError: z.string().max(1_000).nullable(),
-  tasks: z.array(EvolutionTaskSchema),
-  learnings: z.array(EvolutionLearningSchema),
+  tasks: z.array(EvolutionTaskSchema).max(500),
+  learnings: z.array(EvolutionLearningSchema).max(500),
   updatedAt: z.string().datetime()
 }).strict();
 export type EvolutionCampaign = z.infer<typeof EvolutionCampaignSchema>;
 export const EvolutionToggleInputSchema = ProjectIdInputSchema.extend({ enabled: z.boolean() }).strict();
 export const EvolutionDirectiveInputSchema = ProjectIdInputSchema.extend({ directive: z.string().trim().min(80).max(64_000) }).strict();
+export const EvolutionRoutingInputSchema = ProjectIdInputSchema.extend({ routing: EvolutionRoutingSchema }).strict();
+export const EvolutionCancelInputSchema = ProjectIdInputSchema.strict();
+export const EvolutionModelCatalogItemSchema = z.object({
+  id: z.string().min(1).max(200),
+  displayName: z.string().min(1).max(240),
+  provider: z.enum(["codex", "hermes-nvidia"]),
+  supportedReasoningEfforts: z.array(EvolutionReasoningEffortSchema).max(16),
+  hidden: z.boolean(),
+  source: z.enum(["codex-app-server", "nvidia-models-api", "configured-fallback"]),
+  discoveredAt: z.string().datetime()
+}).strict();
+export type EvolutionModelCatalogItem = z.infer<typeof EvolutionModelCatalogItemSchema>;
+
+export const EvolutionModelCatalogSchema = z.object({
+  provider: z.enum(["codex", "hermes-nvidia"]),
+  state: z.enum(["READY", "UNAVAILABLE", "FAILED"]),
+  detail: z.string().min(1).max(1_000),
+  items: z.array(EvolutionModelCatalogItemSchema).max(500),
+  checkedAt: z.string().datetime()
+}).strict();
+export type EvolutionModelCatalog = z.infer<typeof EvolutionModelCatalogSchema>;
+
+export const EvolutionModelCatalogInputSchema = ProjectIdInputSchema.extend({
+  provider: z.enum(["codex", "hermes-nvidia"])
+}).strict();
+export const EvolutionActivityHistoryInputSchema = ProjectIdInputSchema.extend({
+  limit: z.number().int().min(1).max(500).default(120)
+}).strict();
+export const EvolutionActivityHistorySchema = z.array(EvolutionActivityEventSchema).max(500);
+
 
 export const IntegrationKindSchema = z.enum(["github", "vercel", "ssh", "lsp", "dap", "marketplace", "updater", "signing"]);
 export const IntegrationStatusSchema = z.object({
@@ -716,6 +858,11 @@ export const IPC_CHANNELS = {
   evolutionToggle: "devbox:v1:evolution:toggle",
   evolutionDirective: "devbox:v1:evolution:directive",
   evolutionRun: "devbox:v1:evolution:run",
+  evolutionRouting: "devbox:v1:evolution:routing",
+  evolutionCancel: "devbox:v1:evolution:cancel",
+  evolutionActivity: "devbox:v1:evolution:activity",
+  evolutionActivityHistory: "devbox:v1:evolution:activity-history",
+  evolutionModelCatalog: "devbox:v1:evolution:model-catalog",
   integrationInspect: "devbox:v1:integration:inspect",
   vercelAction: "devbox:v1:integration:vercel",
   githubAction: "devbox:v1:integration:github",

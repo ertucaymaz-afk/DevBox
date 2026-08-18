@@ -135,13 +135,13 @@ export class RevocationListService {
     return list;
   }
 
-  public async assertAllowed(packageId: string, version: string, publisherKeyId: string): Promise<void> {
+  public async assertAllowed(packageId: string, version: string, publisherKeyId: string, now = new Date()): Promise<void> {
     const state = await this.#readStored().catch((error: unknown) => {
       if (error instanceof Error && error.message === "REVOCATION_STATE_NOT_FOUND") return null;
       throw error;
     });
     if (!state) return;
-    assertCurrent(state.list, new Date());
+    assertCurrent(state.list, now);
     const revoked = state.list.entries.find((entry) => this.#matches(entry, packageId, version, publisherKeyId));
     if (revoked) throw new Error(`PACKAGE_${revoked.disposition}:${revoked.reasonCode}`);
   }

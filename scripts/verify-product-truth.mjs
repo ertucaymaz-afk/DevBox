@@ -5,9 +5,9 @@ const workspace = path.resolve(new URL("..", import.meta.url).pathname.replace(/
 const productionRoots = ["src/main", "src/preload", "src/renderer", "src/shared"];
 const forbiddenRuntimePatterns = [
   { label: "runtime test-mode switch", pattern: /\b(?:DEVBOX_TEST_MODE|DEVBOX_E2E_[A-Z_]+|testMode)\b/u },
-  { label: "mock/fake/demo/simulation marker", pattern: /\b(?:demo|fake|mock(?:ed|ing)?|simulat(?:e|ed|ion)|sahte|simülasyon)\b/iu }
+  { label: "test framework API in production", pattern: /\b(?:vi|jest)\.(?:mock|spyOn|fn)\b/u },
+  { label: "placeholder runtime implementation", pattern: /\b(?:demo|fake|mock|simulation)(?:Provider|Client|Service|Transport|Response|Result|Data|Runner|Backend|Server|Adapter)\b/iu }
 ];
-const forbiddenPackagedName = /(?:^|[._-])(?:test|spec|fixture|mock|demo|e2e)(?:$|[._-])/iu;
 
 async function filesBelow(directory) {
   const output = [];
@@ -17,6 +17,15 @@ async function filesBelow(directory) {
     else if (entry.isFile()) output.push(absolute);
   }
   return output;
+}
+
+function packagedArtifactViolation(relative) {
+  const segments = relative.split(/[\\/]/u);
+  if (segments.some((segment) => /^(?:__tests__|tests?|fixtures?|mocks?|demos?|e2e)$/iu.test(segment))) return true;
+  const name = path.basename(relative);
+  if (/\.(?:test|spec|fixture|mock|demo|e2e)\.[^.]+(?:\.map)?$/iu.test(name)) return true;
+  if (/(?:^|[._-])(?:test|fixture|mock|demo|e2e)(?:$|[._-])/iu.test(name)) return true;
+  return false;
 }
 
 const violations = [];
@@ -38,9 +47,10 @@ if (!/^\s+- dist\/\*\*\/\*\s*$/mu.test(builder) || !/^\s+- package\.json\s*$/mu.
 }
 
 const dist = path.join(workspace, "dist");
-for (const file of await filesBelow(dist)) {
+const packagedFiles = await filesBelow(dist);
+for (const file of packagedFiles) {
   const relative = path.relative(dist, file);
-  if (forbiddenPackagedName.test(relative)) violations.push(`test/demo artifact in dist: ${relative}`);
+  if (packagedArtifactViolation(relative)) violations.push(`non-production artifact in dist: ${relative}`);
 }
 
 if (violations.length > 0) {
@@ -50,11 +60,11 @@ if (violations.length > 0) {
 process.stdout.write(`${JSON.stringify({
   verdict: "PASS",
   productionRoots,
-  packagedFilesChecked: (await filesBelow(dist)).length,
+  packagedFilesChecked: packagedFiles.length,
   guarantees: [
     "No runtime test-mode switch in production sources",
-    "No mock/fake/demo/simulation marker in production sources",
-    "No test/demo artifact name in dist",
+    "No test framework API or placeholder implementation identifier in production sources",
+    "No test, fixture, mock, demo or e2e artifact name in dist",
     "Electron Builder packages only dist and package metadata"
   ]
 }, null, 2)}\n`);

@@ -66,6 +66,11 @@ const CHANNELS = Object.freeze({
   ,evolutionToggle: "devbox:v1:evolution:toggle"
   ,evolutionDirective: "devbox:v1:evolution:directive"
   ,evolutionRun: "devbox:v1:evolution:run"
+  ,evolutionRouting: "devbox:v1:evolution:routing"
+  ,evolutionCancel: "devbox:v1:evolution:cancel"
+  ,evolutionActivity: "devbox:v1:evolution:activity"
+  ,evolutionActivityHistory: "devbox:v1:evolution:activity-history"
+  ,evolutionModelCatalog: "devbox:v1:evolution:model-catalog"
   ,integrationInspect: "devbox:v1:integration:inspect"
   ,vercelAction: "devbox:v1:integration:vercel"
   ,githubAction: "devbox:v1:integration:github"
@@ -154,8 +159,17 @@ const bridge: DevBoxBridge = Object.freeze({
   createWorktree: async (projectId: string, name: string, ref = "HEAD", mode = "detached") => await ipcRenderer.invoke(CHANNELS.worktreeCreate, { projectId, name, ref, mode }),
   removeWorktree: async (projectId: string, worktreePath: string, force = false) => await ipcRenderer.invoke(CHANNELS.worktreeRemove, { projectId, path: worktreePath, force }),
   getEvolution: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.evolutionGet, { projectId }),
+  listEvolutionActivity: async (projectId: string, limit = 120) => await ipcRenderer.invoke(CHANNELS.evolutionActivityHistory, { projectId, limit }),
+  getEvolutionModelCatalog: async (projectId: string, provider: Parameters<DevBoxBridge["getEvolutionModelCatalog"]>[1]) => await ipcRenderer.invoke(CHANNELS.evolutionModelCatalog, { projectId, provider }),
   setEvolutionEnabled: async (projectId: string, enabled: boolean) => await ipcRenderer.invoke(CHANNELS.evolutionToggle, { projectId, enabled }),
   setEvolutionDirective: async (projectId: string, directive: string) => await ipcRenderer.invoke(CHANNELS.evolutionDirective, { projectId, directive }),
+  setEvolutionRouting: async (projectId: string, routing: Parameters<DevBoxBridge["setEvolutionRouting"]>[1]) => await ipcRenderer.invoke(CHANNELS.evolutionRouting, { projectId, routing }),
+  cancelEvolutionCycle: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.evolutionCancel, { projectId }),
+  onEvolutionActivity: (listener: Parameters<DevBoxBridge["onEvolutionActivity"]>[0]) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown): void => listener(payload as Parameters<typeof listener>[0]);
+    ipcRenderer.on(CHANNELS.evolutionActivity, handler);
+    return () => ipcRenderer.removeListener(CHANNELS.evolutionActivity, handler);
+  },
   runEvolutionCycle: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.evolutionRun, { projectId }),
   inspectIntegrations: async (projectId?: string) => await ipcRenderer.invoke(CHANNELS.integrationInspect, projectId ? { projectId } : {}),
   runVercelAction: async (projectId: string, action: "link" | "preview" | "production" | "inspect" | "logs" | "rollback", target = "") => await ipcRenderer.invoke(CHANNELS.vercelAction, { projectId, action, target }),

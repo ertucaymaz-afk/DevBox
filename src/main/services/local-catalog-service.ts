@@ -54,13 +54,13 @@ export class LocalCatalogService {
   readonly #registry: PluginRegistryService;
   readonly #host: McpHostService;
 
-  public constructor(stateRoot: string, runner: CommandRunner, defaults: CatalogConfig = EMPTY_CONFIG) {
+  public constructor(stateRoot: string, runner: CommandRunner, defaults: CatalogConfig = EMPTY_CONFIG, clientVersion = process.env.npm_package_version?.trim() || "unknown") {
     this.#configPath = path.join(stateRoot, "catalog-sources.json");
     this.#runtimeRoot = path.join(stateRoot, "catalog-runtime");
     this.#runner = runner;
     this.#defaults = defaults;
     this.#registry = new PluginRegistryService(path.join(stateRoot, "plugin-registry.json"));
-    this.#host = new McpHostService(this.#registry);
+    this.#host = new McpHostService(this.#registry, clientVersion);
   }
 
   async #config(): Promise<CatalogConfig> {

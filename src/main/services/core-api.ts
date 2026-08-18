@@ -13,7 +13,7 @@ import type { ProjectService } from "./project-service.js";
 import type { SettingsService } from "./settings-service.js";
 import type { RemoteWorkerService } from "./remote-worker-service.js";
 import type { LocalCatalogService } from "./local-catalog-service.js";
-import { CatalogToolCallInputSchema } from "../../shared/contracts.js";
+import { CatalogToolCallInputSchema, EvolutionRoutingSchema } from "../../shared/contracts.js";
 
 type CoreApiOptions = {
   apiKey: string;
@@ -48,8 +48,9 @@ const ThreadMessageBodySchema = z.object({
 const ThreadItemUpdateBodySchema = z.object({ content: z.string().trim().min(1).max(64_000) }).strict();
 const EvolutionPatchBodySchema = z.object({
   enabled: z.boolean().optional(),
-  directive: z.string().trim().min(80).max(64_000).optional()
-}).strict().refine((value) => value.enabled !== undefined || value.directive !== undefined, { message: "EVOLUTION_PATCH_REQUIRED" });
+  directive: z.string().trim().min(80).max(64_000).optional(),
+  routing: EvolutionRoutingSchema.optional()
+}).strict().refine((value) => value.enabled !== undefined || value.directive !== undefined || value.routing !== undefined, { message: "EVOLUTION_PATCH_REQUIRED" });
 const WorkerPairBodySchema = z.object({
   code: z.string().trim().min(10).max(128),
   name: z.string().trim().min(1).max(80),
@@ -184,6 +185,7 @@ export class CoreApi {
       const body = EvolutionPatchBodySchema.parse(request.body);
       let item = this.#options.evolution.get(params.id);
       if (body.directive !== undefined) item = this.#options.evolution.setDirective(params.id, body.directive);
+      if (body.routing !== undefined) item = this.#options.evolution.setRouting(params.id, body.routing);
       if (body.enabled !== undefined) item = this.#options.evolution.setEnabled(params.id, body.enabled);
       return { item };
     });
@@ -191,6 +193,10 @@ export class CoreApi {
       const params = IdParamsSchema.parse(request.params);
       if (this.#options.settings.get().approvalPolicy === "always") throw new Error("API_INTERACTIVE_APPROVAL_REQUIRED");
       return await reply.code(202).send({ item: await this.#options.evolution.runNow(params.id) });
+    });
+    this.#server.post("/v1/projects/:id/evolution/cancel", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      return { item: this.#options.evolution.cancel(params.id) };
     });
     this.#server.get("/v1/threads", async () => ({ items: this.#options.database.listThreads() }));
     this.#server.get("/v1/threads/:id", async (request) => {

@@ -161,16 +161,17 @@ export class CapabilityService {
       ]);
       const installed = version.exitCode === 0;
       const authenticated = auth.exitCode === 0 && /logged in/iu.test(`${auth.stdout}\n${auth.stderr}`);
+      const configured = installed && authenticated;
       capabilities.push({
         id: "openai-codex",
         displayName: "OpenAI Codex",
-        state: installed && authenticated ? "READY" : installed ? "DEGRADED" : "UNAVAILABLE",
-        version: installed ? `${(version.stdout.trim() || version.stderr.trim()).split(/\r?\n/u)[0]} · ${DEFAULT_CODEX_MODEL} · ${CODEX_REASONING_EFFORT}` : null,
+        state: configured ? "CONFIGURED" : installed ? "DEGRADED" : "UNAVAILABLE",
+        version: installed ? `${(version.stdout.trim() || version.stderr.trim()).split(/\r?\n/u)[0]} · varsayılan ${DEFAULT_CODEX_MODEL} · ${CODEX_REASONING_EFFORT}` : null,
         checkedAt: auth.endedAt,
-        detail: installed && authenticated
-          ? `Codex CLI kimliği ve ChatGPT oturumu doğrulandı. API gelişimi ${DEFAULT_CODEX_MODEL} modelini yüksek muhakeme düzeyinde, salt-okunur ve geçici oturumla çalıştırır.`
+        detail: configured
+          ? `Codex CLI kimliği ve ChatGPT oturumu doğrulandı. Model uyumluluğu uydurma bir sürüm eşiğiyle varsayılmaz; seçilen model ilk gerçek çalışma çağrısında doğrulanır ve ancak gerçek mutasyon + bağımsız Git/test kapısından sonra görev PASS olur.`
           : installed ? "Codex CLI kurulu ancak kimliği doğrulanmış ChatGPT oturumu bulunamadı." : "Codex CLI sürüm sorgusuna yanıt vermedi.",
-        remediation: installed && authenticated ? null : "Codex CLI ile güvenli biçimde oturum açıp tanılamayı yeniden çalıştırın.",
+        remediation: configured ? null : "Codex CLI ile güvenli biçimde oturum açıp tanılamayı yeniden çalıştırın.",
         evidence: [version.runId, auth.runId]
       });
     }

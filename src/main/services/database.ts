@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Attachment, Automation, ProjectSummary, ThreadDetail, ThreadItem, ThreadSummary } from "../../shared/contracts.js";
 
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 const GENERIC_THREAD_TITLES = new Set(["Yeni görev", "Yeni sohbet"]);
 
 export function deriveThreadTitle(content: string, hasAttachments = false): string {
@@ -95,6 +95,24 @@ export type DurableJob = {
   leaseExpiresAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type StoredEvent = {
+  sequence: number;
+  type: string;
+  aggregateId: string | null;
+  payload: unknown;
+  critical: boolean;
+  createdAt: string;
+};
+
+type EventRow = {
+  sequence: number;
+  type: string;
+  aggregate_id: string | null;
+  payload_json: string;
+  critical: number;
+  created_at: string;
 };
 
 type DurableJobRow = {
@@ -342,6 +360,22 @@ export class StateDatabase {
       }
     }
 
+    if (version < 6) {
+      this.#database.exec("BEGIN IMMEDIATE;");
+      try {
+        this.#database.exec(`
+          CREATE INDEX IF NOT EXISTS idx_events_aggregate_sequence ON events(aggregate_id, sequence DESC);
+          CREATE INDEX IF NOT EXISTS idx_events_type_aggregate_sequence ON events(type, aggregate_id, sequence DESC);
+          UPDATE schema_meta SET version = 6;
+        `);
+        this.#database.exec("COMMIT;");
+        version = 6;
+      } catch (error) {
+        this.#database.exec("ROLLBACK;");
+        throw error;
+      }
+    }
+
     if (version !== CURRENT_SCHEMA_VERSION) {
       throw new Error(`Unsupported state schema version: ${version}`);
     }
@@ -363,6 +397,32 @@ export class StateDatabase {
       INSERT INTO settings(key, value_json, updated_at) VALUES (?, ?, ?)
       ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at
     `).run(key, JSON.stringify(value), now);
+  }
+
+  public appendEvent(type: string, aggregateId: string | null, payload: unknown, critical = false): StoredEvent {
+    const normalizedType = type.trim().slice(0, 160);
+    if (!normalizedType) throw new Error("EVENT_TYPE_REQUIRED");
+    const now = new Date().toISOString();
+    const result = this.#database.prepare(`
+      INSERT INTO events(type, aggregate_id, payload_json, critical, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(normalizedType, aggregateId, JSON.stringify(payload), critical ? 1 : 0, now);
+    const sequence = Number(result.lastInsertRowid);
+    const row = this.#database.prepare("SELECT * FROM events WHERE sequence = ?").get(sequence) as EventRow;
+    return this.#mapEvent(row);
+  }
+
+  public listEvents(input: { type?: string; aggregateId?: string; afterSequence?: number; limit?: number; order?: "asc" | "desc" } = {}): StoredEvent[] {
+    const limit = Math.max(1, Math.min(1_000, Math.trunc(input.limit ?? 240)));
+    const after = Math.max(0, Math.trunc(input.afterSequence ?? 0));
+    const clauses = ["sequence > ?"];
+    const params: Array<string | number> = [after];
+    if (input.type) { clauses.push("type = ?"); params.push(input.type); }
+    if (input.aggregateId) { clauses.push("aggregate_id = ?"); params.push(input.aggregateId); }
+    params.push(limit);
+    const order = input.order === "desc" ? "DESC" : "ASC";
+    const rows = this.#database.prepare(`SELECT * FROM events WHERE ${clauses.join(" AND ")} ORDER BY sequence ${order} LIMIT ?`).all(...params) as unknown as EventRow[];
+    return rows.map((row) => this.#mapEvent(row));
   }
 
   public listAutomations(projectId?: string): Automation[] {
@@ -943,6 +1003,10 @@ export class StateDatabase {
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
+  }
+
+  #mapEvent(row: EventRow): StoredEvent {
+    return { sequence: row.sequence, type: row.type, aggregateId: row.aggregate_id, payload: JSON.parse(row.payload_json) as unknown, critical: row.critical === 1, createdAt: row.created_at };
   }
 
   #mapDurableJob(row: DurableJobRow): DurableJob {

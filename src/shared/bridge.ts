@@ -9,6 +9,9 @@ import type {
   CatalogToolCallResult,
   CommandResult,
   EvolutionCampaign,
+  EvolutionActivityEvent,
+  EvolutionModelCatalog,
+  EvolutionRouting,
   FileSnapshot,
   GitDiff,
   GitStatus,
@@ -93,8 +96,13 @@ export interface DevBoxBridge {
   createWorktree(projectId: string, name: string, ref?: string, mode?: "detached" | "branch"): Promise<Worktree>;
   removeWorktree(projectId: string, worktreePath: string, force?: boolean): Promise<{ recoveryPatch: string | null }>;
   getEvolution(projectId: string): Promise<EvolutionCampaign>;
+  listEvolutionActivity(projectId: string, limit?: number): Promise<EvolutionActivityEvent[]>;
+  getEvolutionModelCatalog(projectId: string, provider: EvolutionRouting["provider"]): Promise<EvolutionModelCatalog>;
   setEvolutionEnabled(projectId: string, enabled: boolean): Promise<EvolutionCampaign>;
   setEvolutionDirective(projectId: string, directive: string): Promise<EvolutionCampaign>;
+  setEvolutionRouting(projectId: string, routing: EvolutionRouting): Promise<EvolutionCampaign>;
+  cancelEvolutionCycle(projectId: string): Promise<EvolutionCampaign>;
+  onEvolutionActivity(listener: (event: EvolutionActivityEvent) => void): () => void;
   runEvolutionCycle(projectId: string): Promise<EvolutionCampaign>;
   inspectIntegrations(projectId?: string): Promise<IntegrationStatus[]>;
   runVercelAction(projectId: string, action: "link" | "preview" | "production" | "inspect" | "logs" | "rollback", target?: string): Promise<CommandResult>;

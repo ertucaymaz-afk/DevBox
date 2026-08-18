@@ -31,12 +31,25 @@ import type {
   DurableJobSummary,
   RemoteWorker,
   WorkerPairing,
+  EvolutionActivityEvent,
   EvolutionCampaign,
+  EvolutionModelCatalog,
+  EvolutionRouting,
   IntegrationStatus,
   ProjectSummary,
   TerminalSummary,
   Worktree
 } from "../shared/contracts";
+
+type DapThreadView = { id: number; name: string };
+type DapStackFrameView = { id: number; name: string; line: number | null; column: number | null; sourceName: string | null; sourcePath: string | null };
+type DapScopeView = { name: string; variablesReference: number; expensive: boolean };
+type DapVariableView = { name: string; value: string; type: string | null; variablesReference: number };
+
+function debugBody(response: DebugResponse): Record<string, unknown> {
+  const body = response.body;
+  return body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
+}
 
 export function CatalogWorkspace(): ReactNode {
   const [catalog, setCatalog] = useState<CatalogSnapshot | null>(null);
@@ -141,6 +154,8 @@ function Status({ value }: { value: string }): ReactNode {
     CONFIGURED: "YAPILANDIRILDI",
     DEGRADED: "KISITLI",
     BLOCKED: "ENGELLENDİ",
+    BLOCKED_EXTERNAL: "HARİCİ ENGEL",
+    BACKOFF: "YENİDEN DENEME BEKLİYOR",
     RECOVERY_REQUIRED: "KURTARMA GEREKİYOR",
     "SAVED LOCALLY": "YERELDE KAYITLI"
   };
@@ -326,16 +341,72 @@ export function WorktreeWorkspace({ project }: { project: ProjectSummary | null 
 export function AutomationWorkspace({ project }: { project: ProjectSummary | null }): ReactNode {
   const [campaign, setCampaign] = useState<EvolutionCampaign | null>(null);
   const [directive, setDirective] = useState("");
-  const [busy, setBusy] = useState<"reload" | "toggle" | "run" | "save" | null>(null);
+  const [routing, setRouting] = useState<EvolutionRouting | null>(null);
+  const [activityHistory, setActivityHistory] = useState<EvolutionActivityEvent[]>([]);
+  const [modelCatalog, setModelCatalog] = useState<EvolutionModelCatalog | null>(null);
+  const [catalogBusy, setCatalogBusy] = useState(false);
+  const [busy, setBusy] = useState<"reload" | "toggle" | "run" | "save" | "route" | "cancel" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [visibleTasks, setVisibleTasks] = useState(24);
-  const [runStatus, setRunStatus] = useState<string | null>(null);
   const reload = useCallback(async () => {
-    if (!project) return setCampaign(null);
-    setCampaign(await window.devbox.getEvolution(project.id));
+    if (!project) { setCampaign(null); setActivityHistory([]); return; }
+    const [nextCampaign, history] = await Promise.all([
+      window.devbox.getEvolution(project.id),
+      window.devbox.listEvolutionActivity(project.id, 120)
+    ]);
+    setCampaign(nextCampaign);
+    setActivityHistory(history);
   }, [project]);
+
   useEffect(() => { void reload().catch((caught) => setError(failure(caught))); }, [reload]);
-  useEffect(() => { if (campaign) setDirective(campaign.directive); }, [campaign?.projectId, campaign?.directive]);
+  useEffect(() => {
+    if (!campaign) return;
+    setDirective(campaign.directive);
+    setRouting(campaign.routing);
+  }, [campaign?.projectId, campaign?.directive, campaign?.routing.mode, campaign?.routing.provider, campaign?.routing.model, campaign?.routing.reasoningEffort, campaign?.routing.allowFallback]);
+
+  useEffect(() => {
+    if (!project || !routing) { setModelCatalog(null); return; }
+    let disposed = false;
+    setCatalogBusy(true);
+    void window.devbox.getEvolutionModelCatalog(project.id, routing.provider)
+      .then((catalog) => { if (!disposed) setModelCatalog(catalog); })
+      .catch((caught) => {
+        if (!disposed) setModelCatalog({ provider: routing.provider, state: "FAILED", detail: failure(caught), items: [], checkedAt: new Date().toISOString() });
+      })
+      .finally(() => { if (!disposed) setCatalogBusy(false); });
+    return () => { disposed = true; };
+  }, [project?.id, routing?.provider]);
+
+  useEffect(() => {
+    if (!project) return;
+    return window.devbox.onEvolutionActivity((event) => {
+      if (event.projectId !== project.id) return;
+      setActivityHistory((current) => [event, ...current.filter((item) => item.id !== event.id)].slice(0, 120));
+      setCampaign((current) => current ? {
+        ...current,
+        isRunning: !["COMPLETED", "FAILED", "BLOCKED_EXTERNAL", "CANCELLED", "RECOVERY_REQUIRED", "BACKOFF", "IDLE"].includes(event.stage),
+        runtime: {
+          ...current.runtime,
+          stage: event.stage,
+          detail: event.message,
+          waitingReason: event.kind === "waiting" || event.stage === "WAITING" || event.stage === "BACKOFF" ? event.message : null,
+          provider: event.provider ?? current.runtime.provider,
+          model: event.model ?? current.runtime.model,
+          updatedAt: event.createdAt
+        },
+        activity: [...current.activity, event].slice(-240),
+        updatedAt: event.createdAt
+      } : current);
+    });
+  }, [project]);
+
+  useEffect(() => {
+    if (!project || (busy !== "run" && !campaign?.isRunning)) return;
+    const timer = window.setInterval(() => { void reload().catch(() => undefined); }, 1_200);
+    return () => window.clearInterval(timer);
+  }, [project, busy, campaign?.isRunning, reload]);
+
   const toggle = async (): Promise<void> => {
     if (!project || !campaign) return;
     setBusy("toggle"); setError(null);
@@ -344,18 +415,18 @@ export function AutomationWorkspace({ project }: { project: ProjectSummary | nul
     finally { setBusy(null); }
   };
   const run = async (): Promise<void> => {
+    if (!project || campaign?.isRunning) return;
+    setBusy("run"); setError(null);
+    try { setCampaign(await window.devbox.runEvolutionCycle(project.id)); }
+    catch (caught) { setError(failure(caught)); await reload().catch(() => undefined); }
+    finally { setBusy(null); }
+  };
+  const cancel = async (): Promise<void> => {
     if (!project) return;
-    setBusy("run"); setError(null); setRunStatus("Codex 5.6 Sol · Yüksek için oturum ve sağlayıcı kanıtı doğrulanıyor…");
-    setCampaign((current) => current ? { ...current, isRunning: true } : current);
-    try {
-      const result = await window.devbox.runEvolutionCycle(project.id);
-      setCampaign(result);
-      setRunStatus(`Çevrim tamamlandı · ${result.lastProvider ?? "sağlayıcı kaydı yok"} · ${result.lastCycleDurationMs?.toLocaleString("tr-TR") ?? "?"} ms`);
-    } catch (caught) {
-      setError(failure(caught));
-      setRunStatus("Çevrim tamamlanamadı; görev ve hata kanıtı kalıcı geçmişe yazıldı.");
-      await reload().catch(() => undefined);
-    } finally { setBusy(null); }
+    setBusy("cancel"); setError(null);
+    try { setCampaign(await window.devbox.cancelEvolutionCycle(project.id)); }
+    catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
   };
   const saveDirective = async (): Promise<void> => {
     if (!project || directive.trim().length < 80) return;
@@ -364,35 +435,61 @@ export function AutomationWorkspace({ project }: { project: ProjectSummary | nul
     catch (caught) { setError(failure(caught)); }
     finally { setBusy(null); }
   };
+  const saveRouting = async (): Promise<void> => {
+    if (!project || !routing) return;
+    setBusy("route"); setError(null);
+    try { setCampaign(await window.devbox.setEvolutionRouting(project.id, routing)); }
+    catch (caught) { setError(failure(caught)); }
+    finally { setBusy(null); }
+  };
+
   const shownTasks = campaign ? campaign.tasks.slice(-visibleTasks).reverse() : [];
+  const activity = activityHistory;
+  const active = campaign?.runtime;
+  const selectedCatalogModel = routing && modelCatalog?.provider === routing.provider ? modelCatalog.items.find((item) => item.id === routing.model) : undefined;
+  const advertisedReasoning = selectedCatalogModel?.supportedReasoningEfforts ?? [];
+  const defaultReasoning: EvolutionRouting["reasoningEffort"][] = ["none", "minimal", "low", "medium", "high", "xhigh"];
+  const reasoningOptions = Array.from(new Set<EvolutionRouting["reasoningEffort"]>([...(advertisedReasoning.length ? advertisedReasoning : defaultReasoning), ...(routing ? [routing.reasoningEffort] : [])]));
+  const reasoningLabels: Record<EvolutionRouting["reasoningEffort"], string> = { none: "Kapalı / provider varsayılanı", minimal: "Minimal", low: "Düşük", medium: "Orta", high: "Yüksek", xhigh: "Çok yüksek", max: "Maksimum (legacy)" };
+  const routeLabel = campaign?.routing.mode === "LOCKED"
+    ? `${campaign.routing.provider === "codex" ? "Codex" : "Hermes/NVIDIA"} · ${campaign.routing.model} · kilitli`
+    : `${campaign?.routing.provider === "codex" ? "Codex" : "Hermes/NVIDIA"} · ${campaign?.routing.model ?? "—"}${campaign?.routing.allowFallback ? " → uyumlu fallback" : ""}`;
+  const phaseProgressLabel = campaign?.spec.currentPhaseId
+    ? `${campaign.spec.currentPhaseId}/22 · G${campaign.spec.currentTaskIndex ?? "—"}/${campaign.spec.currentPhaseTaskCount ?? "—"} · ${campaign.runtime.stage}`
+    : "22/22 Faz tamamlandı";
+
   return <section className="advanced-page">
-    <div className="advanced-heading evolution-heading"><div><span className="advanced-eyebrow">KALICI GELİŞİM KONTROL DÜZLEMİ · V2</span><h1>DevBox API gelişimi</h1><p>OpenAI Codex CLI, <strong>5.6 Sol</strong> ve <strong>Yüksek</strong> muhakeme düzeyiyle gerçek görev üretir. Günlük yapay kota yoktur; güvenli geri basınç, tek eşzamanlı çevrim, iptal edilebilir dayanıklı işler ve doğrulanabilir geçmiş vardır.</p></div><div className="advanced-actions"><button onClick={() => { setBusy("reload"); void reload().catch((caught) => setError(failure(caught))).finally(() => setBusy(null)); }} disabled={!project || Boolean(busy)}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yenile</button><button className="primary" onClick={() => void run()} disabled={!project || Boolean(busy)}>{busy === "run" ? <LoaderCircle className="spin" size={14} /> : <Play size={14} />} {busy === "run" ? "Codex çalışıyor" : "Şimdi çalıştır"}</button></div></div>
+    <div className="advanced-heading evolution-heading"><div><span className="advanced-eyebrow">KALICI GELİŞİM KONTROL DÜZLEMİ · V8</span><h1>DevBox API gelişimi</h1><p><strong>geliştirme.md</strong> atomik görev grafiğini DevBox'ın kalıcı self-development kaynak deposunda uygular. <strong>Gerçek dışı/temsili başarı ve uydurma kanıt yasaktır.</strong> Model seçimi kullanıcı kontrolündedir; provider/model/komut/test/bekleme durumu canlı runtime eventlerinden gösterilir. “Şimdi çalıştır” tek kullanıcı eylemiyle sürekli döngüyü başlatır; Durdurulana kadar görevler otomatik ilerler. Gerçek harici engel, üç başarısız doğrulama sonrası recovery veya tamamlanmış görev grafiği fail-closed olarak akışı durdurabilir. Doğrulanmış dosya değişikliği kalıcı Git commit olmadan PASS değildir.</p></div><div className="advanced-actions"><button onClick={() => { setBusy("reload"); void reload().catch((caught) => setError(failure(caught))).finally(() => setBusy(null)); }} disabled={!project || busy === "reload"}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yenile</button>{campaign?.isRunning || busy === "run" ? <button className="danger-action" onClick={() => void cancel()} disabled={busy === "cancel"}><CircleStop size={14} /> {busy === "cancel" ? "Durduruluyor" : "Durdur"}</button> : <button className="primary" onClick={() => void run()} disabled={!project || Boolean(busy)}><Play size={14} /> Şimdi çalıştır</button>}</div></div>
     {!project ? <EmptyProject /> : !campaign ? <div className="advanced-empty"><LoaderCircle className="spin" size={24} />Gerçek kampanya durumu yükleniyor…</div> : <>
       <div className="evolution-summary">
-        <div className="evolution-score"><strong>{campaign.lifetimeLevel}</strong><span>kalıcı gelişim seviyesi</span><small>{campaign.lifetimeEvidencePoints.toLocaleString("tr-TR")} tekil doğrulanmış kanıt puanı</small></div>
-        <dl><div><dt>Öncelikli sağlayıcı</dt><dd>{campaign.provider}</dd></div><div><dt>Model ve muhakeme</dt><dd>5.6 Sol · Yüksek</dd></div><div><dt>Alan kapsamı</dt><dd>%{campaign.score} · 14 mühendislik izi</dd></div><div><dt>Bugünkü gerçek çevrim</dt><dd>{campaign.cyclesToday} · günlük kota yok</dd></div><div><dt>Başarılı / hatalı</dt><dd>{campaign.completedCycles} / {campaign.failedCycles}</dd></div><div><dt>Son gerçek sağlayıcı</dt><dd>{campaign.lastProvider ? `${campaign.lastProvider} · ${campaign.lastModel ?? "model kaydı yok"}` : "Henüz çevrim yok"}</dd></div><div><dt>Son çevrim</dt><dd>{readableDate(campaign.lastCycleAt)}</dd></div><div><dt>Süre</dt><dd>{campaign.lastCycleDurationMs === null ? "—" : `${campaign.lastCycleDurationMs.toLocaleString("tr-TR")} ms`}</dd></div><div><dt>Sonraki çevrim</dt><dd>{campaign.enabled ? readableDate(campaign.nextCycleAt) : "Kapalı"}</dd></div></dl>
-        <label className="evolution-toggle"><span><strong>Uygulama açıkken sürekli ve benzersiz görev üret</strong><small>Her {campaign.intervalMinutes} dakikada bir · günlük üst sınır yok · aynı anda tek gerçek çevrim · görevler SQLite WAL’da kalıcı.</small></span><button className={`automation-toggle ${campaign.enabled ? "on" : ""}`} onClick={() => void toggle()} disabled={Boolean(busy)} aria-label={`API gelişim döngüsünü ${campaign.enabled ? "kapat" : "aç"}`}><i /></button></label>
+        <div className="evolution-score"><strong>{campaign.lifetimeLevel}</strong><span>kalıcı gelişim seviyesi</span><small>{campaign.spec.passCount.toLocaleString("tr-TR")} / {campaign.spec.totalTaskCount.toLocaleString("tr-TR")} atomik görev kanıtlı PASS</small></div>
+        <dl><div><dt>Model rotası</dt><dd title={routeLabel}>{routeLabel}</dd></div><div><dt>Çalışma durumu</dt><dd>{campaign.runtime.stage}</dd></div><div><dt>Aktif görev</dt><dd>{campaign.runtime.activeSpecTaskId ?? "—"}</dd></div><div><dt>Faz</dt><dd>{campaign.runtime.activePhaseId ?? "—"}</dd></div><div><dt>Kalan görev</dt><dd>{campaign.spec.remainingCount.toLocaleString("tr-TR")}</dd></div><div><dt>Başarılı / hatalı</dt><dd>{campaign.completedCycles} / {campaign.failedCycles}</dd></div><div><dt>Son sağlayıcı</dt><dd>{campaign.lastProvider ? `${campaign.lastProvider} · ${campaign.lastModel ?? "model yok"}` : "Henüz yok"}</dd></div><div><dt>Durable job</dt><dd title={campaign.runtime.durableJobId ?? undefined}>{campaign.runtime.durableJobId ?? "—"}</dd></div><div><dt>Son çevrim</dt><dd>{readableDate(campaign.lastCycleAt)}</dd></div></dl>
+        <label className="evolution-toggle"><span><strong>Durdurulana kadar otomatik atomik görev uygula</strong><small>Bir görev kanıtlı PASS olunca sıradaki otomatik başlar · managed-source hatasında doğrulanmış rollback + backoff · aynı anda tek çevrim · SQLite durable job + heartbeat.</small></span><button className={`automation-toggle ${campaign.enabled ? "on" : ""}`} onClick={() => void toggle()} disabled={busy === "toggle"} aria-label={`API gelişim döngüsünü ${campaign.enabled ? "kapat" : "aç"}`}><i /></button></label>
       </div>
-      {runStatus && <div className={`evolution-run-status ${busy === "run" ? "running" : ""}`}>{busy === "run" ? <LoaderCircle className="spin" size={15} /> : <Check size={15} />}<span>{runStatus}</span></div>}
-      <div className="truth-notice"><ShieldCheck size={17} /><p><strong>Seviye artık geriye düşmez ve bir model yanıtıyla yapay olarak artmaz.</strong> Eski kayıttaki en yüksek seviye {campaign.migrationFloorLevel} geçiş tabanı olarak korunur. Yalnız uygulanmış, test edilmiş, gerileme denetimi geçmiş ve parmak iziyle tekilleştirilmiş ürün kanıtı olgunluk puanı üretir. Araştırma yanıtları ayrı kapsam ve bulgu geçmişidir. Codex kullanılamazsa gerçek fallback kimliği “son sağlayıcı” alanında açıkça görünür; fallback hiçbir zaman Codex gibi etiketlenmez.</p></div>
-      <div className="evolution-metrics"><article><span>Doğrulanmış iyileştirme</span><strong>{campaign.validatedImprovementCount}</strong></article><article><span>Kararlı terfi</span><strong>{campaign.stablePromotionCount}</strong></article><article><span>Doğrulanmış araştırma</span><strong>{campaign.verifiedResearchCount}</strong></article><article><span>Gerileme düzeltmesi</span><strong>{campaign.verifiedRegressionFixCount}</strong></article></div>
-      <section className="evolution-section directive-editor"><div className="panel-title"><div><h2>Kalıcı gelişim yönergesi</h2><span>Sonraki tüm Codex-öncelikli gerçek sağlayıcı çevrimlerine eklenir · {directive.length.toLocaleString("tr-TR")} karakter</span></div><div><button onClick={() => void window.devbox.copyText(directive)} disabled={!directive.trim()} title="Yönergeyi kopyala"><Copy size={14} /> Kopyala</button><button className="primary" onClick={() => void saveDirective()} disabled={Boolean(busy) || directive.trim().length < 80 || directive === campaign.directive}>{busy === "save" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Kaydet</button></div></div><textarea value={directive} onChange={(event) => setDirective(event.target.value)} minLength={80} maxLength={64_000} spellCheck aria-label="DevBox API kalıcı gelişim yönergesi" /><small>Codex çalışma zamanı yalnız gerçekten erişebildiği proje bağlamını kullanır. Web araştırması için gerçek bir arama aracı yoksa araştırma yapılmış sayılmaz; doğrulanacak birincil kaynaklar ayrı listelenir.</small></section>
-      <section className="evolution-section"><div className="panel-title"><div><h2>Gerçek görev kuyruğu</h2><span>{campaign.tasks.length} kalıcı görev · en yeni {shownTasks.length} kayıt gösteriliyor</span></div><Status value={campaign.isRunning ? "RUNNING" : campaign.enabled ? "READY" : "DISABLED"} /></div><div className="advanced-list evolution-list" tabIndex={0}>{shownTasks.map((item) => <article key={item.id}><div className="list-icon">{item.state === "SUCCEEDED" ? <Check size={16} /> : item.state === "RUNNING" ? <LoaderCircle className="spin" size={16} /> : <Activity size={16} />}</div><div><strong>{item.title}</strong><span>{item.track} · {item.provider ?? "Codex 5.6 Sol · Yüksek çağrısı bekliyor"}{item.model ? ` · ${item.model}` : ""}</span><small>{item.error ?? (item.evidence.length ? item.evidence.join(" · ") : "Henüz çalışma kanıtı yok")}</small></div><Status value={item.state} />{item.threadId && <button onClick={() => void window.devbox.copyText(item.threadId!)} title="Görev kimliğini kopyala"><Copy size={14} /></button>}</article>)}</div>{visibleTasks < campaign.tasks.length && <button className="load-more-tasks" onClick={() => setVisibleTasks((current) => Math.min(campaign.tasks.length, current + 24))}>24 eski görevi daha göster · {campaign.tasks.length - visibleTasks} kayıt kaldı</button>}</section>
-      <section className="evolution-section"><div className="panel-title"><h2>Sağlayıcı bulguları</h2><span>{campaign.learnings.length} kalıcı kayıt</span></div>{campaign.learnings.length === 0 ? <div className="advanced-empty compact"><Activity size={22} /><strong>Henüz doğrulanmış çevrim yok</strong><span>İlk başarılı gerçek Codex veya Hermes/NVIDIA çevrimi, sağlayıcı ve durable-job kanıtıyla burada görünür.</span></div> : <div className="learning-grid">{campaign.learnings.slice().reverse().slice(0, 20).map((item) => <article key={item.id}><header><strong>{item.title}</strong><span>{item.track} · {readableDate(item.learnedAt)}</span></header><p>{item.summary}</p><footer>{item.evidence.join(" · ")}</footer></article>)}</div>}</section>
+
+      <section className="evolution-phase-control" aria-label="22 Faz gerçek ilerleme durumu">
+        <header><div><span className="phase-pulse" /><strong>{phaseProgressLabel}</strong></div><span>{campaign.spec.currentPhaseTitle ?? "Bütün Faz gate'leri PASS"}</span></header>
+        <div className="evolution-phase-grid">{campaign.spec.phaseSummaries.map((phase) => <article key={phase.phaseId} className={`phase-card ${phase.phaseId === campaign.spec.currentPhaseId ? "active" : ""}`} title={`${phase.title} · ${phase.passCount}/${phase.taskCount} PASS`}><div><strong>{phase.phaseId}</strong><Status value={phase.gateState} /></div><span>{phase.passCount}/{phase.taskCount}</span><small>{phase.gateState === "BLOCKED_EXTERNAL" ? `${phase.blockedCount} harici engel` : phase.gateState === "RECOVERY_REQUIRED" ? `${phase.recoveryCount} recovery` : phase.failedCount ? `${phase.failedCount} hata` : phase.title}</small><i><b style={{ width: `${phase.taskCount ? Math.round((phase.passCount / phase.taskCount) * 100) : 0}%` }} /></i></article>)}</div>
+      </section>
+
+      <section className={`evolution-live ${campaign.isRunning ? "running" : ""}`} aria-live="polite"><header><div><span className="live-dot" /><strong>Canlı çalışma</strong><Status value={campaign.runtime.stage} /></div><small>{readableDate(campaign.runtime.updatedAt)}</small></header><h3>{campaign.runtime.detail}</h3><dl><div><dt>Şu an</dt><dd>{campaign.runtime.stage}</dd></div><div><dt>Sağlayıcı / model</dt><dd>{campaign.runtime.provider ? `${campaign.runtime.provider} · ${campaign.runtime.model ?? "—"}` : "Henüz provider seçilmedi"}</dd></div><div><dt>Bekliyor</dt><dd>{campaign.runtime.waitingReason ?? "Hayır"}</dd></div><div><dt>Çalışma alanı</dt><dd title={campaign.runtime.worktreePath ?? undefined}>{campaign.runtime.worktreePath ?? "—"}</dd></div></dl></section>
+
+      <section className="evolution-section routing-editor"><div className="panel-title"><div><h2>Manuel model ve rota</h2><span>Codex modeli app-server <code>model/list</code> kataloğundan keşfedilir. LOCKED router değişikliğini kapatır; katalog bulunamazsa manuel model ID yazımı çalışmaya devam eder.</span></div><div className="routing-actions"><button onClick={() => { if (!project || !routing) return; setCatalogBusy(true); void window.devbox.getEvolutionModelCatalog(project.id, routing.provider).then(setModelCatalog).catch((caught) => setModelCatalog({ provider: routing.provider, state: "FAILED", detail: failure(caught), items: [], checkedAt: new Date().toISOString() })).finally(() => setCatalogBusy(false)); }} disabled={!routing || catalogBusy}><RefreshCw className={catalogBusy ? "spin" : ""} size={14} /> Model listesi</button><button className="primary" onClick={() => void saveRouting()} disabled={!routing || Boolean(campaign.isRunning) || busy === "route"}>{busy === "route" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Uygula</button></div></div>{routing && <><div className="routing-grid"><label><span>Mod</span><select value={routing.mode} onChange={(event) => setRouting({ ...routing, mode: event.target.value as EvolutionRouting["mode"], allowFallback: event.target.value === "LOCKED" ? false : routing.allowFallback })}><option value="AUTO">Otomatik rota</option><option value="LOCKED">Modeli kilitle</option></select></label><label><span>Sağlayıcı</span><select value={routing.provider} onChange={(event) => setRouting({ ...routing, provider: event.target.value as EvolutionRouting["provider"], model: event.target.value === "codex" ? "gpt-5.6-sol" : "nvidia/nemotron-3-super-120b-a12b", reasoningEffort: event.target.value === "codex" ? "high" : "none" })}><option value="codex">OpenAI Codex CLI</option><option value="hermes-nvidia">Hermes / NVIDIA NIM</option></select></label><label className="model-input"><span>Model</span><input list="devbox-evolution-models" value={routing.model} onChange={(event) => setRouting({ ...routing, model: event.target.value })} /><datalist id="devbox-evolution-models">{modelCatalog?.provider === routing.provider && modelCatalog.items.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}</datalist></label><label><span>Muhakeme</span><select value={routing.reasoningEffort} disabled={routing.provider === "hermes-nvidia"} onChange={(event) => setRouting({ ...routing, reasoningEffort: event.target.value as EvolutionRouting["reasoningEffort"] })}>{reasoningOptions.map((effort) => <option key={effort} value={effort}>{reasoningLabels[effort]}</option>)}</select></label><label className="fallback-check"><input type="checkbox" checked={routing.allowFallback} disabled={routing.mode === "LOCKED"} onChange={(event) => setRouting({ ...routing, allowFallback: event.target.checked })} /><span>Uyumlu fallback kullan</span></label></div><div className="model-catalog-state"><div><Status value={catalogBusy ? "VERIFYING" : modelCatalog?.state ?? "UNAVAILABLE"} /><strong>{catalogBusy ? "Model kataloğu sorgulanıyor" : `${modelCatalog?.items.length ?? 0} model keşfedildi`}</strong></div><span>{modelCatalog?.detail ?? "Provider kataloğu henüz sorgulanmadı."}{modelCatalog?.checkedAt ? ` · ${readableDate(modelCatalog.checkedAt)}` : ""}</span></div></>}</section>
+
+      <div className="truth-notice"><ShieldCheck size={17} /><p><strong>“Şimdi çalıştır” Durdurulana kadar sürekli gerçek uygulama başlatır.</strong> Codex workspace-write önce host dosya probuyla doğrulanır. Windows yazma sandbox'ı gerçek probu geçmezse DevBox Codex'i read-only kullanır, üretilen unified patch'i <code>git apply --check</code> sonrasında kendi path-sınırlı patch motoruyla uygular. Ardından <code>git diff --check</code> ve projenin en güçlü <code>verify</code> kapısı gerçek süreç olarak çalışır; <code>verify</code> yoksa <code>typecheck</code> + <code>test</code> + <code>build</code> uygulanır. Mutasyon veya kanıt yoksa PASS yok.</p></div>
+
+      <div className="evolution-metrics"><article><span>Spec toplamı</span><strong>{campaign.spec.totalTaskCount.toLocaleString("tr-TR")}</strong></article><article><span>PASS</span><strong>{campaign.spec.passCount.toLocaleString("tr-TR")}</strong></article><article><span>FAILED</span><strong>{campaign.spec.failedCount.toLocaleString("tr-TR")}</strong></article><article><span>BLOCKED</span><strong>{campaign.spec.blockedCount.toLocaleString("tr-TR")}</strong></article><article><span>RECOVERY</span><strong>{campaign.spec.recoveryCount.toLocaleString("tr-TR")}</strong></article><article><span>Kalan</span><strong>{campaign.spec.remainingCount.toLocaleString("tr-TR")}</strong></article></div>
+
+      <section className="evolution-section"><div className="panel-title"><div><h2>Canlı işlem günlüğü</h2><span>SQLite kalıcı event store + canlı typed runtime eventleri · en yeni 120 kayıt</span></div><Status value={campaign.isRunning ? "RUNNING" : campaign.runtime.stage} /></div>{activity.length === 0 ? <div className="advanced-empty compact"><Activity size={22} /><strong>Henüz runtime olayı yok</strong><span>“Şimdi çalıştır” sonrası provider, model, sandbox/probe, patch, komut, test, bekleme ve hata adımları burada görünür.</span></div> : <div className="evolution-activity-list">{activity.map((item) => <article key={item.id}><span className={`activity-kind ${item.kind}`} /><div><strong>{item.stage}</strong><p>{item.message}</p><small>{item.provider ? `${item.provider}${item.model ? ` · ${item.model}` : ""} · ` : ""}{readableDate(item.createdAt)}</small></div></article>)}</div>}</section>
+
+      <section className="evolution-section"><div className="panel-title"><div><h2>geliştirme.md uygulama kuyruğu</h2><span>{campaign.spec.phaseCount} Faz · {campaign.spec.totalTaskCount.toLocaleString("tr-TR")} atomik görev · kaynak SHA-256 {campaign.spec.sourceSha256.slice(0, 16)}…</span></div><Status value={campaign.spec.remainingCount === 0 ? "COMPLETED" : campaign.isRunning ? "RUNNING" : "LOADED"} /></div><div className="advanced-list evolution-list" tabIndex={0}>{campaign.spec.queuePreview.slice(0, 40).map((item) => <article key={item.taskId}><div className="list-icon">{item.state === "RUNNING" ? <LoaderCircle className="spin" size={16} /> : <Activity size={16} />}</div><div><strong>{item.taskId} · {item.title}</strong><span>{item.phaseId}{item.sourceLine ? ` · geliştirme.md:${item.sourceLine}` : ""}</span><small>Spec state: {item.state} · deneme {item.attempts}{item.requirementCount ? ` · ${item.requirementCount} req` : ""}{item.testCount ? ` · ${item.testCount} test` : ""}{item.failureTestCount ? ` · ${item.failureTestCount} failure test` : ""}{item.blockReason ? ` · ENGEL: ${item.blockReason}` : item.lastError ? ` · ${item.lastError}` : ""}</small></div><Status value={item.state} /></article>)}</div></section>
+
+      <section className="evolution-section directive-editor"><div className="panel-title"><div><h2>Kalıcı gelişim yönergesi</h2><span>Her atomik göreve eklenir · {directive.length.toLocaleString("tr-TR")} karakter</span></div><div><button onClick={() => void window.devbox.copyText(directive)} disabled={!directive.trim()}><Copy size={14} /> Kopyala</button><button className="primary" onClick={() => void saveDirective()} disabled={Boolean(campaign.isRunning) || busy === "save" || directive.trim().length < 80 || directive === campaign.directive}>{busy === "save" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Kaydet</button></div></div><textarea value={directive} onChange={(event) => setDirective(event.target.value)} minLength={80} maxLength={64_000} spellCheck aria-label="DevBox API kalıcı gelişim yönergesi" /></section>
+
+      <section className="evolution-section"><div className="panel-title"><div><h2>Gerçek yürütme geçmişi</h2><span>{campaign.tasks.length} kalıcı execution kaydı · en yeni {shownTasks.length}</span></div></div><div className="advanced-list evolution-list" tabIndex={0}>{shownTasks.map((item) => <article key={item.id}><div className="list-icon">{item.state === "SUCCEEDED" ? <Check size={16} /> : ["RUNNING", "PREPARING", "VERIFYING", "REVIEWING"].includes(item.state) ? <LoaderCircle className="spin" size={16} /> : <Activity size={16} />}</div><div><strong>{item.title}</strong><span>{item.provider ?? "sağlayıcı bekliyor"}{item.model ? ` · ${item.model}` : ""}</span><small>{`Deneme ${item.attempts} · `}{item.blockReason ? `ENGEL: ${item.blockReason}` : item.error ?? (item.evidence.length ? item.evidence.join(" · ") : "Henüz kanıt yok")}{item.retryAfterAt ? ` · retry ${readableDate(item.retryAfterAt)}` : ""}</small></div><Status value={item.state} /></article>)}</div>{visibleTasks < campaign.tasks.length && <button className="load-more-tasks" onClick={() => setVisibleTasks((current) => Math.min(campaign.tasks.length, current + 24))}>24 eski kaydı daha göster · {campaign.tasks.length - visibleTasks} kayıt kaldı</button>}</section>
     </>}
     {error && <div className="inline-error">{error}</div>}
   </section>;
-}
-
-type DapThreadView = { id: number; name: string };
-type DapStackFrameView = { id: number; name: string; line: number | null; column: number | null; sourceName: string | null; sourcePath: string | null };
-type DapScopeView = { name: string; variablesReference: number; expensive: boolean };
-type DapVariableView = { name: string; value: string; type: string | null; variablesReference: number };
-
-function debugBody(response: DebugResponse): Record<string, unknown> {
-  return response.body && typeof response.body === "object" && !Array.isArray(response.body)
-    ? response.body as Record<string, unknown>
-    : {};
 }
 
 export function IntegrationWorkspace({ project, scope = "all" }: { project: ProjectSummary | null; scope?: "all" | "github" }): ReactNode {
@@ -450,7 +547,7 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
   const applyDebugResponse = (command: string, response: DebugResponse): void => {
     const body = debugBody(response);
     if (command === "threads") {
-      const threads = Array.isArray(body.threads) ? body.threads.flatMap((candidate): DapThreadView[] => {
+      const threads = Array.isArray(body.threads) ? body.threads.flatMap((candidate: unknown): DapThreadView[] => {
         if (!candidate || typeof candidate !== "object") return [];
         const item = candidate as Record<string, unknown>;
         return typeof item.id === "number" && typeof item.name === "string" ? [{ id: item.id, name: item.name }] : [];
@@ -459,7 +556,7 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
       if (threads[0]) setDebugThreadId(String(threads[0].id));
     }
     if (command === "stackTrace") {
-      const frames = Array.isArray(body.stackFrames) ? body.stackFrames.flatMap((candidate): DapStackFrameView[] => {
+      const frames = Array.isArray(body.stackFrames) ? body.stackFrames.flatMap((candidate: unknown): DapStackFrameView[] => {
         if (!candidate || typeof candidate !== "object") return [];
         const item = candidate as Record<string, unknown>;
         if (typeof item.id !== "number" || typeof item.name !== "string") return [];
@@ -477,7 +574,7 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
       if (frames[0]) setDebugFrameId(String(frames[0].id));
     }
     if (command === "scopes") {
-      const scopes = Array.isArray(body.scopes) ? body.scopes.flatMap((candidate): DapScopeView[] => {
+      const scopes = Array.isArray(body.scopes) ? body.scopes.flatMap((candidate: unknown): DapScopeView[] => {
         if (!candidate || typeof candidate !== "object") return [];
         const item = candidate as Record<string, unknown>;
         return typeof item.name === "string" && typeof item.variablesReference === "number"
@@ -488,7 +585,7 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
       if (scopes[0]) setDebugVariablesReference(String(scopes[0].variablesReference));
     }
     if (command === "variables") {
-      const variables = Array.isArray(body.variables) ? body.variables.flatMap((candidate): DapVariableView[] => {
+      const variables = Array.isArray(body.variables) ? body.variables.flatMap((candidate: unknown): DapVariableView[] => {
         if (!candidate || typeof candidate !== "object") return [];
         const item = candidate as Record<string, unknown>;
         return typeof item.name === "string" && typeof item.value === "string"
