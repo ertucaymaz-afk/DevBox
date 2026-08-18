@@ -6,7 +6,7 @@ import type { AgentService } from "./agent-service.js";
 import type { CommandRunner } from "./command-runner.js";
 import { DevelopmentSpecService } from "./development-spec-service.js";
 import type { GitService } from "./git-service.js";
-import { ApiEvolutionService, createAdaptiveEvolutionTask } from "./api-evolution-service.js";
+import { ApiEvolutionService, createAdaptiveEvolutionTask, shouldContinueEvolution } from "./api-evolution-service.js";
 import { StateDatabase } from "./database.js";
 import { ProjectService } from "./project-service.js";
 import { SettingsService } from "./settings-service.js";
@@ -29,6 +29,14 @@ function createService(database: StateDatabase): ApiEvolutionService {
 }
 
 describe("adaptive API evolution tasks", () => {
+  it("continues immediately after the fixed graph while respecting adaptive blockers", () => {
+    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: null })).toBe(true);
+    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: "FAILED" })).toBe(true);
+    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: "BLOCKED_EXTERNAL" })).toBe(false);
+    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: "RECOVERY_REQUIRED" })).toBe(false);
+    expect(shouldContinueEvolution({ enabled: false, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: null })).toBe(false);
+  });
+
   it("rotates real maintenance domains after the fixed core graph", () => {
     const first = createAdaptiveEvolutionTask(1);
     const second = createAdaptiveEvolutionTask(2);

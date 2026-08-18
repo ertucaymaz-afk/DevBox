@@ -91,6 +91,18 @@ const ADAPTIVE_FOCUS: ReadonlyArray<{ track: EvolutionTrack; title: string; obje
   { track: "documentation", title: "Gerçeklik ve işletilebilirlik", objective: "kullanıcıya yanlış güven verebilecek güncelliğini yitirmiş bir ürün sözleşmesi/diagnostic açıklaması bul ve gerçek runtime davranışıyla eşleştir" }
 ];
 
+export function shouldContinueEvolution(input: {
+  enabled: boolean;
+  isRunning: boolean;
+  remainingCount: number;
+  gateState: string | null;
+  adaptiveState: DevelopmentSpecPersistedStateName | null;
+}): boolean {
+  if (!input.enabled || input.isRunning) return false;
+  if (input.remainingCount <= 0) return !["BLOCKED_EXTERNAL", "RECOVERY_REQUIRED", "CANCELLED"].includes(input.adaptiveState ?? "FAILED");
+  return input.gateState !== "BLOCKED_EXTERNAL" && input.gateState !== "RECOVERY_REQUIRED";
+}
+
 export function createAdaptiveEvolutionTask(sequence: number): DevelopmentSpecTask {
   const safeSequence = Math.max(1, Math.trunc(sequence));
   const focus = ADAPTIVE_FOCUS[(safeSequence - 1) % ADAPTIVE_FOCUS.length]!;
@@ -773,8 +785,14 @@ export class ApiEvolutionService {
   }
 
   #canContinue(campaign: EvolutionCampaign): boolean {
-    if (!campaign.enabled || campaign.isRunning || campaign.spec.remainingCount <= 0) return false;
-    return campaign.spec.currentGateState !== "BLOCKED_EXTERNAL" && campaign.spec.currentGateState !== "RECOVERY_REQUIRED";
+    const adaptiveState = campaign.spec.remainingCount <= 0 ? this.#adaptiveState(campaign.projectId).current?.state ?? null : null;
+    return shouldContinueEvolution({
+      enabled: campaign.enabled,
+      isRunning: campaign.isRunning,
+      remainingCount: campaign.spec.remainingCount,
+      gateState: campaign.spec.currentGateState,
+      adaptiveState
+    });
   }
 
   #resetDaily(campaign: EvolutionCampaign): EvolutionCampaign { const today = dayKey(); if (campaign.cycleDay === today) return campaign; return this.#save({ ...campaign, cyclesToday: 0, cycleDay: today, updatedAt: new Date().toISOString() }); }

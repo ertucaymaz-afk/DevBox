@@ -546,6 +546,8 @@ export function App(): ReactNode {
   }, []);
 
   const openThread = useCallback(async (threadId: string, pushHistory = true): Promise<void> => {
+    const previousThreadId = openThreadIdRef.current;
+    openThreadIdRef.current = threadId;
     setBusy("thread");
     try {
       const detail = await window.devbox.getThread(threadId);
@@ -570,6 +572,7 @@ export function App(): ReactNode {
         if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
       });
     } catch (error) {
+      openThreadIdRef.current = previousThreadId;
       setNotice(errorMessage(error));
     } finally {
       setBusy(null);
@@ -609,6 +612,7 @@ export function App(): ReactNode {
         if (initialThread) {
           const detail = await window.devbox.getThread(initialThread.id);
           if (active) {
+            openThreadIdRef.current = detail.thread.id;
             setThread(detail);
             setDraftAttachments(await window.devbox.listDraftAttachments(detail.thread.id));
             setHistory([detail.thread.id]);
@@ -675,6 +679,7 @@ export function App(): ReactNode {
     setBusy("new-thread");
     try {
       const detail = await window.devbox.createThread(project.id, "Yeni görev");
+      openThreadIdRef.current = detail.thread.id;
       setThread(detail);
       setDraftAttachments([]);
       await updateThreads();
@@ -696,6 +701,7 @@ export function App(): ReactNode {
       requestAnimationFrame(() => composerRef.current?.focus());
       return;
     }
+    openThreadIdRef.current = null;
     setThread(null);
     setComposer("");
     setDraftAttachments([]);
@@ -733,7 +739,7 @@ export function App(): ReactNode {
       const detail = await window.devbox.sendMessage(threadId, content, attachmentIds);
       setThread((current) => current?.thread.id === detail.thread.id ? detail : current);
       await updateThreads();
-      if (selectedProject?.id === activeThread.thread.projectId && liveTarget) await loadProject(selectedProject);
+      if (openThreadIdRef.current === threadId && selectedProject?.id === activeThread.thread.projectId && liveTarget) await loadProject(selectedProject);
       if (openThreadIdRef.current === threadId) {
         requestAnimationFrame(() => {
           if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
@@ -755,6 +761,7 @@ export function App(): ReactNode {
   }, [composer, createThread, draftAttachments, loadProject, selectedProject, thread, updateThreads, workspaceResult]);
 
   useEffect(() => window.devbox.onThreadActivity((activity) => {
+    if (openThreadIdRef.current !== activity.threadId) return;
     setLiveActivities((current) => [...current, activity].slice(-80));
     requestAnimationFrame(() => {
       if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
@@ -762,13 +769,14 @@ export function App(): ReactNode {
   }), []);
 
   useEffect(() => window.devbox.onThreadSnapshot((detail) => {
+    const isOpen = openThreadIdRef.current === detail.thread.id;
     setThread((current) => current?.thread.id === detail.thread.id ? detail : current);
     setThreads((current) => {
       const index = current.findIndex((item) => item.id === detail.thread.id);
       if (index < 0) return [detail.thread, ...current];
       return current.map((item) => item.id === detail.thread.id ? detail.thread : item);
     });
-    requestAnimationFrame(() => {
+    if (isOpen) requestAnimationFrame(() => {
       if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
     });
   }), []);
@@ -880,7 +888,9 @@ export function App(): ReactNode {
     if (!thread || !content.trim()) return false;
     setBusy(`message:${itemId}`);
     try {
-      setThread(await window.devbox.updateMessage(thread.thread.id, itemId, content.trim()));
+      const threadId = thread.thread.id;
+      const detail = await window.devbox.updateMessage(threadId, itemId, content.trim());
+      setThread((current) => current?.thread.id === threadId ? detail : current);
       await updateThreads();
       return true;
     } catch (error) {
@@ -895,7 +905,9 @@ export function App(): ReactNode {
     if (!thread) return;
     setBusy(`message:${itemId}`);
     try {
-      setThread(await window.devbox.regenerateMessage(thread.thread.id, itemId));
+      const threadId = thread.thread.id;
+      const detail = await window.devbox.regenerateMessage(threadId, itemId);
+      setThread((current) => current?.thread.id === threadId ? detail : current);
       await updateThreads();
     } catch (error) {
       setNotice(errorMessage(error));
