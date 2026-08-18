@@ -12,8 +12,8 @@ type QueueState = {
 
 /**
  * Serializes turns inside one conversation while allowing different conversations
- * to execute in parallel. This prevents two provider calls from reading the same
- * stale thread history and then committing responses out of order.
+ * to execute in parallel. The first turn of an idle thread starts immediately;
+ * only later turns pay the queue wait, avoiding an unnecessary microtask delay.
  */
 export class ThreadTurnCoordinator {
   readonly #queues = new Map<string, QueueState>();
@@ -23,33 +23,30 @@ export class ThreadTurnCoordinator {
     return { threadId, queued: state?.queued ?? 0, running: state?.running ?? false };
   }
 
-  public async run<T>(threadId: string, operation: () => Promise<T>): Promise<T> {
-    const previous = this.#queues.get(threadId);
-    const previousTail = previous?.tail ?? Promise.resolve();
-    let release!: () => void;
-    const currentDone = new Promise<void>((resolve) => { release = resolve; });
-    const tail = previousTail.catch(() => undefined).then(() => currentDone);
-    const state: QueueState = {
-      tail,
-      queued: (previous?.queued ?? 0) + 1,
-      running: previous?.running ?? false
+  public run<T>(threadId: string, operation: () => Promise<T>): Promise<T> {
+    const existing = this.#queues.get(threadId);
+    const state: QueueState = existing ?? { tail: Promise.resolve(), queued: 0, running: false };
+    state.queued += 1;
+
+    let task!: Promise<T>;
+    let tail!: Promise<void>;
+    const execute = async (): Promise<T> => {
+      state.queued = Math.max(0, state.queued - 1);
+      state.running = true;
+      try {
+        return await operation();
+      } finally {
+        state.running = false;
+        if (this.#queues.get(threadId)?.tail === tail) this.#queues.delete(threadId);
+      }
     };
+
+    task = existing
+      ? existing.tail.catch(() => undefined).then(execute)
+      : execute();
+    tail = task.then(() => undefined, () => undefined);
+    state.tail = tail;
     this.#queues.set(threadId, state);
-
-    await previousTail.catch(() => undefined);
-    const active = this.#queues.get(threadId);
-    if (active) {
-      active.queued = Math.max(0, active.queued - 1);
-      active.running = true;
-    }
-
-    try {
-      return await operation();
-    } finally {
-      const latest = this.#queues.get(threadId);
-      if (latest) latest.running = false;
-      release();
-      if (this.#queues.get(threadId)?.tail === tail) this.#queues.delete(threadId);
-    }
+    return task;
   }
 }
