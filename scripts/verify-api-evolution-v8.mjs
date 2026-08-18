@@ -44,13 +44,17 @@ check("typescript-finding-parser", finding.includes("reportTypeScriptOutput") &&
 check("finding-contracts", hasAll(contracts, ["FindingSeveritySchema", "FindingStatusSchema", "FindingOwnerSchema", "FindingSummarySchema"]));
 
 check("release-gate-modes", hasAll(gate, ["PREFLIGHT", "FULL", "blockingFailures", "release.gate.completed"]));
-check("release-gate-db-integrity", gate.includes("database-integrity") && gate.includes("integrityCheck"));
+check("release-gate-db-integrity", gate.includes("database-integrity") && gate.includes("database-integrity-final") && gate.includes("integrityCheck"));
 check("release-gate-project-ownership", gate.includes("project-ownership") && gate.includes("realpath") && gate.includes("repositoryRoot") && gate.includes("path.relative"));
 check("release-gate-findings", gate.includes("blocking-findings") && gate.includes('"CRITICAL", "HIGH"'));
-check("release-gate-typescript", gate.includes('"typecheck"') && gate.includes("reportTypeScriptOutput"));
+check("release-gate-finding-revalidation", hasAll(gate, ["isSelfReleaseAggregate", "revalidatesTypeScript", 'item.owner === "typescript"', "RESOLVED"]));
+check("release-gate-typescript", gate.includes('"typecheck"') && gate.includes("reportTypeScriptOutput") && gate.includes("typecheckExecution.result.stdout") && gate.includes("typecheckExecution.result.stderr"));
 check("release-gate-reality", gate.includes('"evolution:verify"') && gate.includes('"truth:audit"'));
+check("release-gate-required-devbox-scripts", gate.includes("strictDevBox") && gate.includes("zorunlu ${script} betiği yok") && gate.includes("required ? \"FAIL\" : \"SKIP\""));
 check("release-gate-full-test-build", gate.includes('mode === "FULL"') && gate.includes('"test"') && gate.includes('"build"'));
-check("release-gate-git", gate.includes("git-diff-check") && gate.includes('"diff", "--check"') && gate.includes("workspace-clean"));
+check("release-gate-git", gate.includes("git-diff-check") && gate.includes("git-staged-diff-check") && gate.includes('"diff", "--check"') && gate.includes('"diff", "--cached", "--check"'));
+check("release-gate-post-run-git", hasAll(gate, ["release-head-stable", "workspace-stable-after-gate", "workspace-clean-after-gate", "initialChangeFingerprint", "finalGit"]));
+check("release-gate-single-flight", gate.includes("#inFlight") && gate.includes("RELEASE_GATE_ALREADY_RUNNING"));
 
 check("cloud-explicit-unconfigured", cloud.includes("UNCONFIGURED") && cloud.includes("CLOUD_CONTROL_UNCONFIGURED"));
 check("cloud-https-required", cloud.includes("DEVBOX_CONTROL_PLANE_HTTPS_REQUIRED") && cloud.includes('endpoint.protocol !== "https:"'));
@@ -96,6 +100,8 @@ check("preload-devapi-control", hasAll(preload, ["devApiControlGet", "evolutionF
 check("bridge-devapi-control", hasAll(bridge, ["getDevApiControl", "transitionEvolutionFinding", "runReleaseGate", "syncDevApiCloud"]));
 check("core-api-devapi-resources", hasAll(coreApi, ["findings", "release-gates", "cloud-control", "runtime/queues"]));
 check("core-api-workspace-verifier-preserved", hasAll(coreApi, ["WORKSPACE_MUTATION_NOT_VERIFIED", "WORKSPACE_VERIFICATION_FAILED", "gitHeadChanged"]));
+check("agent-failure-finding-ipc", ipc.includes('source: "agent-service"') && ipc.includes('owner: "agent"') && ipc.includes("workspaceIntent ? \"HIGH\" : \"MEDIUM\""));
+check("agent-failure-finding-core-api", coreApi.includes('source: "agent-service"') && coreApi.includes('owner: "agent"') && coreApi.includes("workspaceIntent ? \"HIGH\" : \"MEDIUM\""));
 
 check("persistent-lsp-pool", hasAll(language, ["MAX_LANGUAGE_SESSIONS", "#languageSessions", "didChange", "closeLanguageSession"]));
 check("lsp-uri-filter", language.includes("documentUri") && language.includes("publishDiagnostics") && language.includes("sameDocumentUri") && language.includes("fileURLToPath"));
