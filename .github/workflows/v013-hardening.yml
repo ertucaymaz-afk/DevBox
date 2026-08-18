@@ -45,8 +45,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          node scripts/apply-v013-evolution-final.mjs
-          if ($LASTEXITCODE -ne 0) { throw "V013_EVOLUTION_FINAL_FAILED:$LASTEXITCODE" }
+          node scripts/apply-v013-evolution-final2.mjs
+          if ($LASTEXITCODE -ne 0) { throw "V013_EVOLUTION_FINAL2_FAILED:$LASTEXITCODE" }
 
       - name: Patch biçimini doğrula
         shell: pwsh
@@ -77,6 +77,6 @@ jobs:
             Write-Host 'DEVBOX_V013_EVOLUTION_ALREADY_FINAL'
             exit 0
           }
-          git commit -m 'v0.1.13: finalize continuous API evolution isolation'
+          git commit -m 'v0.1.13: enforce continuous API evolution isolation'
           git push origin HEAD:codex/v0.1.13-gif-runtime-hardening
           Write-Host 'DEVBOX_V013_EVOLUTION_FINAL_COMMITTED'
