@@ -77,7 +77,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           git config user.name 'devbox-v020-materializer'
           git config user.email 'actions@users.noreply.github.com'
-          git add README.md package.json cloud docs scripts/verify-cloud-ecosystem.mjs scripts/verify-api-evolution-v12.mjs scripts/verify-api-evolution-v13.mjs scripts/verify-production-evidence-v13.mjs src/shared/contracts.ts src/main/services/api-evolution-service.ts src/main/services/api-evolution-v13-tracks.test.ts
+          git add README.md package.json cloud docs scripts/verify-cloud-ecosystem.mjs scripts/verify-api-evolution-v12.mjs scripts/verify-api-evolution-v13.mjs scripts/verify-production-evidence-v13.mjs src/shared/contracts.ts src/main/services/api-evolution-service.ts src/main/services/api-evolution-v13-tracks.test.ts src/main/services/database.test.ts
           git reset -- scripts/apply-v020-source-bundle.mjs scripts/apply-v020-evolution-tracks.mjs .github/workflows/v020-materialize.yml 2>$null
           if (-not (git diff --cached --quiet)) {
             git commit -m 'DevBox v0.1.20 source, sites, v13 and evidence contract'
