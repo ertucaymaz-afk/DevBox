@@ -167,7 +167,7 @@ jobs:
             '  process.stdout.write(`DEVBOX_AFTER_PACK_VERIFIED package=${targetPackage} main=${mainEntry}\n`);',
             '};'
           )
-          Set-Content '.packaged-app/after-pack.cjs' -Value ($hookLines -join "`n") -Encoding utf8NoBOM -NoNewline
+          Set-Content 'after-pack.cjs' -Value ($hookLines -join "`n") -Encoding utf8NoBOM -NoNewline
           $cfg = Get-Content '.packaged-app/electron-builder.yml' -Raw
           $cfg = [regex]::Replace($cfg, '(?m)^\s*output:\s*release\s*$', '  output: ../release', 1)
           $cfg = [regex]::Replace($cfg, '(?m)^asar:\s*true\s*$', "asar: false`nafterPack: after-pack.cjs", 1)
