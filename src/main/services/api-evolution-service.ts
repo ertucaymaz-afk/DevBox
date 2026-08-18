@@ -388,7 +388,7 @@ export class ApiEvolutionService {
         ...updated, isRunning: false, score, lastProvider: response.provider, lastModel: response.model, completedCycles: updated.completedCycles + 1, cyclesToday: updated.cyclesToday + 1,
         lastCycleAt: completedAt, lastCycleDurationMs: response.durationMs, lastError: null, nextCycleAt: updated.enabled && specSummary.remainingCount > 0 && specSummary.currentGateState !== "BLOCKED_EXTERNAL" && specSummary.currentGateState !== "RECOVERY_REQUIRED" ? new Date(Date.now() + 500).toISOString() : null,
         domainScores: { ...updated.domainScores, [specTask.track]: Math.max(updated.domainScores[specTask.track], score) },
-        tasks: updated.tasks.map((item) => item.id === task.id ? { ...item, state: "SUCCEEDED" as const, provider: response.provider, model: response.model, threadId: thread.thread.id, evidence: [...evidence, ...phaseEvidence].slice(0, 40), error: null, blockReason: null, retryAfterAt: null, completedAt } : item),
+        tasks: updated.tasks.map((item) => item.id === task.id ? { ...item, state: "SUCCEEDED" as const, provider: response.provider, model: response.model, threadId: thread.thread.id, evidence: finalEvidence, error: null, blockReason: null, retryAfterAt: null, completedAt } : item),
         learnings: [learning, ...updated.learnings].slice(0, MAX_LEARNINGS), spec: specSummary,
         runtime: { ...updated.runtime, stage: "COMPLETED", detail: `${specTask.taskId} doğrulandı ve tamamlandı.`, waitingReason: null, provider: response.provider, model: response.model, updatedAt: completedAt }, updatedAt: completedAt
       });
