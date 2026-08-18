@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -42,6 +42,35 @@ describe("language and debug service", () => {
       service.close();
     }
   }, 30_000);
+
+  it("keeps at most three idle persistent TypeScript sessions across projects", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "devbox-lsp-pool-test-"));
+    temporaryDirectories.push(root);
+    const database = new StateDatabase(path.join(root, ".state", "test.sqlite"));
+    databases.push(database);
+    const projects = new ProjectService(database);
+    const service = new LanguageService(projects);
+    try {
+      for (let index = 0; index < 4; index += 1) {
+        const projectRoot = path.join(root, `project-${index}`);
+        await mkdir(projectRoot, { recursive: true });
+        await writeFile(path.join(projectRoot, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true } }), "utf8");
+        const project = await projects.open(projectRoot);
+        const result = await service.diagnostics({
+          projectId: project.id,
+          relativePath: "sample.ts",
+          language: "typescript",
+          content: `const value${index}: number = ${index};\n`,
+          version: 1
+        });
+        expect(result.provider).toBe("typescript-language-server");
+        expect(result.diagnostics.some((item) => item.severity === "error")).toBe(false);
+      }
+      expect(service.activeLanguageSessions()).toBe(3);
+    } finally {
+      service.close();
+    }
+  }, 60_000);
 
   it("runs a real JavaScript DAP session through the bundled Microsoft adapter", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "devbox-dap-test-"));
