@@ -83,9 +83,13 @@ import {
   WorktreeRemoveInputSchema,
   WorktreeSchema
 } from "../shared/contracts.js";
+import { CloudControlStatusSchema, DevApiControlSnapshotSchema, EvolutionFindingSchema, FindingTransitionInputSchema, ProjectIdControlInputSchema, ReleaseGateRunInputSchema, ReleaseGateRunSchema } from "../shared/devapi-control-contracts.js";
 import type { CapabilityService } from "./services/capability-service.js";
 import { isWorkspaceMutationRequest, type AgentService } from "./services/agent-service.js";
 import type { ApiEvolutionService } from "./services/api-evolution-service.js";
+import type { CloudControlService } from "./services/cloud-control-service.js";
+import type { EvolutionFindingService } from "./services/evolution-finding-service.js";
+import type { ReleaseGateService } from "./services/release-gate-service.js";
 import type { AttachmentService } from "./services/attachment-service.js";
 import type { CoreApi } from "./services/core-api.js";
 import type { GitService } from "./services/git-service.js";
@@ -112,6 +116,9 @@ type IpcServices = {
   memory: MemoryService;
   turnCoordinator: ThreadTurnCoordinator;
   evolution: ApiEvolutionService;
+  findings: EvolutionFindingService;
+  releaseGate: ReleaseGateService;
+  cloudControl: CloudControlService;
   attachments: AttachmentService;
   projects: ProjectService;
   selfDevelopmentProjectId: string | null;
@@ -437,6 +444,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
         .then((response) => response.content);
     } catch (error: unknown) {
         const code = error instanceof Error ? error.message : "AGENT_UNKNOWN_FAILURE";
+        services.findings.report({ projectId: project.id, source: "agent-service", key: code, title: `AgentService · ${code}`, detail: error instanceof Error ? error.message : String(error), severity: workspaceIntent ? "HIGH" : "MEDIUM", owner: "agent", track: workspaceIntent ? "coding" : "quality", evidence: [`thread:${input.threadId}`, workspaceIntent ? "workspace-mutation" : "chat"] });
         publishActivity({ kind: "failure", message: `Ajan çalıştırması başarısız oldu · ${code}.`, createdAt: new Date().toISOString() });
         const remediation = code === "NVIDIA_CREDENTIAL_UNAVAILABLE"
           ? "Windows ortamına NVIDIA_API_KEY ekleyip DevBox'ı yeniden başlatın."
@@ -717,6 +725,30 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     // “Şimdi çalıştır” tıklaması sürekli self-development döngüsünü başlatan açık kullanıcı eylemidir.
     // Döngü Durdurulana, gerçek harici engel çıkana veya görev grafiği bitene kadar otomatik ilerler.
     return EvolutionCampaignSchema.parse(await services.evolution.runNow(input.projectId));
+  });
+
+  registerHandler(IPC_CHANNELS.devApiControlGet, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ProjectIdControlInputSchema.parse(unknownInput);
+    const campaign = services.evolution.get(input.projectId);
+    const findings = services.findings.reconcileCampaign(input.projectId, campaign);
+    return DevApiControlSnapshotSchema.parse({ campaign, findings, releaseGate: services.releaseGate.latest(input.projectId), releaseHistory: services.releaseGate.history(input.projectId), cloud: services.cloudControl.status(input.projectId), queues: services.turnCoordinator.snapshots(), generatedAt: new Date().toISOString() });
+  });
+
+  registerHandler(IPC_CHANNELS.evolutionFindingTransition, services.rendererWebContentsId, async (unknownInput) => {
+    const input = FindingTransitionInputSchema.parse(unknownInput);
+    return EvolutionFindingSchema.parse(services.findings.transition(input.projectId, input.findingId, input.status, input.resolution));
+  });
+
+  registerHandler(IPC_CHANNELS.releaseGateRun, services.rendererWebContentsId, async (unknownInput, event) => {
+    const input = ReleaseGateRunInputSchema.parse(unknownInput);
+    services.findings.reconcileCampaign(input.projectId, services.evolution.get(input.projectId));
+    await enforcePermissionPolicy(event, services, { title: "Release gate", message: `${input.mode} release doğrulaması gerçek proje komutlarıyla çalıştırılsın mı?`, detail: input.mode === "FULL" ? "TypeScript, evolution/truth kapıları, test ve production build gerçek süreçlerde çalışır." : "Preflight daha kısa fail-closed doğrulamaları çalıştırır.", risky: input.mode === "FULL" });
+    return ReleaseGateRunSchema.parse(await services.releaseGate.run(input.projectId, input.mode));
+  });
+
+  registerHandler(IPC_CHANNELS.cloudControlSync, services.rendererWebContentsId, async (unknownInput) => {
+    const input = ProjectIdControlInputSchema.parse(unknownInput);
+    return CloudControlStatusSchema.parse(await services.cloudControl.sync(input.projectId));
   });
 
   registerHandler(IPC_CHANNELS.integrationInspect, services.rendererWebContentsId, async (unknownInput) => {

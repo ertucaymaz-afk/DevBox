@@ -5,6 +5,9 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { z } from "zod";
 import { isWorkspaceMutationRequest, type AgentService } from "./agent-service.js";
 import type { ApiEvolutionService } from "./api-evolution-service.js";
+import type { CloudControlService } from "./cloud-control-service.js";
+import type { EvolutionFindingService } from "./evolution-finding-service.js";
+import type { ReleaseGateService } from "./release-gate-service.js";
 import type { AttachmentService } from "./attachment-service.js";
 import type { CapabilityService } from "./capability-service.js";
 import type { StateDatabase } from "./database.js";
@@ -27,6 +30,9 @@ type CoreApiOptions = {
   memory: MemoryService;
   turnCoordinator: ThreadTurnCoordinator;
   evolution: ApiEvolutionService;
+  findings: EvolutionFindingService;
+  releaseGate: ReleaseGateService;
+  cloudControl: CloudControlService;
   attachments: AttachmentService;
   git: GitService;
   workspaceTurns?: WorkspaceTurnService;
@@ -52,6 +58,10 @@ const ThreadMessageBodySchema = z.object({
   attachmentIds: z.array(z.string().min(8).max(128)).max(20).default([])
 }).strict().refine((input) => input.content.length > 0 || input.attachmentIds.length > 0, { message: "MESSAGE_OR_ATTACHMENT_REQUIRED" });
 const ThreadItemUpdateBodySchema = z.object({ content: z.string().trim().min(1).max(64_000) }).strict();
+const ReleaseGateBodySchema = z.object({ mode: z.enum(["PREFLIGHT", "FULL"]).default("PREFLIGHT") }).strict();
+const FindingParamsSchema = z.object({ id: z.string().min(8).max(128), findingId: z.string().uuid() }).strict();
+const FindingPatchBodySchema = z.object({ status: z.enum(["RESOLVED", "REJECTED"]), resolution: z.string().trim().min(3).max(2_000) }).strict();
+
 const EvolutionPatchBodySchema = z.object({
   enabled: z.boolean().optional(),
   directive: z.string().trim().min(80).max(64_000).optional(),
@@ -108,6 +118,7 @@ async function executeVerifiedAgentTurn(options: CoreApiOptions, input: {
       }
     }
     const code = error instanceof Error && /^[A-Z][A-Z0-9_]+$/u.test(error.message) ? error.message : "AGENT_EXECUTION_FAILED";
+    options.findings.report({ projectId: input.projectId, source: "agent-service", key: code, title: `AgentService · ${code}`, detail: error instanceof Error ? error.message : String(error), severity: workspaceIntent ? "HIGH" : "MEDIUM", owner: "agent", track: workspaceIntent ? "coding" : "quality", evidence: [`thread:${input.threadId}`, workspaceIntent ? "workspace-mutation" : "core-api-chat"] });
     throw new Error(code);
   }
 
@@ -203,7 +214,7 @@ export class CoreApi {
       protocol: "HTTP/JSON",
       transport: "loopback",
       authentication: "Bearer DEVBOX_API_KEY",
-      resources: ["runtime", "capabilities", "providers", "models", "projects", "threads", "memory", "evolution", "approvals", "git", "toolkits", "skills", "plugins", "mcp", "vercel", "github", "diagnostics"]
+      resources: ["runtime", "capabilities", "providers", "models", "projects", "threads", "memory", "evolution", "findings", "release-gates", "cloud-control", "approvals", "git", "toolkits", "skills", "plugins", "mcp", "vercel", "github", "diagnostics"]
     }));
     this.#server.get("/v1/runtime", async () => ({
       product: "DevBox",
@@ -214,6 +225,7 @@ export class CoreApi {
       pid: process.pid,
       state: "READY"
     }));
+    this.#server.get("/v1/runtime/queues", async () => ({ items: this.#options.turnCoordinator.snapshots() }));
     this.#server.get("/v1/capabilities", async () => ({
       items: await this.#options.capabilities.inspect(this.#options.probeCwd)
     }));
@@ -272,6 +284,35 @@ export class CoreApi {
     this.#server.post("/v1/projects/:id/evolution/cancel", async (request) => {
       const params = IdParamsSchema.parse(request.params);
       return { item: this.#options.evolution.cancel(params.id) };
+    });
+    this.#server.get("/v1/projects/:id/findings", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      const campaign = this.#options.evolution.get(params.id);
+      return this.#options.findings.reconcileCampaign(params.id, campaign);
+    });
+    this.#server.patch("/v1/projects/:id/findings/:findingId", async (request) => {
+      const params = FindingParamsSchema.parse(request.params);
+      const body = FindingPatchBodySchema.parse(request.body);
+      return { item: this.#options.findings.transition(params.id, params.findingId, body.status, body.resolution) };
+    });
+    this.#server.get("/v1/projects/:id/release-gates", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      return { latest: this.#options.releaseGate.latest(params.id), items: this.#options.releaseGate.history(params.id) };
+    });
+    this.#server.post("/v1/projects/:id/release-gates", async (request, reply) => {
+      const params = IdParamsSchema.parse(request.params);
+      const body = ReleaseGateBodySchema.parse(request.body ?? {});
+      if (body.mode === "FULL" && this.#options.settings.get().approvalPolicy === "always") throw new Error("API_INTERACTIVE_APPROVAL_REQUIRED");
+      this.#options.findings.reconcileCampaign(params.id, this.#options.evolution.get(params.id));
+      return await reply.code(202).send({ item: await this.#options.releaseGate.run(params.id, body.mode) });
+    });
+    this.#server.get("/v1/projects/:id/cloud-control", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      return { item: this.#options.cloudControl.status(params.id) };
+    });
+    this.#server.post("/v1/projects/:id/cloud-control/sync", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      return { item: await this.#options.cloudControl.sync(params.id) };
     });
     this.#server.get("/v1/threads", async () => ({ items: this.#options.database.listThreads() }));
     this.#server.get("/v1/threads/:id", async (request) => {

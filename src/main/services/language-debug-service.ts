@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { DebugResponse, DebugSession, EditorDiagnostic, LanguageDiagnosticsResult } from "../../shared/contracts.js";
 import { resolveExistingPathWithinRoot } from "../security/path-boundary.js";
 import type { ProjectService } from "./project-service.js";
@@ -24,13 +24,17 @@ function position(value: unknown): { line: number; character: number } {
   };
 }
 
-function normalizeDiagnostics(message: ProtocolMessage): EditorDiagnostic[] | null {
+type DiagnosticPublication = { uri: string; diagnostics: EditorDiagnostic[] };
+
+function normalizeDiagnostics(message: ProtocolMessage): DiagnosticPublication | null {
   if (message.method !== "textDocument/publishDiagnostics") return null;
   const params = message.params;
   if (!params || typeof params !== "object") return null;
-  const raw = (params as Record<string, unknown>).diagnostics;
-  if (!Array.isArray(raw)) return [];
-  return raw.slice(0, 10_000).flatMap((entry): EditorDiagnostic[] => {
+  const record = params as Record<string, unknown>;
+  if (typeof record.uri !== "string" || !record.uri) return null;
+  const raw = record.diagnostics;
+  if (!Array.isArray(raw)) return { uri: record.uri, diagnostics: [] };
+  const diagnostics = raw.slice(0, 10_000).flatMap((entry): EditorDiagnostic[] => {
     if (!entry || typeof entry !== "object") return [];
     const item = entry as Record<string, unknown>;
     const range = item.range;
@@ -45,67 +49,166 @@ function normalizeDiagnostics(message: ProtocolMessage): EditorDiagnostic[] | nu
       range: { start: position(rangeRecord.start), end: position(rangeRecord.end) }
     }];
   });
+  return { uri: record.uri, diagnostics };
 }
+
+function sameDocumentUri(left: string, right: string): boolean {
+  if (left === right) return true;
+  try {
+    const normalizePath = (value: string): string => {
+      const resolved = path.resolve(fileURLToPath(value));
+      return process.platform === "win32" ? resolved.toLocaleLowerCase("en-US") : resolved;
+    };
+    return normalizePath(left) === normalizePath(right);
+  } catch {
+    return false;
+  }
+}
+
+type ManagedOpenDocument = { version: number; lastUsedAt: number };
+type ManagedLanguageSession = {
+  projectId: string;
+  protocol: ProtocolSession;
+  rootUri: string;
+  openDocuments: Map<string, ManagedOpenDocument>;
+  lastUsedAt: number;
+  activeRequests: number;
+  tail: Promise<void>;
+};
+
+const MAX_LANGUAGE_SESSIONS = 3;
+const MAX_OPEN_DOCUMENTS_PER_SESSION = 64;
 
 export class LanguageService {
   readonly #projects: ProjectService;
+  readonly #languageSessions = new Map<string, ManagedLanguageSession>();
+  readonly #languageSessionInit = new Map<string, Promise<ManagedLanguageSession>>();
 
-  public constructor(projects: ProjectService) {
-    this.#projects = projects;
+  public constructor(projects: ProjectService) { this.#projects = projects; }
+
+  #trimLanguageSessions(targetSize = MAX_LANGUAGE_SESSIONS): void {
+    while (this.#languageSessions.size > targetSize) {
+      const oldestIdle = [...this.#languageSessions.values()]
+        .filter((session) => session.activeRequests === 0)
+        .sort((left, right) => left.lastUsedAt - right.lastUsedAt)[0];
+      if (!oldestIdle) return;
+      this.closeLanguageSession(oldestIdle.projectId);
+    }
   }
 
-  public async diagnostics(input: {
-    projectId: string;
-    relativePath: string;
-    language: string;
-    content: string;
-    version: number;
-  }): Promise<LanguageDiagnosticsResult> {
-    if (!SUPPORTED_LANGUAGES.has(input.language)) throw new Error("LANGUAGE_SERVER_UNSUPPORTED_LANGUAGE");
-    const started = performance.now();
-    const project = this.#projects.get(input.projectId);
-    const absoluteFile = path.resolve(project.rootPath, input.relativePath);
-    const relative = path.relative(project.rootPath, absoluteFile);
-    if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("PATH_OUTSIDE_PROJECT");
+  #makeRoomForLanguageSession(): void {
+    if (this.#languageSessions.size < MAX_LANGUAGE_SESSIONS) return;
+    const oldestIdle = [...this.#languageSessions.values()]
+      .filter((session) => session.activeRequests === 0)
+      .sort((left, right) => left.lastUsedAt - right.lastUsedAt)[0];
+    if (oldestIdle) this.closeLanguageSession(oldestIdle.projectId);
+  }
 
+  async #createLanguageSession(projectId: string): Promise<ManagedLanguageSession> {
+    const project = this.#projects.get(projectId);
+    this.#makeRoomForLanguageSession();
     const cli = require.resolve("typescript-language-server/lib/cli.mjs");
-    const session = new ProtocolSession("lsp", process.execPath, [cli, "--stdio"], project.rootPath, {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1"
-    });
+    const protocol = new ProtocolSession("lsp", process.execPath, [cli, "--stdio"], project.rootPath, { ...process.env, ELECTRON_RUN_AS_NODE: "1" });
     const rootUri = pathToFileURL(project.rootPath).toString();
-    const documentUri = pathToFileURL(absoluteFile).toString();
     try {
-      await session.request("initialize", {
+      await protocol.request("initialize", {
         processId: null,
         rootUri,
         workspaceFolders: [{ uri: rootUri, name: project.name }],
         capabilities: { textDocument: { publishDiagnostics: { relatedInformation: true, versionSupport: true } } },
         initializationOptions: { preferences: { includeCompletionsForModuleExports: true } }
       }, 20_000);
-      session.notify("initialized", {});
+      protocol.notify("initialized", {});
+      const managed: ManagedLanguageSession = { projectId, protocol, rootUri, openDocuments: new Map(), lastUsedAt: Date.now(), activeRequests: 0, tail: Promise.resolve() };
+      this.#languageSessions.set(projectId, managed);
+      return managed;
+    } catch (error) {
+      protocol.close();
+      throw error;
+    }
+  }
+
+  async #getLanguageSession(projectId: string): Promise<ManagedLanguageSession> {
+    const existing = this.#languageSessions.get(projectId);
+    if (existing) { existing.lastUsedAt = Date.now(); return existing; }
+    const pending = this.#languageSessionInit.get(projectId);
+    if (pending) return await pending;
+    const creation = this.#createLanguageSession(projectId);
+    this.#languageSessionInit.set(projectId, creation);
+    try { return await creation; }
+    finally { this.#languageSessionInit.delete(projectId); }
+  }
+
+  public closeLanguageSession(projectId: string): void {
+    const managed = this.#languageSessions.get(projectId);
+    if (!managed) return;
+    managed.protocol.close();
+    this.#languageSessions.delete(projectId);
+  }
+
+  public activeLanguageSessions(): number { return this.#languageSessions.size; }
+
+  #touchDocument(managed: ManagedLanguageSession, documentUri: string, requestedVersion: number): number {
+    const existing = managed.openDocuments.get(documentUri);
+    if (!existing && managed.openDocuments.size >= MAX_OPEN_DOCUMENTS_PER_SESSION) {
+      const oldest = [...managed.openDocuments.entries()].sort((left, right) => left[1].lastUsedAt - right[1].lastUsedAt)[0];
+      if (oldest) {
+        managed.protocol.notify("textDocument/didClose", { textDocument: { uri: oldest[0] } });
+        managed.openDocuments.delete(oldest[0]);
+      }
+    }
+    const nextVersion = existing ? Math.max(existing.version + 1, requestedVersion) : Math.max(1, requestedVersion);
+    managed.openDocuments.set(documentUri, { version: nextVersion, lastUsedAt: Date.now() });
+    return nextVersion;
+  }
+
+  async #diagnosticsWithSession(managed: ManagedLanguageSession, input: { projectId: string; relativePath: string; language: string; content: string; version: number }): Promise<LanguageDiagnosticsResult> {
+    const started = performance.now();
+    const project = this.#projects.get(input.projectId);
+    const absoluteFile = path.resolve(project.rootPath, input.relativePath);
+    const relative = path.relative(project.rootPath, absoluteFile);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("PATH_OUTSIDE_PROJECT");
+    const documentUri = pathToFileURL(absoluteFile).toString();
+    managed.lastUsedAt = Date.now();
+    managed.activeRequests += 1;
+    try {
       const published = new Promise<EditorDiagnostic[]>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          unsubscribe();
-          reject(new Error("LSP_DIAGNOSTICS_TIMEOUT"));
-        }, 12_000);
+        const timeout = setTimeout(() => { unsubscribe(); reject(new Error("LSP_DIAGNOSTICS_TIMEOUT")); }, 12_000);
         timeout.unref();
-        const unsubscribe = session.onMessage((message) => {
-          const diagnostics = normalizeDiagnostics(message);
-          if (diagnostics === null) return;
-          clearTimeout(timeout);
-          unsubscribe();
-          resolve(diagnostics);
+        const unsubscribe = managed.protocol.onMessage((message) => {
+          const publication = normalizeDiagnostics(message);
+          if (!publication || !sameDocumentUri(publication.uri, documentUri)) return;
+          clearTimeout(timeout); unsubscribe(); resolve(publication.diagnostics);
         });
       });
-      session.notify("textDocument/didOpen", {
-        textDocument: { uri: documentUri, languageId: input.language, version: input.version, text: input.content }
-      });
+      const wasOpen = managed.openDocuments.has(documentUri);
+      const version = this.#touchDocument(managed, documentUri, input.version);
+      if (wasOpen) {
+        managed.protocol.notify("textDocument/didChange", { textDocument: { uri: documentUri, version }, contentChanges: [{ text: input.content }] });
+      } else {
+        managed.protocol.notify("textDocument/didOpen", { textDocument: { uri: documentUri, languageId: input.language, version, text: input.content } });
+      }
       const diagnostics = await published;
       return { provider: "typescript-language-server", diagnostics, durationMs: Math.max(0, Math.round(performance.now() - started)) };
     } finally {
-      session.close();
+      managed.activeRequests = Math.max(0, managed.activeRequests - 1);
+      managed.lastUsedAt = Date.now();
+      this.#trimLanguageSessions();
     }
+  }
+
+  public async diagnostics(input: { projectId: string; relativePath: string; language: string; content: string; version: number }): Promise<LanguageDiagnosticsResult> {
+    if (!SUPPORTED_LANGUAGES.has(input.language)) throw new Error("LANGUAGE_SERVER_UNSUPPORTED_LANGUAGE");
+    const managed = await this.#getLanguageSession(input.projectId);
+    const task = managed.tail.then(async () => await this.#diagnosticsWithSession(managed, input));
+    managed.tail = task.then(() => undefined, () => undefined);
+    try { return await task; }
+    catch (error) { this.closeLanguageSession(input.projectId); throw error; }
+  }
+
+  public close(): void {
+    for (const projectId of [...this.#languageSessions.keys()]) this.closeLanguageSession(projectId);
+    this.#languageSessionInit.clear();
   }
 }
 
@@ -185,9 +288,6 @@ export class DebugService {
       if (message.type === "event" && (message.event === "terminated" || message.event === "exited")) managed.snapshot = { ...managed.snapshot, state: "STOPPED" };
     });
     try {
-      // Some adapters emit `initialized` in the same transport chunk as the
-      // initialize response. Register before sending initialize so the event
-      // cannot be lost between dispatch and the promise continuation.
       const adapterInitialized = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           unsubscribe();
@@ -213,8 +313,6 @@ export class DebugService {
       });
       const capabilities = initialized.body && typeof initialized.body === "object" ? initialized.body as Record<string, unknown> : {};
       managed.snapshot = { ...managed.snapshot, capabilities };
-      // DAP launch/attach responses may deliberately wait for configurationDone. Start the
-      // request first, wait for the adapter's initialized event, then close configuration.
       launchPromise = protocol.request(input.request, { ...configuration, request: input.request }, 45_000);
       await adapterInitialized;
       if (capabilities.supportsConfigurationDoneRequest !== false) {
@@ -247,9 +345,6 @@ export class DebugService {
       boundedArgs = { ...args, source: { ...sourceRecord, path: boundedPath } };
     }
     const response = await managed.protocol.request(command, boundedArgs);
-    // The adapter's stopped/continued events are authoritative. Step requests resume the
-    // debuggee until the adapter reports the next stopped event; a pause request does not
-    // become PAUSED merely because the request was accepted.
     if (["continue", "next", "stepIn", "stepOut"].includes(command)) {
       managed.snapshot = { ...managed.snapshot, state: "RUNNING" };
     }

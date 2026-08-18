@@ -54,4 +54,34 @@ describe("ThreadTurnCoordinator", () => {
     await expect(next).resolves.toBe("ok");
     expect(order).toEqual(["failed", "next"]);
   });
+
+  it("removes queue state after an operation throws before its first await", async () => {
+    const coordinator = new ThreadTurnCoordinator();
+    const failed = coordinator.run("thread-sync", async () => {
+      throw new Error("sync-before-await");
+    });
+    await expect(failed).rejects.toThrow("sync-before-await");
+    expect(coordinator.snapshot("thread-sync")).toEqual({ threadId: "thread-sync", queued: 0, running: false });
+    expect(coordinator.snapshots().some((item) => item.threadId === "thread-sync")).toBe(false);
+  });
+
+  it("installs the current completion tail before re-entrant same-thread queueing", async () => {
+    const coordinator = new ThreadTurnCoordinator();
+    const order: string[] = [];
+    let nested!: Promise<string>;
+    const outer = coordinator.run("thread-reentrant", async () => {
+      order.push("outer:start");
+      nested = coordinator.run("thread-reentrant", async () => {
+        order.push("nested:start");
+        return "nested";
+      });
+      order.push("outer:end");
+      return "outer";
+    });
+
+    await expect(outer).resolves.toBe("outer");
+    await expect(nested).resolves.toBe("nested");
+    expect(order).toEqual(["outer:start", "outer:end", "nested:start"]);
+    expect(coordinator.snapshot("thread-reentrant")).toEqual({ threadId: "thread-reentrant", queued: 0, running: false });
+  });
 });
