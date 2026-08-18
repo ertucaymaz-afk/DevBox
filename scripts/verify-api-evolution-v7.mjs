@@ -37,7 +37,7 @@ check("no-invented-codex-min-version", !agent.includes("CODEX_VERSION_TOO_OLD_FO
 check("provider-must-mutate-before-pass", agent.includes("validateResult") && service.includes("PROVIDER_COMPLETED_WITHOUT_WORKSPACE_MUTATION"));
 check("provider-result-protocol-required", agent.includes("PROVIDER_RESULT_PROTOCOL_MISSING") && agent.includes("validateEvolutionAcceptance"));
 check("acceptance-bundle-required", service.includes('"positiveTests"') && service.includes('"negativeTests"') && service.includes('"securityChecks"') && service.includes('"performanceChecks"') && service.includes('"uxChecks"') && specService.includes("DEVELOPMENT_SPEC_ACCEPTANCE_INCOMPLETE"));
-check("deterministic-reviewer-gate", service.includes("DEVBOX_DETERMINISTIC_GATE_V1") && specService.includes("deterministicReviewer"));
+check("deterministic-reviewer-gate", service.includes("DEVBOX_DETERMINISTIC_GATE_V1") && service.includes("DEVBOX_ADAPTIVE_DETERMINISTIC_GATE_V1") && specService.includes("deterministicReviewer"));
 check("codex-inner-command-failure-gate", agent.includes("CODEX_INNER_COMMAND_FAILED") && agent.includes('event.type === "turn.completed"') && agent.includes('event.type === "turn.failed"'));
 check("structured-external-blocker", agent.includes("parseEvolutionProviderOutcome") && service.includes('response.outcome === "BLOCKED_EXTERNAL"') && service.includes("allowBlockedExternalRetry"));
 check("codex-primary-fallback-chain", agent.includes('model: "gpt-5.6-sol"') && agent.includes('model: "gpt-5.5"') && agent.includes('provider: "hermes-nvidia"'));
@@ -46,7 +46,7 @@ check("streaming-command-runner", runner.includes("onStdoutLine") && runner.incl
 check("durable-heartbeat", service.includes("heartbeatDurableJob") && service.includes("JOB_HEARTBEAT_MS"));
 check("real-verification-gate", service.includes('"diff", "--check"') && service.includes('scripts.verify ? ["verify"] : ["typecheck", "test", "build"]'));
 check("cancel-control", service.includes("public cancel(projectId") && ipc.includes("evolutionCancel") && renderer.includes("cancelEvolutionCycle"));
-check("failure-retry-backoff", service.includes("MAX_AUTOMATIC_RETRIES") && service.includes("RETRY_BASE_MS") && service.includes(': "BACKOFF"') && !service.includes("current.enabled && !current.lastError"));
+check("failure-retry-backoff", service.includes("RETRY_BASE_MS") && service.includes("RETRY_MAX_MS") && service.includes(': "BACKOFF"') && !service.includes("current.enabled && !current.lastError"));
 check("recovery-stops-blind-replay", specService.includes("RECOVERY_REQUIRED") && specService.includes("return null") && service.includes("EVOLUTION_PHASE_RECOVERY_REQUIRED"));
 check("same-phase-gating", specService.includes("passCount === tasks.length") && specService.includes("BLOCKED_EXTERNAL") && specService.includes("Strict in-phase order") && specService.includes("phaseSummary"));
 check("phase-evidence-artifacts", specService.includes('"tasks.json"') && specService.includes('"requirements.json"') && specService.includes('"failures.json"') && specService.includes('"traceability.json"') && specService.includes('"gate.json"'));
@@ -62,7 +62,6 @@ check("manual-recovery-retry", specService.includes("allowRecoveryRetry") && ser
 check("clean-baseline-gate", service.includes("EVOLUTION_WORKSPACE_DIRTY_BASELINE") && service.includes("baselineWasClean"));
 check("managed-source-rollback", service.includes("#restoreManagedWorkspace") && service.includes("rollback-head:"));
 check("restart-runtime-reconciliation", service.includes("yarım kalmış atomik görev RECOVERY_REQUIRED") && service.includes("isRunning: false"));
-
 
 check("reasoning-minimal-contract", contracts.includes('"minimal"') && renderer.includes('Minimal'));
 check("model-catalog-contract", contracts.includes("EvolutionModelCatalogSchema") && contracts.includes('"nvidia-models-api"'));
@@ -81,7 +80,12 @@ check("research-not-runtime-pass", researchText.includes("does not mark") || res
 check("click-is-explicit-approval", !ipc.includes('title: "geliştirme.md gerçek uygulama çevrimi"') && ipc.includes('“Şimdi çalıştır” tıklaması sürekli self-development döngüsünü başlatan açık kullanıcı eylemidir'));
 check("new-campaign-does-not-autostart", service.includes("enabled: false, isRunning: false") && service.includes("nextCycleAt: null, lastCycleDurationMs"));
 check("continuous-after-click", service.includes("sürekli gerçek API geliştirme etkinleştirildi") && service.includes("#scheduleContinuation(projectId, 500)"));
-check("verified-change-must-commit", service.includes("#commitVerifiedMutation") && service.includes("EVOLUTION_GIT_COMMIT_FAILED") && service.includes("git-commit:") && service.indexOf("#commitVerifiedMutation") < service.indexOf('this.#spec.mark(projectId, specTask.taskId, "PASS"'));
+const commitCall = service.indexOf("const commitEvidence = await this.#commitVerifiedMutation");
+const passCall = service.indexOf('this.#markSpecTask(projectId, specTask, "PASS"');
+check("verified-change-must-commit", service.includes("#commitVerifiedMutation") && service.includes("EVOLUTION_GIT_COMMIT_FAILED") && service.includes("git-commit:") && commitCall >= 0 && passCall > commitCall, `${commitCall}:${passCall}`);
+check("adaptive-task-contract", service.includes("ADAPTIVE_CONTINUOUS_MAINTENANCE") && service.includes("createAdaptiveEvolutionTask") && service.includes("gerçek kaynak koduna en küçük güvenli değişikliği") && service.includes("no-op"));
+check("adaptive-continuation-contract", service.includes("shouldContinueEvolution") && service.includes("remainingCount <= 0") && service.includes("#scheduleContinuation(projectId, 500)"));
+check("adaptive-blockers-stop", service.includes('["BLOCKED_EXTERNAL", "RECOVERY_REQUIRED", "CANCELLED"].includes') && service.includes("adaptiveState"));
 check("packaged-self-development-source", main.includes("new SelfDevelopmentService") && selfDevelopment.includes("persistent-self-development-source") && builder.includes("development/source-template/src") && signedBuilder.includes("development/source-template/src"));
 check("corepack-no-global-shim-required", service.includes('args: ["pnpm", "install", "--frozen-lockfile"]') && !service.includes('corepack enable'));
 check("reality-contract-hard-rule", service.includes("SİMÜLASYON / DEMO / FAKE / SAHTE başarı") && selfDevelopment.includes("NO_FABRICATED_OR_REPRESENTATIVE_SUCCESS"));
