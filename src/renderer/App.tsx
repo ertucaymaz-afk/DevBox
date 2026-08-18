@@ -40,6 +40,8 @@ import {
   Save,
   Search,
   Send,
+  Sun,
+  Moon,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -75,6 +77,7 @@ import type {
   PermissionProfile,
   EditorDiagnostic
 } from "../shared/contracts";
+import { DEVBOX_DAY_THEME, DEVBOX_OBSIDIAN_THEME } from "../shared/theme-presets";
 import {
   AutomationWorkspace,
   CatalogWorkspace,
@@ -86,8 +89,9 @@ import {
 } from "./AdvancedViews";
 import { WhatsNewWorkspace } from "./WhatsNewWorkspace";
 import { CanvasInspector } from "./CanvasInspector";
+import { DevApiControlWorkspace } from "./DevApiControlWorkspace";
 
-type View = "thread" | "files" | "git" | "runs" | "sites" | "capabilities" | "settings" | "terminal" | "worktrees" | "automations" | "integrations" | "skills" | "pullRequests" | "whatsNew";
+type View = "thread" | "files" | "git" | "runs" | "sites" | "capabilities" | "settings" | "terminal" | "worktrees" | "devapi" | "automations" | "integrations" | "skills" | "pullRequests" | "whatsNew";
 type PromptState = {
   title: string;
   label: string;
@@ -1202,7 +1206,8 @@ export function App(): ReactNode {
             : view === "capabilities" ? "Sistem kabiliyetleri"
               : view === "terminal" ? "Terminal"
                 : view === "worktrees" ? "Worktree’ler"
-                  : view === "automations" ? "DevBox API gelişimi"
+                  : view === "devapi" ? "DevAPI komuta merkezi"
+                    : view === "automations" ? "API görev motoru"
                     : view === "integrations" ? "Eklentiler ve entegrasyonlar"
                       : view === "skills" ? "Beceriler ve taşınabilir eklentiler"
                       : view === "pullRequests" ? "GitHub pull request’leri"
@@ -1224,9 +1229,9 @@ export function App(): ReactNode {
   if (!bootstrap) return <div className="boot-error" role="alert"><AlertTriangle size={24} /><strong>DevBox yerel çalışma alanını açamadı</strong><span>{notice ?? "Başlangıç verisi alınamadı."}</span></div>;
 
   return (
-    <div style={themeStyle(appSettings)} className={`app-shell ${sidebarVisible ? "" : "sidebar-hidden"} ${inspectorVisible ? "inspector-visible" : ""} ${appSettings?.reduceMotion ? "reduced-motion" : ""} ${appSettings?.theme.contrast === "high" ? "high-contrast" : ""}`}>
+    <div data-theme-base={appSettings?.theme.base ?? "dark"} style={themeStyle(appSettings)} className={`app-shell ${sidebarVisible ? "" : "sidebar-hidden"} ${inspectorVisible ? "inspector-visible" : ""} ${appSettings?.reduceMotion ? "reduced-motion" : ""} ${appSettings?.theme.contrast === "high" ? "high-contrast" : ""}`}>
       <header className="system-bar">
-        <div className="system-left"><button onClick={() => setSidebarVisible((value) => !value)} aria-label="Kenar çubuğu"><LayoutPanelLeft size={16} /></button><button disabled={view === "thread" && historyIndex <= 0} onClick={() => void navigateHistory(-1)} aria-label="Geri" title={view === "thread" ? "Önceki sohbete dön" : "Sohbete dön"}><ArrowLeft size={17} /></button><button disabled={view !== "thread" || historyIndex < 0 || historyIndex >= history.length - 1} onClick={() => void navigateHistory(1)} aria-label="İleri" title="Sonraki sohbete git"><ArrowRight size={17} /></button><nav aria-label="Uygulama menüsü"><button onClick={() => void handleMenu("file")}>Dosya</button><button onClick={() => void handleMenu("edit")}>Düzenle</button><button onClick={() => void handleMenu("view")}>Görünüm</button><button onClick={() => void handleMenu("help")}>Yardım</button></nav></div>
+        <div className="system-left"><button onClick={() => setSidebarVisible((value) => !value)} aria-label="Kenar çubuğu"><LayoutPanelLeft size={16} /></button><button disabled={view === "thread" && historyIndex <= 0} onClick={() => void navigateHistory(-1)} aria-label="Geri" title={view === "thread" ? "Önceki sohbete dön" : "Sohbete dön"}><ArrowLeft size={17} /></button><button disabled={view !== "thread" || historyIndex < 0 || historyIndex >= history.length - 1} onClick={() => void navigateHistory(1)} aria-label="İleri" title="Sonraki sohbete git"><ArrowRight size={17} /></button><nav aria-label="Uygulama menüsü"><button onClick={() => void handleMenu("file")}>Dosya</button><button onClick={() => void handleMenu("edit")}>Düzenle</button><button onClick={() => void handleMenu("view")}>Görünüm</button><button onClick={() => void handleMenu("help")}>Yardım</button></nav></div><div className="system-theme"><button onClick={() => { if (!appSettings) return; void window.devbox.patchSettings({ theme: appSettings.theme.base === "light" ? DEVBOX_OBSIDIAN_THEME : DEVBOX_DAY_THEME }).then((nextSettings) => { setAppSettings(nextSettings); setPermission(nextSettings.permissionProfile); }); }} title={appSettings?.theme.base === "light" ? "Koyu moda geç" : "Gündüz moduna geç"} aria-label="Tema modunu değiştir">{appSettings?.theme.base === "light" ? <Moon size={15} /> : <Sun size={15} />}</button></div>
       </header>
 
       <div className="workbench">
@@ -1237,7 +1242,8 @@ export function App(): ReactNode {
             <button className={view === "whatsNew" ? "active" : ""} onClick={openWhatsNew}><Sparkles size={16} /><span>Yenilikler</span>{releaseUnseen && <b className="release-nav-badge" aria-label={`DevBox ${__DEVBOX_VERSION__} yenilikleri okunmadı`}>Yeni</b>}</button>
             <button className={view === "pullRequests" ? "active" : ""} onClick={() => setView("pullRequests")}><CircleDot size={16} /><span>Pull request’ler</span></button>
             <button className={view === "sites" ? "active" : ""} onClick={() => setView("sites")}><Globe2 size={16} /><span>Siteler</span></button>
-            <button className={view === "automations" ? "active" : ""} onClick={() => setView("automations")}><ListChecks size={16} /><span>API gelişimi</span></button>
+            <button className={view === "devapi" ? "active" : ""} onClick={() => setView("devapi")}><ListChecks size={16} /><span>DevAPI</span></button>
+            <button className={view === "automations" ? "active" : ""} onClick={() => setView("automations")}><Activity size={16} /><span>Görev motoru</span></button>
             <button className={view === "integrations" ? "active" : ""} onClick={() => setView("integrations")}><Plug size={16} /><span>Eklentiler</span></button>
             <button className={view === "skills" ? "active" : ""} onClick={() => setView("skills")}><Sparkles size={16} /><span>Beceriler</span></button>
           </nav>
@@ -1286,8 +1292,9 @@ export function App(): ReactNode {
 
             {view === "capabilities" && <section className="page-scroll"><div className="page-heading"><div><p className="eyebrow">ÇALIŞMA ZAMANI GERÇEĞİ</p><h1>Sistem kabiliyetleri</h1><p>HAZIR durumu yalnızca kimlik, yapılandırma, sağlık ve en az bir canlı işlem kanıtı birlikte sağlandığında gösterilir.</p></div><StateBadge state={bootstrap?.core.state ?? "FAILED"} /></div>{capabilitiesLoading && capabilities.length === 0 ? <div className="empty-panel large"><LoaderCircle className="spin" size={26} /><strong>Gerçek sağlayıcılar denetleniyor</strong><span>Kimlik, yürütülebilir dosya ve canlı bağlantı kanıtları arka planda kontrol ediliyor.</span></div> : <div className="capability-grid">{capabilities.map((capability) => <article key={capability.id}><div><span className="cap-icon">{capability.state === "READY" ? <Check size={16} /> : <Activity size={16} />}</span><div><strong>{capability.displayName}</strong><small>{capability.version ?? "Sürüm doğrulanmadı"}</small></div><StateBadge state={capability.state} /></div><p>{capability.detail}</p>{capability.remediation && <footer>{capability.remediation}</footer>}</article>)}</div>}</section>}
 
-            {view === "terminal" && <TerminalWorkspace project={selectedProject} />}
+            {view === "terminal" && <TerminalWorkspace project={selectedProject} settings={appSettings} />}
             {view === "worktrees" && <WorktreeWorkspace project={selectedProject} />}
+            {view === "devapi" && <DevApiControlWorkspace project={selfDevelopmentProject ?? selectedProject} />}
             {view === "automations" && <AutomationWorkspace project={selfDevelopmentProject ?? selectedProject} />}
             {view === "integrations" && <IntegrationWorkspace project={selectedProject} />}
             {view === "skills" && <CatalogWorkspace />}

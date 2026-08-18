@@ -35,6 +35,7 @@ import type {
   ,TerminalSummary
   ,Worktree
 } from "./contracts.js";
+import type { CloudControlStatus, DevApiControlSnapshot, EvolutionFinding, ReleaseGateRun } from "./devapi-control-contracts.js";
 
 export interface DevBoxBridge {
   bootstrap(): Promise<Bootstrap>;
@@ -106,6 +107,10 @@ export interface DevBoxBridge {
   cancelEvolutionCycle(projectId: string): Promise<EvolutionCampaign>;
   onEvolutionActivity(listener: (event: EvolutionActivityEvent) => void): () => void;
   runEvolutionCycle(projectId: string): Promise<EvolutionCampaign>;
+  getDevApiControl(projectId: string): Promise<DevApiControlSnapshot>;
+  transitionEvolutionFinding(projectId: string, findingId: string, status: "RESOLVED" | "REJECTED", resolution: string): Promise<EvolutionFinding>;
+  runReleaseGate(projectId: string, mode: "PREFLIGHT" | "FULL"): Promise<ReleaseGateRun>;
+  syncDevApiCloud(projectId: string): Promise<CloudControlStatus>;
   inspectIntegrations(projectId?: string): Promise<IntegrationStatus[]>;
   runVercelAction(projectId: string, action: "link" | "preview" | "production" | "inspect" | "logs" | "rollback", target?: string): Promise<CommandResult>;
   runGitHubAction(projectId: string, action: "pr-list" | "pr-create" | "pr-merge" | "issue-list" | "issue-create" | "checks" | "run-list" | "run-log" | "run-rerun" | "release-list" | "release-create", target?: string): Promise<CommandResult>;

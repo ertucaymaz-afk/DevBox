@@ -72,6 +72,10 @@ const CHANNELS = Object.freeze({
   ,evolutionActivity: "devbox:v1:evolution:activity"
   ,evolutionActivityHistory: "devbox:v1:evolution:activity-history"
   ,evolutionModelCatalog: "devbox:v1:evolution:model-catalog"
+  ,devApiControlGet: "devbox:v1:devapi:control-get"
+  ,evolutionFindingTransition: "devbox:v1:devapi:finding-transition"
+  ,releaseGateRun: "devbox:v1:devapi:release-gate-run"
+  ,cloudControlSync: "devbox:v1:devapi:cloud-sync"
   ,integrationInspect: "devbox:v1:integration:inspect"
   ,vercelAction: "devbox:v1:integration:vercel"
   ,githubAction: "devbox:v1:integration:github"
@@ -177,6 +181,10 @@ const bridge: DevBoxBridge = Object.freeze({
     return () => ipcRenderer.removeListener(CHANNELS.evolutionActivity, handler);
   },
   runEvolutionCycle: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.evolutionRun, { projectId }),
+  getDevApiControl: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.devApiControlGet, { projectId }),
+  transitionEvolutionFinding: async (projectId: string, findingId: string, status: "RESOLVED" | "REJECTED", resolution: string) => await ipcRenderer.invoke(CHANNELS.evolutionFindingTransition, { projectId, findingId, status, resolution }),
+  runReleaseGate: async (projectId: string, mode: "PREFLIGHT" | "FULL") => await ipcRenderer.invoke(CHANNELS.releaseGateRun, { projectId, mode }),
+  syncDevApiCloud: async (projectId: string) => await ipcRenderer.invoke(CHANNELS.cloudControlSync, { projectId }),
   inspectIntegrations: async (projectId?: string) => await ipcRenderer.invoke(CHANNELS.integrationInspect, projectId ? { projectId } : {}),
   runVercelAction: async (projectId: string, action: "link" | "preview" | "production" | "inspect" | "logs" | "rollback", target = "") => await ipcRenderer.invoke(CHANNELS.vercelAction, { projectId, action, target }),
   runGitHubAction: async (projectId: string, action: "pr-list" | "pr-create" | "pr-merge" | "issue-list" | "issue-create" | "checks" | "run-list" | "run-log" | "run-rerun" | "release-list" | "release-create", target = "") => await ipcRenderer.invoke(CHANNELS.githubAction, { projectId, action, target }),

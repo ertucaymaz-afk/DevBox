@@ -107,7 +107,7 @@ export class CloudControlService {
         "x-devbox-timestamp": timestamp,
         "x-devbox-signature": signature(this.#config.token, timestamp, body)
       },
-      body: body || undefined,
+      ...(body ? { body } : {}),
       redirect: "error",
       signal: AbortSignal.timeout(15_000)
     });

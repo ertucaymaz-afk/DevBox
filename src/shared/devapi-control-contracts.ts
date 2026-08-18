@@ -37,6 +37,7 @@ export const DevApiControlSnapshotSchema = z.object({
   releaseGate: ReleaseGateRunSchema.nullable(),
   releaseHistory: z.array(ReleaseGateRunSchema).max(40),
   cloud: CloudControlStatusSchema,
+  queues: z.array(z.object({ threadId: z.string(), queued: z.number().int().nonnegative(), running: z.boolean() }).strict()).max(500),
   generatedAt: z.string().datetime()
 }).strict();
 export type DevApiControlSnapshot = z.infer<typeof DevApiControlSnapshotSchema>;

@@ -23,6 +23,12 @@ export class ThreadTurnCoordinator {
     return { threadId, queued: state?.queued ?? 0, running: state?.running ?? false };
   }
 
+  public snapshots(): ThreadQueueSnapshot[] {
+    return [...this.#queues.entries()]
+      .map(([threadId, state]) => ({ threadId, queued: state.queued, running: state.running }))
+      .sort((left, right) => Number(right.running) - Number(left.running) || right.queued - left.queued || left.threadId.localeCompare(right.threadId));
+  }
+
   public run<T>(threadId: string, operation: () => Promise<T>): Promise<T> {
     const existing = this.#queues.get(threadId);
     const state: QueueState = existing ?? { tail: Promise.resolve(), queued: 0, running: false };

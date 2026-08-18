@@ -7,6 +7,8 @@ import { SecretStore } from "./security/secret-store.js";
 import { isTrustedExternalUrl } from "./security/external-url.js";
 import { AgentService } from "./services/agent-service.js";
 import { ApiEvolutionService } from "./services/api-evolution-service.js";
+import { CloudControlService } from "./services/cloud-control-service.js";
+import { EvolutionFindingService } from "./services/evolution-finding-service.js";
 import { AttachmentService } from "./services/attachment-service.js";
 import { CapabilityService } from "./services/capability-service.js";
 import { CommandRunner } from "./services/command-runner.js";
@@ -23,6 +25,7 @@ import { ProjectService } from "./services/project-service.js";
 import { createPreviewProtocolHandler } from "./services/preview-protocol-service.js";
 import { PreviewRenderService } from "./services/preview-render-service.js";
 import { RemoteWorkerService } from "./services/remote-worker-service.js";
+import { ReleaseGateService } from "./services/release-gate-service.js";
 import { SettingsService } from "./services/settings-service.js";
 import { SelfDevelopmentService } from "./services/self-development-service.js";
 import { SshTrustService } from "./services/ssh-trust-service.js";
@@ -57,6 +60,8 @@ let commandRunner: CommandRunner | null = null;
 let unregisterIpc: (() => void) | null = null;
 let localCatalog: LocalCatalogService | null = null;
 let debugService: DebugService | null = null;
+let languageService: LanguageService | null = null;
+let cloudControlService: CloudControlService | null = null;
 
 function rendererRoot(): string {
   return path.resolve(app.getAppPath(), "dist", "renderer");
@@ -154,6 +159,7 @@ async function start(): Promise<void> {
   const capabilities = new CapabilityService(runner);
   const agent = new AgentService(runner, app.getVersion());
   const memory = new MemoryService(database);
+  const findings = new EvolutionFindingService(database);
   const turnCoordinator = new ThreadTurnCoordinator();
   const attachments = new AttachmentService(database, path.join(app.getPath("userData"), "attachments"));
   const projects = new ProjectService(database);
@@ -177,6 +183,8 @@ async function start(): Promise<void> {
   const developmentSpec = new DevelopmentSpecService(database, developmentSpecPath);
   const worktrees = new WorktreeService(runner, path.join(app.getPath("userData"), "worktrees"));
   evolution = new ApiEvolutionService(database, projects, agent, settings, developmentSpec, git, runner, worktrees);
+  const releaseGate = new ReleaseGateService(database, projects, git, runner, findings);
+  cloudControlService = new CloudControlService(database, projects, evolution, findings, releaseGate, memory);
   const previewRender = new PreviewRenderService(projects);
   const packages = new PackageLifecycleService(path.join(app.getPath("userData"), "signed-runtime"));
   const sshTrust = new SshTrustService(path.join(app.getPath("userData"), "ssh", "known-hosts"), runner);
@@ -186,7 +194,8 @@ async function start(): Promise<void> {
     pluginRoot: optionalCatalogRoot("DEVBOX_PLUGIN_ROOT")
   }, app.getVersion());
   localCatalog = catalog;
-  const language = new LanguageService(projects);
+  languageService = new LanguageService(projects);
+  const language = languageService;
   debugService = new DebugService(projects);
   coreApi = new CoreApi({
     apiKey: apiKey.value,
@@ -200,6 +209,9 @@ async function start(): Promise<void> {
     git,
     workspaceTurns,
     evolution,
+    findings,
+    releaseGate,
+    cloudControl: cloudControlService,
     settings,
     remoteWorkers,
     catalog,
@@ -220,6 +232,9 @@ async function start(): Promise<void> {
     memory,
     turnCoordinator,
     evolution,
+    findings,
+    releaseGate,
+    cloudControl: cloudControlService,
     attachments,
     projects,
     selfDevelopmentProjectId: selfDevelopmentProject.id,
@@ -243,6 +258,7 @@ async function start(): Promise<void> {
   });
   await mainWindow.loadURL(devRendererUrl ?? "app://devbox/");
   evolution.start();
+  cloudControlService.start();
 }
 
 app.on("second-instance", () => {
@@ -268,6 +284,10 @@ app.on("before-quit", (event) => {
   terminals = null;
   evolution?.stop();
   evolution = null;
+  cloudControlService?.stop();
+  cloudControlService = null;
+  languageService?.close();
+  languageService = null;
   const runner = commandRunner;
   commandRunner = null;
   debugService?.close();

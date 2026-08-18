@@ -30,11 +30,17 @@ describe("language and debug service", () => {
     const projects = new ProjectService(database);
     const project = await projects.open(root);
     const content = "const count: number = 'not-a-number';\n";
-    const result = await new LanguageService(projects).diagnostics({
-      projectId: project.id, relativePath: "sample.ts", language: "typescript", content, version: 1
-    });
-    expect(result.provider).toBe("typescript-language-server");
-    expect(result.diagnostics.some((item) => item.severity === "error" && /string|number/iu.test(item.message))).toBe(true);
+    const service = new LanguageService(projects);
+    try {
+      const result = await service.diagnostics({ projectId: project.id, relativePath: "sample.ts", language: "typescript", content, version: 1 });
+      expect(result.provider).toBe("typescript-language-server");
+      expect(result.diagnostics.some((item) => item.severity === "error" && /string|number/iu.test(item.message))).toBe(true);
+      const fixed = await service.diagnostics({ projectId: project.id, relativePath: "sample.ts", language: "typescript", content: "const count: number = 42;\n", version: 2 });
+      expect(fixed.diagnostics.some((item) => item.severity === "error")).toBe(false);
+      expect(service.activeLanguageSessions()).toBe(1);
+    } finally {
+      service.close();
+    }
   }, 30_000);
 
   it("runs a real JavaScript DAP session through the bundled Microsoft adapter", async () => {

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { DebugResponse, DebugSession, EditorDiagnostic, LanguageDiagnosticsResult } from "../../shared/contracts.js";
 import { resolveExistingPathWithinRoot } from "../security/path-boundary.js";
 import type { ProjectService } from "./project-service.js";
@@ -24,13 +24,17 @@ function position(value: unknown): { line: number; character: number } {
   };
 }
 
-function normalizeDiagnostics(message: ProtocolMessage): EditorDiagnostic[] | null {
+type DiagnosticPublication = { uri: string; diagnostics: EditorDiagnostic[] };
+
+function normalizeDiagnostics(message: ProtocolMessage): DiagnosticPublication | null {
   if (message.method !== "textDocument/publishDiagnostics") return null;
   const params = message.params;
   if (!params || typeof params !== "object") return null;
-  const raw = (params as Record<string, unknown>).diagnostics;
-  if (!Array.isArray(raw)) return [];
-  return raw.slice(0, 10_000).flatMap((entry): EditorDiagnostic[] => {
+  const record = params as Record<string, unknown>;
+  if (typeof record.uri !== "string" || !record.uri) return null;
+  const raw = record.diagnostics;
+  if (!Array.isArray(raw)) return { uri: record.uri, diagnostics: [] };
+  const diagnostics = raw.slice(0, 10_000).flatMap((entry): EditorDiagnostic[] => {
     if (!entry || typeof entry !== "object") return [];
     const item = entry as Record<string, unknown>;
     const range = item.range;
@@ -45,67 +49,127 @@ function normalizeDiagnostics(message: ProtocolMessage): EditorDiagnostic[] | nu
       range: { start: position(rangeRecord.start), end: position(rangeRecord.end) }
     }];
   });
+  return { uri: record.uri, diagnostics };
 }
+
+function sameDocumentUri(left: string, right: string): boolean {
+  if (left === right) return true;
+  try {
+    const normalizePath = (value: string): string => {
+      const resolved = path.resolve(fileURLToPath(value));
+      return process.platform === "win32" ? resolved.toLocaleLowerCase("en-US") : resolved;
+    };
+    return normalizePath(left) === normalizePath(right);
+  } catch {
+    return false;
+  }
+}
+
+type ManagedLanguageSession = {
+  projectId: string;
+  protocol: ProtocolSession;
+  rootUri: string;
+  openDocuments: Set<string>;
+  lastUsedAt: number;
+  tail: Promise<void>;
+};
+
+const MAX_LANGUAGE_SESSIONS = 3;
 
 export class LanguageService {
   readonly #projects: ProjectService;
+  readonly #languageSessions = new Map<string, ManagedLanguageSession>();
+  readonly #languageSessionInit = new Map<string, Promise<ManagedLanguageSession>>();
 
-  public constructor(projects: ProjectService) {
-    this.#projects = projects;
-  }
+  public constructor(projects: ProjectService) { this.#projects = projects; }
 
-  public async diagnostics(input: {
-    projectId: string;
-    relativePath: string;
-    language: string;
-    content: string;
-    version: number;
-  }): Promise<LanguageDiagnosticsResult> {
-    if (!SUPPORTED_LANGUAGES.has(input.language)) throw new Error("LANGUAGE_SERVER_UNSUPPORTED_LANGUAGE");
-    const started = performance.now();
-    const project = this.#projects.get(input.projectId);
-    const absoluteFile = path.resolve(project.rootPath, input.relativePath);
-    const relative = path.relative(project.rootPath, absoluteFile);
-    if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("PATH_OUTSIDE_PROJECT");
-
+  async #createLanguageSession(projectId: string): Promise<ManagedLanguageSession> {
+    const project = this.#projects.get(projectId);
+    while (this.#languageSessions.size >= MAX_LANGUAGE_SESSIONS) {
+      const oldest = [...this.#languageSessions.values()].sort((left, right) => left.lastUsedAt - right.lastUsedAt)[0];
+      if (!oldest) break;
+      this.closeLanguageSession(oldest.projectId);
+    }
     const cli = require.resolve("typescript-language-server/lib/cli.mjs");
-    const session = new ProtocolSession("lsp", process.execPath, [cli, "--stdio"], project.rootPath, {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1"
-    });
+    const protocol = new ProtocolSession("lsp", process.execPath, [cli, "--stdio"], project.rootPath, { ...process.env, ELECTRON_RUN_AS_NODE: "1" });
     const rootUri = pathToFileURL(project.rootPath).toString();
-    const documentUri = pathToFileURL(absoluteFile).toString();
     try {
-      await session.request("initialize", {
+      await protocol.request("initialize", {
         processId: null,
         rootUri,
         workspaceFolders: [{ uri: rootUri, name: project.name }],
         capabilities: { textDocument: { publishDiagnostics: { relatedInformation: true, versionSupport: true } } },
         initializationOptions: { preferences: { includeCompletionsForModuleExports: true } }
       }, 20_000);
-      session.notify("initialized", {});
-      const published = new Promise<EditorDiagnostic[]>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          unsubscribe();
-          reject(new Error("LSP_DIAGNOSTICS_TIMEOUT"));
-        }, 12_000);
-        timeout.unref();
-        const unsubscribe = session.onMessage((message) => {
-          const diagnostics = normalizeDiagnostics(message);
-          if (diagnostics === null) return;
-          clearTimeout(timeout);
-          unsubscribe();
-          resolve(diagnostics);
-        });
-      });
-      session.notify("textDocument/didOpen", {
-        textDocument: { uri: documentUri, languageId: input.language, version: input.version, text: input.content }
-      });
-      const diagnostics = await published;
-      return { provider: "typescript-language-server", diagnostics, durationMs: Math.max(0, Math.round(performance.now() - started)) };
-    } finally {
-      session.close();
+      protocol.notify("initialized", {});
+      const managed: ManagedLanguageSession = { projectId, protocol, rootUri, openDocuments: new Set(), lastUsedAt: Date.now(), tail: Promise.resolve() };
+      this.#languageSessions.set(projectId, managed);
+      return managed;
+    } catch (error) {
+      protocol.close();
+      throw error;
     }
+  }
+
+  async #getLanguageSession(projectId: string): Promise<ManagedLanguageSession> {
+    const existing = this.#languageSessions.get(projectId);
+    if (existing) { existing.lastUsedAt = Date.now(); return existing; }
+    const pending = this.#languageSessionInit.get(projectId);
+    if (pending) return await pending;
+    const creation = this.#createLanguageSession(projectId);
+    this.#languageSessionInit.set(projectId, creation);
+    try { return await creation; }
+    finally { this.#languageSessionInit.delete(projectId); }
+  }
+
+  public closeLanguageSession(projectId: string): void {
+    const managed = this.#languageSessions.get(projectId);
+    if (!managed) return;
+    managed.protocol.close();
+    this.#languageSessions.delete(projectId);
+  }
+
+  public activeLanguageSessions(): number { return this.#languageSessions.size; }
+
+  async #diagnosticsWithSession(managed: ManagedLanguageSession, input: { projectId: string; relativePath: string; language: string; content: string; version: number }): Promise<LanguageDiagnosticsResult> {
+    const started = performance.now();
+    const project = this.#projects.get(input.projectId);
+    const absoluteFile = path.resolve(project.rootPath, input.relativePath);
+    const relative = path.relative(project.rootPath, absoluteFile);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("PATH_OUTSIDE_PROJECT");
+    const documentUri = pathToFileURL(absoluteFile).toString();
+    managed.lastUsedAt = Date.now();
+    const published = new Promise<EditorDiagnostic[]>((resolve, reject) => {
+      const timeout = setTimeout(() => { unsubscribe(); reject(new Error("LSP_DIAGNOSTICS_TIMEOUT")); }, 12_000);
+      timeout.unref();
+      const unsubscribe = managed.protocol.onMessage((message) => {
+        const publication = normalizeDiagnostics(message);
+        if (!publication || !sameDocumentUri(publication.uri, documentUri)) return;
+        clearTimeout(timeout); unsubscribe(); resolve(publication.diagnostics);
+      });
+    });
+    if (managed.openDocuments.has(documentUri)) {
+      managed.protocol.notify("textDocument/didChange", { textDocument: { uri: documentUri, version: input.version }, contentChanges: [{ text: input.content }] });
+    } else {
+      managed.openDocuments.add(documentUri);
+      managed.protocol.notify("textDocument/didOpen", { textDocument: { uri: documentUri, languageId: input.language, version: input.version, text: input.content } });
+    }
+    const diagnostics = await published;
+    return { provider: "typescript-language-server", diagnostics, durationMs: Math.max(0, Math.round(performance.now() - started)) };
+  }
+
+  public async diagnostics(input: { projectId: string; relativePath: string; language: string; content: string; version: number }): Promise<LanguageDiagnosticsResult> {
+    if (!SUPPORTED_LANGUAGES.has(input.language)) throw new Error("LANGUAGE_SERVER_UNSUPPORTED_LANGUAGE");
+    const managed = await this.#getLanguageSession(input.projectId);
+    const task = managed.tail.then(async () => await this.#diagnosticsWithSession(managed, input));
+    managed.tail = task.then(() => undefined, () => undefined);
+    try { return await task; }
+    catch (error) { this.closeLanguageSession(input.projectId); throw error; }
+  }
+
+  public close(): void {
+    for (const projectId of [...this.#languageSessions.keys()]) this.closeLanguageSession(projectId);
+    this.#languageSessionInit.clear();
   }
 }
 
