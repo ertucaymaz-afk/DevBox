@@ -10,7 +10,12 @@ const databases: StateDatabase[] = [];
 
 afterEach(async () => {
   for (const database of databases.splice(0)) database.close();
-  await Promise.all(temporaryDirectories.splice(0).map(async (directory) => await rm(directory, { recursive: true, force: true })));
+  await Promise.all(temporaryDirectories.splice(0).map(async (directory) => await rm(directory, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 100
+  })));
 });
 
 describe("attachment service", () => {
@@ -50,8 +55,14 @@ describe("attachment service", () => {
     const thread = database.createThread("project-87654321", "Ek sınırı");
     const oversized = path.join(root, "oversized.any-extension");
     const handle = await open(oversized, "w");
-    await handle.truncate(300 * 1024 * 1024 + 1);
-    await handle.close();
+    try {
+      // Windows/NTFS may take several seconds to extend a 300 MiB sparse-like
+      // test file on a busy hosted runner. The production assertion below still
+      // verifies that AttachmentService rejects by metadata before reading it.
+      await handle.truncate(300 * 1024 * 1024 + 1);
+    } finally {
+      await handle.close();
+    }
     const directory = path.join(root, "not-a-file");
     await mkdir(directory);
 
@@ -63,5 +74,5 @@ describe("attachment service", () => {
       { name: "oversized.any-extension", code: "ATTACHMENT_TOO_LARGE" },
       { name: "not-a-file", code: "ATTACHMENT_NOT_REGULAR_FILE" }
     ]);
-  });
+  }, 20_000);
 });
