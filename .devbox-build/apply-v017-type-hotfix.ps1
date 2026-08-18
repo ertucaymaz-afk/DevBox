@@ -91,6 +91,12 @@ $revocationTestPath = 'src/main/services/revocation-list-service.test.ts'
 Replace-Exact $revocationTestPath '    await expect(service.assertAllowed("dangerous.plugin", "2.0.0", "publisher.bad")).rejects.toThrow("PACKAGE_REVOKED:MALWARE");' '    await expect(service.assertAllowed("dangerous.plugin", "2.0.0", "publisher.bad", new Date("2026-08-14T02:00:00.000Z"))).rejects.toThrow("PACKAGE_REVOKED:MALWARE");' 'REVOCATION_TEST_REVOKED_PATTERN_MISSING'
 Replace-Exact $revocationTestPath '    await expect(service.assertAllowed("safe.plugin", "2.0.0", "publisher.good")).resolves.toBeUndefined();' '    await expect(service.assertAllowed("safe.plugin", "2.0.0", "publisher.good", new Date("2026-08-14T02:00:00.000Z"))).resolves.toBeUndefined();' 'REVOCATION_TEST_SAFE_PATTERN_MISSING'
 
+$coreApiTestPath = 'src/main/services/core-api.test.ts'
+$coreApiTestText = Get-Content -LiteralPath $coreApiTestPath -Raw
+$coreApiTestUpdated = [regex]::Replace($coreApiTestText, '(?m)^  \}\);\r?\n\}\);\s*$', "  }, 20_000);`n});", 1)
+if ($coreApiTestUpdated -eq $coreApiTestText) { throw 'CORE_API_TEST_TIMEOUT_PATTERN_MISSING' }
+Set-Content -LiteralPath $coreApiTestPath -Value $coreApiTestUpdated -Encoding utf8NoBOM -NoNewline
+
 $truthPath = 'scripts/verify-product-truth.mjs'
 $truthScript = @'
 import { readdir, readFile } from "node:fs/promises";
@@ -166,4 +172,4 @@ process.stdout.write(`${JSON.stringify({
 '@
 Set-Content -LiteralPath $truthPath -Value $truthScript -Encoding utf8NoBOM -NoNewline
 
-Write-Host "DEVBOX_V017_TYPE_HOTFIX_APPLIED cancellationSites=$($matches.Count) dapTypes=4 sourceIdentity=pinned revocationClock=deterministic truthAudit=tokenAware"
+Write-Host "DEVBOX_V017_TYPE_HOTFIX_APPLIED cancellationSites=$($matches.Count) dapTypes=4 sourceIdentity=pinned revocationClock=deterministic coreApiTimeout=20s truthAudit=tokenAware"
