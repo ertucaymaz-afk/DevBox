@@ -7,6 +7,9 @@ function requireText(source, needle, id) {
 function forbidText(source, needle, id) {
   if (source.includes(needle)) throw new Error(`API_EVOLUTION_V10_VERIFY_FAIL:${id}`);
 }
+function requirePattern(source, pattern, id) {
+  if (!pattern.test(source)) throw new Error(`API_EVOLUTION_V10_VERIFY_FAIL:${id}`);
+}
 
 execFileSync(process.execPath, ["scripts/verify-api-evolution-v9.mjs"], { stdio: "inherit" });
 
@@ -26,13 +29,16 @@ if (pkg.version !== "0.1.17") throw new Error("API_EVOLUTION_V10_VERIFY_FAIL:ver
 let checks = 0;
 const need = (source, needle, id) => { requireText(source, needle, id); checks += 1; };
 const forbid = (source, needle, id) => { forbidText(source, needle, id); checks += 1; };
+const needPattern = (source, pattern, id) => { requirePattern(source, pattern, id); checks += 1; };
 
 need(findings, "normalizeStoredFinding", "finding-normalizer");
 need(findings, "FINDING_OWNER_SET", "finding-owner-allowlist");
-need(findings, 'severity : "MEDIUM"', "finding-safe-severity");
-need(findings, "ownerForTrack(track)", "finding-safe-owner");
+needPattern(findings, /FINDING_SEVERITIES\.has\([^)]*item\.severity[^)]*\)[\s\S]{0,180}:\s*"MEDIUM"/u, "finding-safe-severity");
+needPattern(findings, /FINDING_OWNER_SET\.has\([^)]*item\.owner[^)]*\)[\s\S]{0,180}:\s*ownerForTrack\(track\)/u, "finding-safe-owner");
+need(findings, "flatMap((item): EvolutionFinding[]", "finding-safe-load-map");
 need(findingTests, "normalizes legacy or malformed persisted findings", "finding-regression-test");
 need(findingTests, "summary.byOwner.evolution", "finding-owner-regression");
+need(findingTests, "FindingSummarySchema.parse", "finding-strict-schema-regression");
 
 need(app, 'window.matchMedia("(prefers-color-scheme: dark)")', "renderer-system-theme-media");
 need(app, 'const resolvedThemeBase: "light" | "dark"', "renderer-resolved-theme");
@@ -40,17 +46,21 @@ need(app, "data-theme-base={resolvedThemeBase}", "renderer-theme-attribute");
 forbid(app, 'data-theme-base={appSettings?.theme.base ?? "dark"}', "renderer-raw-system-theme-forbidden");
 need(main, 'nativeTheme.on("updated", nativeThemeUpdatedListener)', "native-theme-listener");
 need(main, 'nativeTheme.off("updated", nativeThemeUpdatedListener)', "native-theme-cleanup");
+need(main, "applyNativeWindowTheme", "native-theme-apply-helper");
 need(main, "https://i.ytimg.com", "thumbnail-csp-youtube");
 need(main, "https://*.googleusercontent.com", "thumbnail-csp-google");
+need(main, "https://*.ggpht.com", "thumbnail-csp-ggpht");
 
 need(remix, "processAlive(discovery.processId)", "remix-stale-process-check");
 need(remix, "REMIXROTA_DISCOVERY_EXECUTABLE_MISMATCH", "remix-path-binding");
+need(remix, "REMIXROTA_DISCOVERY_EXECUTABLE_NAME_INVALID", "remix-discovery-name-binding");
 need(remix, "RemixRotaEventSchema.safeParse", "remix-event-safeparse");
 forbid(remix, "const event = RemixRotaEventSchema.parse({ type: message.eventName", "remix-event-throw-forbidden");
-need(remix, "this.#pending.delete(requestId);", "remix-write-cleanup");
+needPattern(remix, /this\.#pending\.set\(requestId,[\s\S]{0,500}try\s*\{[\s\S]{0,250}this\.#write\([\s\S]{0,250}this\.#pending\.delete\(requestId\)/u, "remix-write-cleanup");
 need(remixTests, "REMIXROTA_INVALID_EVENT", "remix-invalid-event-test");
 need(remixTests, "REMIXROTA_DISCOVERY_PROCESS_NOT_RUNNING", "remix-stale-discovery-test");
 need(remixUi, "trustedThumbnailUrl", "remix-thumbnail-allowlist");
 need(remixUi, 'host === "i.ytimg.com"', "remix-thumbnail-host-check");
+need(remixUi, 'url.protocol !== "https:"', "remix-thumbnail-https-only");
 
 console.log(`API_EVOLUTION_V10_VERIFY_PASS checks=${checks} inherited=v9`);
