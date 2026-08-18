@@ -1,0 +1,62 @@
+name: DevBox v0.1.19 UI version fix
+
+on:
+  push:
+    branches:
+      - codex/v0.1.19-cloud-ecosystem-hardening
+
+permissions:
+  contents: write
+
+concurrency:
+  group: devbox-v019-ui-version-fix
+  cancel-in-progress: true
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: codex/v0.1.19-cloud-ecosystem-hardening
+          fetch-depth: 1
+          persist-credentials: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Exact DevAPI UI version fix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = 'src/renderer/DevApiControlWorkspace.tsx'
+          $source = Get-Content $path -Raw
+          $old = 'DEVAPI CONTROL PLANE · V0.1.15'
+          $new = 'DEVAPI CONTROL PLANE · V0.1.19'
+          $count = ([regex]::Matches($source, [regex]::Escape($old))).Count
+          if ($count -ne 1) { throw "DEVAPI_VERSION_ANCHOR_COUNT:$count" }
+          $source = $source.Replace($old, $new)
+          Set-Content $path -Value $source -Encoding utf8NoBOM -NoNewline
+          if ((Get-Content $path -Raw).Contains($old)) { throw 'DEVAPI_OLD_VERSION_REMAINS' }
+          git diff --check
+      - name: Tam ürün doğrulaması
+        run: pnpm verify
+      - name: Doğrulanmış UI değişikliğini dala yaz
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src/renderer/DevApiControlWorkspace.tsx
+          git diff --cached --check
+          $changed = git diff --cached --name-only
+          if ($changed -ne 'src/renderer/DevApiControlWorkspace.tsx') { throw "UNEXPECTED_STAGED_FILES:$changed" }
+          git commit -m 'Update DevAPI desktop control plane version label to v0.1.19'
+          git push origin HEAD:codex/v0.1.19-cloud-ecosystem-hardening
