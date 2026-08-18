@@ -57,7 +57,7 @@ jobs:
 
       - name: Dayanıklılık kanıtlarını yükle
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: windows-resilience-${{ github.run_id }}
           path: outputs/*.json

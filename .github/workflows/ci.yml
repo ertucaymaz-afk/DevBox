@@ -170,7 +170,7 @@ jobs:
           & './scripts/verify-installer-runtime.ps1' -Workspace '.'
 
       - name: Gerçek Windows kurucusunu yükle
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: DevBox-v${{ steps.package_meta.outputs.version }}-Windows-Installer
           path: |
