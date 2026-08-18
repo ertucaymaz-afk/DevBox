@@ -318,45 +318,45 @@ export class DebugService {
       if (capabilities.supportsConfigurationDoneRequest !== false) {
         await protocol.request("configurationDone", {}, 15_000);
       }
-      const launched = await launchPromise;
-      if (launched.success === false) throw new Error(`DAP_${input.request.toUpperCase()}_FAILED:${launched.message ?? "UNKNOWN"}`);
+      await launchPromise;
       managed.snapshot = { ...managed.snapshot, state: "RUNNING" };
       return managed.snapshot;
     } catch (error) {
+      managed.snapshot = { ...managed.snapshot, state: "FAILED" };
       protocol.close();
+      await launchPromise?.catch(() => undefined);
       this.#sessions.delete(snapshot.id);
       throw error;
     }
   }
 
-  public list(): DebugSession[] { return [...this.#sessions.values()].map((item) => item.snapshot); }
-
-  public async command(sessionId: string, command: string, args: unknown): Promise<DebugResponse> {
+  public async command(sessionId: string, command: string, args: Record<string, unknown>): Promise<DebugResponse> {
     const managed = this.#sessions.get(sessionId);
     if (!managed) throw new Error("DEBUG_SESSION_NOT_FOUND");
-    if (command === "setBreakpoints" && args && typeof args === "object" && !Array.isArray(args)) {
-      const input = args as Record<string, unknown>;
-      const source = input.source;
-      if (source && typeof source === "object" && !Array.isArray(source)) {
-        const sourcePath = (source as Record<string, unknown>).path;
-        if (typeof sourcePath === "string" && sourcePath.trim()) {
-          await resolveExistingPathWithinRoot(managed.projectRoot, sourcePath);
-        }
-      }
+    let boundedArgs = args;
+    if (managed.builtIn && command === "setBreakpoints") {
+      const source = args.source;
+      if (!source || typeof source !== "object" || Array.isArray(source)) throw new Error("DEBUG_BREAKPOINT_SOURCE_REQUIRED");
+      const sourceRecord = source as Record<string, unknown>;
+      const suppliedPath = typeof sourceRecord.path === "string" ? sourceRecord.path.trim() : "";
+      if (!suppliedPath) throw new Error("DEBUG_BREAKPOINT_SOURCE_REQUIRED");
+      const relativePath = path.isAbsolute(suppliedPath) ? path.relative(managed.projectRoot, suppliedPath) : suppliedPath;
+      const boundedPath = await resolveExistingPathWithinRoot(managed.projectRoot, relativePath);
+      boundedArgs = { ...args, source: { ...sourceRecord, path: boundedPath } };
     }
-    const response = await managed.protocol.request(command, args, 30_000);
-    return { command, success: response.success !== false, message: response.message ?? null, body: response.body ?? null };
+    const response = await managed.protocol.request(command, boundedArgs);
+    if (["continue", "next", "stepIn", "stepOut"].includes(command)) {
+      managed.snapshot = { ...managed.snapshot, state: "RUNNING" };
+    }
+    return { session: managed.snapshot, body: response.body ?? null };
   }
 
-  public async stop(sessionId: string): Promise<DebugSession> {
+  public async stop(sessionId: string): Promise<void> {
     const managed = this.#sessions.get(sessionId);
-    if (!managed) throw new Error("DEBUG_SESSION_NOT_FOUND");
-    try { await managed.protocol.request("disconnect", { restart: false, terminateDebuggee: true }, 5_000); }
-    catch { /* closing the transport is the fail-safe */ }
+    if (!managed) return;
+    await managed.protocol.request("disconnect", { restart: false, terminateDebuggee: true }, 10_000).catch(() => undefined);
     managed.protocol.close();
-    managed.snapshot = { ...managed.snapshot, state: "STOPPED" };
     this.#sessions.delete(sessionId);
-    return managed.snapshot;
   }
 
   public close(): void {
