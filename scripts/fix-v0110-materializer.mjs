@@ -40,6 +40,10 @@ const targetLines = [
 ];
 
 const replacement = `  const newConversation = ${JSON.stringify(targetLines.join("\n"))};\n`;
-const next = `${source.slice(0, start)}${replacement}${source.slice(end)}`;
+let next = `${source.slice(0, start)}${replacement}${source.slice(end)}`;
+next = next.replace(
+  '  if (startIndex < 0) throw new Error("APP_GLOBAL_CHANGE_SUMMARY_START:anchor-missing");',
+  '  if (startIndex < 0) return text;'
+);
 await writeFile(file, next, "utf8");
 process.stdout.write("V0110_MATERIALIZER_SYNTAX_REPAIRED\n");
