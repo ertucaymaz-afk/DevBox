@@ -36,7 +36,7 @@ describe("workspace mutation routing", () => {
   });
 
   it("recognizes the reproduced index.html coding request as a real workspace mutation", () => {
-    expect(isWorkspaceMutationRequest("index.html kodlar mısın" )).toBe(true);
+    expect(isWorkspaceMutationRequest("index.html kodlar mısın")).toBe(true);
     expect(isWorkspaceMutationRequest("index.html oluştur ve sayfayı düzelt")).toBe(true);
     expect(isWorkspaceMutationRequest("React bileşenini güncelle")).toBe(true);
     expect(isWorkspaceMutationRequest("Bugün nasılsın?")).toBe(false);
@@ -56,6 +56,7 @@ describe("workspace mutation routing", () => {
     const args = run.mock.calls[0]?.[0]?.args as string[];
     expect(args).toContain("--toolsets");
     expect(args).toContain("file,terminal");
+    expect(args).toContain("--checkpoints");
     expect(args).toContain("--yolo");
     expect(args).toContain("48");
     expect(args).not.toContain("--safe-mode");
