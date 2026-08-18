@@ -138,7 +138,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: NSIS Windows kurucusunu üret
-        run: pnpm package:installer
+        run: |
+          pnpm build
+          pnpm dlx electron-builder@26.15.7 --config config/electron-builder.yml --win nsis
 
       - name: EXE yapısını ve özetini fail-closed doğrula
         shell: pwsh
