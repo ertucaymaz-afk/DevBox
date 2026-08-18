@@ -151,8 +151,20 @@ jobs:
           $cfg = Get-Content 'config/electron-builder.yml' -Raw
           if ($cfg -notmatch '(?m)^directories:\s*$') { throw 'BUILDER_DIRECTORIES_ANCHOR_MISSING' }
           $cfg = [regex]::Replace($cfg, '(?m)^directories:\s*$', "directories:`n  app: .packaged-app", 1)
+          $filesPattern = '(?ms)^files:\s*\r?\n\s+- dist/\*\*/\*\r?\n\s+- package\.json\r?\n'
+          if ($cfg -notmatch $filesPattern) { throw 'BUILDER_FILES_PATTERN_MISSING' }
+          $explicitFiles = @'
+files:
+  - from: package.json
+    to: package.json
+  - from: dist
+    to: dist
+    filter:
+      - "**/*"
+'@
+          $cfg = [regex]::Replace($cfg, $filesPattern, "$explicitFiles`n", 1)
           Set-Content 'config/electron-builder.yml' -Value $cfg -Encoding utf8NoBOM -NoNewline
-          Write-Host 'DEVBOX_STAGE_READY package=ok main=ok node_modules=ok'
+          Write-Host 'DEVBOX_STAGE_READY package=ok main=ok node_modules=ok explicitFiles=ok'
 
       - name: NSIS Windows kurucusunu üret
         run: pnpm dlx electron-builder@26.15.7 --config config/electron-builder.yml --win nsis
