@@ -260,34 +260,52 @@ function parseSemver(text: string): [number, number, number] | null {
   return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
+function codexExecutableCandidates(environment: NodeJS.ProcessEnv): string[] {
+  const candidates: string[] = [];
+  const add = (candidate: string | undefined): void => {
+    const value = candidate?.trim();
+    if (!value) return;
+    const normalized = path.normalize(value.replace(/^"|"$/gu, ""));
+    if (!candidates.some((item) => item.toLocaleLowerCase("en-US") === normalized.toLocaleLowerCase("en-US"))) candidates.push(normalized);
+  };
+
+  add(environment.DEVBOX_CODEX_EXECUTABLE);
+
+  const codexHome = environment.CODEX_HOME?.trim()
+    || (environment.USERPROFILE ? path.join(environment.USERPROFILE, ".codex") : undefined)
+    || (environment.HOME ? path.join(environment.HOME, ".codex") : undefined);
+  if (codexHome) {
+    add(path.join(codexHome, "packages", "standalone", "current", "bin", process.platform === "win32" ? "codex.exe" : "codex"));
+    add(path.join(codexHome, "packages", "standalone", "current", process.platform === "win32" ? "codex.exe" : "codex"));
+  }
+
+  if (environment.LOCALAPPDATA) {
+    add(path.join(environment.LOCALAPPDATA, "Programs", "OpenAI", "Codex", "bin", process.platform === "win32" ? "codex.exe" : "codex"));
+  }
+
+  const appData = environment.APPDATA;
+  if (appData && process.platform === "win32") {
+    const architecture = process.arch === "arm64" ? "aarch64" : "x86_64";
+    const target = `${architecture}-pc-windows-msvc`;
+    add(path.join(appData, "npm", "node_modules", "@openai", "codex", "node_modules", "@openai", `codex-win32-${process.arch === "arm64" ? "arm64" : "x64"}`, "vendor", target, "bin", "codex.exe"));
+  }
+
+  const rawPath = environment.PATH ?? environment.Path ?? "";
+  for (const rawEntry of rawPath.split(path.delimiter)) {
+    const entry = rawEntry.replace(/^"|"$/gu, "").trim();
+    if (!entry) continue;
+    add(path.join(entry, process.platform === "win32" ? "codex.exe" : "codex"));
+  }
+  return candidates;
+}
+
 export function resolveCodexExecutable(
   environment: NodeJS.ProcessEnv = process.env,
   fileExists: (candidate: string) => boolean = existsSync
 ): string | null {
-  const explicit = environment.DEVBOX_CODEX_EXECUTABLE?.trim();
-  if (explicit && fileExists(explicit)) return explicit;
-
-  const appData = environment.APPDATA;
-  if (appData) {
-    const architecture = process.arch === "arm64" ? "aarch64" : "x86_64";
-    const target = `${architecture}-pc-windows-msvc`;
-    const npmBinary = path.join(
-      appData,
-      "npm",
-      "node_modules",
-      "@openai",
-      "codex",
-      "node_modules",
-      "@openai",
-      `codex-win32-${process.arch === "arm64" ? "arm64" : "x64"}`,
-      "vendor",
-      target,
-      "bin",
-      "codex.exe"
-    );
-    if (fileExists(npmBinary)) return npmBinary;
+  for (const candidate of codexExecutableCandidates(environment)) {
+    if (fileExists(candidate)) return candidate;
   }
-
   return null;
 }
 

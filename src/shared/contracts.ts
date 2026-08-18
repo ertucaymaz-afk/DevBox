@@ -299,7 +299,10 @@ export type ThreadItem = z.infer<typeof ThreadItemSchema>;
 
 export const ThreadActivityEventSchema = z.object({
   threadId: z.string().min(8).max(128),
-  kind: z.enum(["provider", "command", "evidence", "failure"]),
+  kind: z.enum(["provider", "command", "evidence", "waiting", "failure"]),
+  stage: z.string().trim().min(1).max(64).nullable().optional(),
+  provider: z.string().trim().min(1).max(160).nullable().optional(),
+  model: z.string().trim().min(1).max(200).nullable().optional(),
   message: z.string().trim().min(1).max(2_000),
   createdAt: z.string().datetime()
 }).strict();
