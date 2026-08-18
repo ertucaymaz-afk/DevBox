@@ -43,7 +43,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          node scripts/apply-v017-hardening.mjs
+          node --check scripts/apply-v017-hardening2.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V017_HARDENING_SCRIPT_SYNTAX_FAILED' }
+          node scripts/apply-v017-hardening2.mjs
           if ($LASTEXITCODE -ne 0) { throw 'V017_HARDENING_PATCH_FAILED' }
           git diff --check
           if ($LASTEXITCODE -ne 0) { throw 'V017_DIFF_CHECK_FAILED' }
