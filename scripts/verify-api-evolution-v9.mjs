@@ -31,8 +31,15 @@ function check(name, condition, detail = "") {
 }
 function all(source, needles) { return needles.every((needle) => source.includes(needle)); }
 
-check("v016-version", /"version"\s*:\s*"0\.1\.16"/u.test(pkg));
-check("v9-release-script", pkg.includes('"evolution:verify": "node scripts/verify-api-evolution-v9.mjs"'));
+const packageJson = JSON.parse(pkg);
+const versionParts = String(packageJson.version ?? "").split(".").map(Number);
+const v9Compatible = versionParts.length === 3
+  && versionParts.every((value) => Number.isInteger(value) && value >= 0)
+  && (versionParts[0] > 0 || versionParts[1] > 1 || (versionParts[1] === 1 && versionParts[2] >= 16));
+check("v016-minimum-version", v9Compatible);
+const evolutionVerify = String(packageJson.scripts?.["evolution:verify"] ?? "");
+const verifierMatch = evolutionVerify.match(/verify-api-evolution-v(\d+)\.mjs/u);
+check("v9-or-newer-release-script", Boolean(verifierMatch) && Number(verifierMatch?.[1] ?? 0) >= 9);
 check("deterministic-icon-build", pkg.includes('"icon:generate": "node scripts/generate-app-icon.mjs"') && pkg.includes("pnpm icon:generate"));
 
 const owners = ["core", "agent", "api", "release", "typescript", "evolution", "workspace", "cloud", "ui", "security", "project", "integration"];

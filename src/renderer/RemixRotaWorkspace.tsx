@@ -14,10 +14,20 @@ function duration(seconds: number): string {
 function stateLabel(state: RemixRotaStatus["state"]): string {
   return ({ UNCONFIGURED: "YAPILANDIRILMADI", DISCOVERED: "KEŞFEDİLDİ", CONNECTING: "BAĞLANIYOR", READY: "BAĞLI", DEGRADED: "BAĞLANTI KOPTU", FAILED: "BAŞARISIZ" } as const)[state];
 }
+function trustedThumbnailUrl(value: string): string | null {
+  if (value.startsWith("data:image/")) return value;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return null;
+    const host = url.hostname.toLocaleLowerCase("en-US");
+    return host === "i.ytimg.com" || host.endsWith(".googleusercontent.com") || host.endsWith(".ggpht.com") ? url.toString() : null;
+  } catch { return null; }
+}
 
 function TrackRow({ track, current, onPlay }: { track: RemixRotaTrack; current: boolean; onPlay: (track: RemixRotaTrack) => void }): ReactNode {
+  const thumbnail = trustedThumbnailUrl(track.thumbnailUrl);
   return <button className={`music-track-row ${current ? "current" : ""}`} onClick={() => onPlay(track)}>
-    <span className="music-cover-mini">{track.thumbnailUrl ? <img src={track.thumbnailUrl} alt="" referrerPolicy="no-referrer" /> : <Music2 size={16} />}</span>
+    <span className="music-cover-mini">{thumbnail ? <img src={thumbnail} alt="" referrerPolicy="no-referrer" /> : <Music2 size={16} />}</span>
     <span className="music-track-copy"><strong>{track.title}</strong><small>{track.artist} · {track.source}</small></span>
     <span className="music-track-duration">{track.durationText ?? ""}</span>
     <Play size={13} aria-hidden="true" />
@@ -81,6 +91,7 @@ export function RemixRotaWorkspace(): ReactNode {
   const ready = state === "READY";
   const currentTitle = player?.current?.title ?? "RemixRota bağlantısı bekleniyor";
   const currentArtist = player?.current?.artist ?? "DevBox müzik motorunu kopyalamaz; gerçek companion durumunu gösterir.";
+  const currentThumbnail = trustedThumbnailUrl(player?.current?.thumbnailUrl ?? "");
   const tracks = useMemo(() => view?.tracks ?? [], [view]);
 
   return <section className="advanced-page music-workspace">
@@ -94,7 +105,7 @@ export function RemixRotaWorkspace(): ReactNode {
     </div>
 
     <section className="music-now-playing">
-      <div className="music-artwork">{player?.current?.thumbnailUrl ? <img src={player.current.thumbnailUrl} alt={`${currentTitle} kapağı`} referrerPolicy="no-referrer" /> : <Music2 size={38} />}</div>
+      <div className="music-artwork">{currentThumbnail ? <img src={currentThumbnail} alt={`${currentTitle} kapağı`} referrerPolicy="no-referrer" /> : <Music2 size={38} />}</div>
       <div className="music-now-copy"><span>ŞİMDİ ÇALIYOR</span><h2>{currentTitle}</h2><p>{currentArtist}</p><div className="music-progress"><button className="music-seek" aria-label="Parçada konum seç" disabled={!ready || !player?.duration} onClick={(event) => { if (!player?.duration) return; const box = event.currentTarget.getBoundingClientRect(); const ratio = Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)); void invoke("player.seek", { seconds: player.duration * ratio }); }}><i style={{ width: `${progress}%` }} /></button><small>{duration(player?.progress ?? 0)} / {duration(player?.duration ?? 0)}</small></div></div>
       <div className="music-controls"><button onClick={() => void invoke("player.previous")} disabled={!ready}><SkipBack size={18} /></button><button className="music-play" onClick={() => void invoke(player?.isPlaying ? "player.pause" : "player.play")} disabled={!ready}>{busy?.startsWith("player.") ? <LoaderCircle className="spin" size={21} /> : player?.isPlaying ? <Pause size={22} /> : <Play size={22} />}</button><button onClick={() => void invoke("player.next")} disabled={!ready}><SkipForward size={18} /></button><button className={player?.isFavorite ? "selected" : ""} onClick={() => void invoke("player.toggleFavorite")} disabled={!ready || !player?.current}><Heart size={18} fill={player?.isFavorite ? "currentColor" : "none"} /></button></div>
       <label className="music-volume"><Volume2 size={16} /><input type="range" min="0" max="100" value={player?.volume ?? 0} disabled={!ready} onChange={(event) => { const value = Number(event.target.value); setStatus((current) => current?.player ? { ...current, player: { ...current.player, volume: value } } : current); }} onPointerUp={(event) => void invoke("player.setVolume", { value: Number((event.currentTarget as HTMLInputElement).value) })} /><span>{Math.round(player?.volume ?? 0)}%</span></label>

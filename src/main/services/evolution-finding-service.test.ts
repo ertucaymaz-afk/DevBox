@@ -55,6 +55,23 @@ describe("EvolutionFindingService", () => {
     for (const owner of FINDING_OWNERS) expect(summary.byOwner[owner]).toBe(0);
   });
 
+  it("normalizes legacy or malformed persisted findings instead of breaking strict DevAPI owner counts", async () => {
+    const { database, service, projectId } = await fixture();
+    database.setSetting(`evolution:findings:v1:${projectId}`, {
+      schemaVersion: 1,
+      updatedAt: "not-a-date",
+      items: [{ id: "legacy-id", fingerprint: "broken", projectId, title: "Legacy finding", detail: 17, source: "legacy-import", track: "unknown-track", severity: "URGENT", status: "UNKNOWN", owner: "old-owner", evidence: null, occurrences: 0, firstSeenAt: "bad", lastSeenAt: "bad" }]
+    });
+    const summary = FindingSummarySchema.parse(service.summary(projectId));
+    expect(summary.total).toBe(1);
+    expect(summary.open).toBe(1);
+    expect(summary.bySeverity.MEDIUM).toBe(1);
+    expect(summary.byOwner.evolution).toBe(1);
+    expect(summary.items[0]?.id).toMatch(/^[0-9a-f-]{36}$/iu);
+    expect(summary.items[0]?.fingerprint).toMatch(/^[a-f0-9]{64}$/u);
+    expect(service.summary(projectId).items[0]?.id).toBe(summary.items[0]?.id);
+  });
+
   it("deduplicates by fingerprint and preserves occurrence history", async () => {
     const { service, projectId } = await fixture();
     const first = service.report({ projectId, source: "typescript", key: "a.ts:1:1:TS2322", title: "TS2322", detail: "first", severity: "HIGH", owner: "typescript", evidence: ["a.ts:1:1"] });

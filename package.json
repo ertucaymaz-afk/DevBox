@@ -1,6 +1,6 @@
 {
   "name": "devbox",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "private": true,
   "description": "Windows için kanıt temelli açık kaynak mühendislik masaüstü",
   "author": "Yaaertu",
@@ -50,7 +50,7 @@
     "release:deliver": "pnpm release:prepare && pnpm release:verify && pnpm release:sync && pnpm release:source && pnpm release:install-local",
     "release:local": "pnpm package:installer && pnpm release:deliver",
     "verify": "pnpm spec:verify && pnpm evolution:verify && pnpm typecheck && pnpm test && pnpm build",
-    "evolution:verify": "node scripts/verify-api-evolution-v9.mjs"
+    "evolution:verify": "node scripts/verify-api-evolution-v10.mjs"
   },
   "dependencies": {
     "@fastify/rate-limit": "11.2.0",

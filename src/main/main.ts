@@ -64,6 +64,7 @@ let debugService: DebugService | null = null;
 let languageService: LanguageService | null = null;
 let cloudControlService: CloudControlService | null = null;
 let remixRotaService: RemixRotaService | null = null;
+let nativeThemeUpdatedListener: (() => void) | null = null;
 
 function rendererRoot(): string {
   return path.resolve(app.getAppPath(), "dist", "renderer");
@@ -72,6 +73,15 @@ function rendererRoot(): string {
 function optionalCatalogRoot(name: "DEVBOX_SKILL_ROOT" | "DEVBOX_PLUGIN_ROOT"): string | null {
   const value = process.env[name]?.trim();
   return value ? path.resolve(value) : null;
+}
+
+function nativeThemeIsLight(themeBase: "light" | "dark" | "system"): boolean {
+  return themeBase === "light" || (themeBase === "system" && !nativeTheme.shouldUseDarkColors);
+}
+function applyNativeWindowTheme(window: BrowserWindow, themeBase: "light" | "dark" | "system"): void {
+  const light = nativeThemeIsLight(themeBase);
+  window.setBackgroundColor(light ? "#F6F3EF" : "#0B0D0E");
+  window.setTitleBarOverlay({ color: light ? "#FFFDFA" : "#191B1D", symbolColor: light ? "#342A25" : "#F3F5F6", height: 40 });
 }
 
 async function registerApplicationProtocol(): Promise<void> {
@@ -101,7 +111,7 @@ function installSessionSecurity(): void {
       responseHeaders: {
         ...details.responseHeaders,
         "Content-Security-Policy": [
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src devbox-preview:; base-uri 'none'; form-action 'none'"
+          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://i.ytimg.com https://*.googleusercontent.com https://*.ggpht.com; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src devbox-preview:; base-uri 'none'; form-action 'none'"
         ]
       }
     });
@@ -109,7 +119,7 @@ function installSessionSecurity(): void {
 }
 
 function createWindow(themeBase: "light" | "dark" | "system"): BrowserWindow {
-  const light = themeBase === "light" || (themeBase === "system" && !nativeTheme.shouldUseDarkColors);
+  const light = nativeThemeIsLight(themeBase);
   const window = new BrowserWindow({
     title: "DevBox",
     width: 1_280,
@@ -226,6 +236,11 @@ async function start(): Promise<void> {
   await coreApi.start();
 
   mainWindow = createWindow(settings.get().theme.base);
+  nativeThemeUpdatedListener = (): void => {
+    if (!mainWindow || mainWindow.isDestroyed() || settings.get().theme.base !== "system") return;
+    applyNativeWindowTheme(mainWindow, "system");
+  };
+  nativeTheme.on("updated", nativeThemeUpdatedListener);
   terminals = new TerminalService((event) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.webContents.send(IPC_CHANNELS.terminalEvent, TerminalEventSchema.parse(event));
@@ -284,6 +299,10 @@ app.whenReady().then(start).catch((error: unknown) => {
 app.on("before-quit", (event) => {
   if (!coreApi && !database && !terminals && !evolution && !commandRunner && !localCatalog) return;
   event.preventDefault();
+  if (nativeThemeUpdatedListener) {
+    nativeTheme.off("updated", nativeThemeUpdatedListener);
+    nativeThemeUpdatedListener = null;
+  }
   const api = coreApi;
   coreApi = null;
   terminals?.close();
