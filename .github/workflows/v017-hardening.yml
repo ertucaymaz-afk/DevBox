@@ -1,4 +1,5 @@
 name: DevBox v0.1.17 hardening
+# Final audit runner: patchers are syntax-checked before product verification.
 
 on:
   push:
