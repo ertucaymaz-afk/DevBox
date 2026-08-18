@@ -1,0 +1,53 @@
+name: v0.1.20 source materialize
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  materialize:
+    if: github.head_ref == 'codex/v0.1.20-production-promotion-control-plane' || github.ref_name == 'codex/v0.1.20-production-promotion-control-plane'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/v0.1.20-production-promotion-control-plane
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/apply-v020-source.mjs
+      - shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Source reality gate
+        shell: pwsh
+        run: |
+          pnpm spec:verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm evolution:verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm cloud:verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Commit verified product source
+        shell: pwsh
+        run: |
+          git config user.name "devbox-ci"
+          git config user.email "devbox-ci@users.noreply.github.com"
+          git add package.json README.md src/shared/contracts.ts src/main/services/api-evolution-service.ts cloud/devapi-control/lib/db.mjs cloud/devapi-control/package.json cloud/devbox-site/package.json cloud/devapi-control/api/v1/health.mjs cloud/devapi-control/index.html cloud/devbox-site/index.html scripts/verify-api-evolution-v12.mjs scripts/verify-cloud-ecosystem.mjs
+          if (git diff --cached --quiet) { Write-Host "already materialized"; exit 0 }
+          git commit -m "DevBox v0.1.20 production control-plane source"
+          git push origin HEAD:codex/v0.1.20-production-promotion-control-plane
