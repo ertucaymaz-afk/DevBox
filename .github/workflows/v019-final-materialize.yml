@@ -1,0 +1,47 @@
+name: DevBox v0.1.9 final hardening materialization
+
+on:
+  push:
+    branches:
+      - codex/v0.1.9-chat-api-repair
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v019-final-materialize-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: codex/v0.1.9-chat-api-repair
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Final runtime hardening uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/apply-v019-final-hardening.mjs
+          if ($LASTEXITCODE -ne 0) { throw "V019_FINAL_HARDENING_FAILED:$LASTEXITCODE" }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw "V019_FINAL_DIFF_CHECK_FAILED:$LASTEXITCODE" }
+      - name: Gerçek kaynak değişikliklerini commit et
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $changes = git status --porcelain
+          if (-not $changes) { Write-Host 'V019_FINAL_ALREADY_MATERIALIZED'; exit 0 }
+          git config user.name 'DevBox CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/main/services/agent-service.ts src/main/services/api-evolution-service.ts src/main/services/v019-runtime-regression.test.ts src/renderer/App.tsx src/renderer/styles.css
+          git commit -m 'v0.1.9 Windows runtime hardening materialize [skip ci]'
+          git push origin HEAD:codex/v0.1.9-chat-api-repair
