@@ -45,7 +45,7 @@ jobs:
           if ($pkg -match '"version"\s*:\s*"0\.1\.14"') {
             Write-Host 'DEVBOX_V014_ALREADY_MATERIALIZED'
           } else {
-            node scripts/apply-v014-core8.mjs
+            node scripts/apply-v014-core9.mjs
             if ($LASTEXITCODE -ne 0) { throw "V014_CORE_PATCH_FAILED:$LASTEXITCODE" }
             node scripts/apply-v014-ui-evolution.mjs
             if ($LASTEXITCODE -ne 0) { throw "V014_UI_EVOLUTION_PATCH_FAILED:$LASTEXITCODE" }
