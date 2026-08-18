@@ -662,7 +662,6 @@ export function App(): ReactNode {
       setThread(detail);
       setDraftAttachments([]);
       await updateThreads();
-      if (selectedProject) await loadProject(selectedProject);
       setView("thread");
       setHistory((current) => [...current.slice(0, historyIndex + 1), detail.thread.id].slice(-40));
       setHistoryIndex((current) => Math.min(current + 1, 39));
@@ -705,6 +704,7 @@ export function App(): ReactNode {
       setThread(detail);
       setDraftAttachments([]);
       await updateThreads();
+      if (selectedProject) await loadProject(selectedProject);
       requestAnimationFrame(() => {
         if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
       });

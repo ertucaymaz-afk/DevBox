@@ -592,7 +592,7 @@ export class AgentService {
     const workspaceMutation = isWorkspaceMutationRequest(prompt);
     const started = performance.now();
     report(onProgress, "provider", "PROVIDER_CHECK", "Hermes aracılığıyla NVIDIA NIM oturumu başlatıldı.", "Hermes / NVIDIA NIM", modelOverride);
-    report(onProgress, "command", "RUNNING_COMMAND", "hermes chat güvenli modda çalıştırılıyor.", "Hermes / NVIDIA NIM", modelOverride);
+    report(onProgress, "command", "RUNNING_COMMAND", workspaceMutation ? "hermes chat gerçek workspace file/terminal araç döngüsüyle çalıştırılıyor." : "hermes chat güvenli sohbet modunda çalıştırılıyor.", "Hermes / NVIDIA NIM", modelOverride);
     const chat = await this.#runner.run({
       executable,
       args: [
@@ -601,7 +601,7 @@ export class AgentService {
         "--provider", PROVIDER,
         "--model", modelOverride,
         "--reasoning", "none",
-        ...(workspaceMutation ? ["--toolsets", "file,terminal", "--ignore-user-config", "--ignore-rules", "--yolo"] : ["--safe-mode"]),
+        ...(workspaceMutation ? ["--toolsets", "file,terminal", "--ignore-user-config", "--ignore-rules", "--checkpoints", "--yolo"] : ["--safe-mode"]),
         "--quiet",
         "--source", "devbox",
         "--max-turns", workspaceMutation ? "48" : "1",
