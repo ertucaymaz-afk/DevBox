@@ -28,6 +28,12 @@ describe("v0.1.9 chat and API runtime regressions", () => {
     expect(resolveCodexExecutable({ LOCALAPPDATA: base }, existing(expected))).toBe(path.normalize(expected));
   });
 
+  it("resolves CODEX_INSTALL_DIR used by the official Windows installer", () => {
+    const installDir = "C:\\CustomCodex";
+    const expected = path.join(installDir, process.platform === "win32" ? "codex.exe" : "codex");
+    expect(resolveCodexExecutable({ CODEX_INSTALL_DIR: installDir }, existing(expected))).toBe(path.normalize(expected));
+  });
+
   it("resolves CODEX_HOME standalone current/bin", () => {
     const home = "C:\Users\tester\.codex";
     const expected = path.join(home, "packages", "standalone", "current", "bin", process.platform === "win32" ? "codex.exe" : "codex");

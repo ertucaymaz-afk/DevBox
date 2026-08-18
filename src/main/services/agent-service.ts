@@ -270,6 +270,7 @@ function codexExecutableCandidates(environment: NodeJS.ProcessEnv): string[] {
   };
 
   add(environment.DEVBOX_CODEX_EXECUTABLE);
+  add(environment.CODEX_INSTALL_DIR ? path.join(environment.CODEX_INSTALL_DIR, process.platform === "win32" ? "codex.exe" : "codex") : undefined);
 
   const codexHome = environment.CODEX_HOME?.trim()
     || (environment.USERPROFILE ? path.join(environment.USERPROFILE, ".codex") : undefined)

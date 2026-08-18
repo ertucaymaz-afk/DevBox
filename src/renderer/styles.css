@@ -233,12 +233,15 @@ kbd { padding: 2px 5px; border: 1px solid var(--border-strong); border-radius: 4
 .message-attachments strong, .message-attachments small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .message-attachments strong { color: var(--text-secondary); font-size: 11px; }
 .message-attachments small { color: var(--text-muted); font-size: 10px; }
-.activity-line { display: flex; align-items: center; gap: 8px; margin: 0 0 11px 38px; color: var(--text-muted); font-size: 12px; }
-.activity-line > svg { flex: 0 0 auto; }
-.activity-line > span { min-width: 0; overflow-wrap: anywhere; }
-.activity-line > time { margin-left: auto; color: var(--text-disabled); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+.activity-line { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 11px 38px; color: var(--text-muted); font-size: 12px; }
+.activity-line > svg { flex: 0 0 auto; margin-top: 1px; }
+.activity-copy { min-width: 0; display: flex; flex: 1 1 auto; flex-direction: column; gap: 2px; }
+.activity-copy > span { min-width: 0; overflow-wrap: anywhere; }
+.activity-copy > small { color: var(--text-disabled); font-size: 10px; overflow-wrap: anywhere; }
+.activity-line > time { margin-left: auto; padding-top: 1px; color: var(--text-disabled); font-size: 9.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .activity-line.completed > svg, .activity-line.evidence > svg { color: var(--success); }
 .activity-line.command > svg { color: #aab3ba; }
+.activity-line.waiting, .activity-line.waiting > svg { color: #d2ac63; }
 .activity-line.failure, .activity-line.failure > svg { color: var(--danger); }
 .activity-line.running { color: var(--accent); }
 .activity-line.live { animation: activity-arrive 180ms ease-out both; }
