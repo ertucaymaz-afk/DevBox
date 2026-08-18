@@ -1,5 +1,5 @@
 import { createHash, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -61,5 +61,27 @@ describe("signed package lifecycle", () => {
     expect(repaired.directory).toBe(second.directory);
     expect(first.directory).not.toBe(second.directory);
     await expect(service.status()).resolves.toMatchObject({ trustedPublishers: 1, managedCatalogPublishers: 0, installedPackages: 1, localSideloadPackages: 1, managedCatalogPackages: 0, repairablePackages: 1, auditEvents: 5, auditIntegrity: "VERIFIED" });
+  });
+
+  it("rejects conflicting content for an already installed package version and keeps the active artifact immutable", async () => {
+    const lifecycleRoot = await mkdtemp(path.join(os.tmpdir(), "devbox-lifecycle-conflict-"));
+    temporaryDirectories.push(lifecycleRoot);
+    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+    const publicPem = publicKey.export({ format: "pem", type: "spki" }).toString();
+    const service = new PackageLifecycleService(lifecycleRoot);
+    const original = await signedPackage(privateKey, "1.0.0", "export const version = 1;\n");
+    const conflicting = await signedPackage(privateKey, "1.0.0", "export const version = 999;\n");
+
+    await service.enrollPublisher("publisher.lifecycle", publicPem, "LOCAL_SIDELOAD");
+    const installed = await service.install(original);
+    const before = await service.status();
+
+    await expect(service.install(conflicting)).rejects.toThrow("PACKAGE_VERSION_CONTENT_CONFLICT");
+    const active = (await service.list())[0];
+    expect(active?.directory).toBe(installed.directory);
+    expect(await readFile(path.join(installed.directory, "dist", "index.js"), "utf8")).toBe("export const version = 1;\n");
+    const after = await service.status();
+    expect(after.auditEvents).toBe(before.auditEvents);
+    expect(after.auditIntegrity).toBe("VERIFIED");
   });
 });

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -49,5 +49,26 @@ describe("project service", () => {
     const updatedTree = await projects.duplicatePath(project.id, path.join("src", "renamed.ts"));
     const sourceDirectory = updatedTree.find((item) => item.name === "src");
     expect(sourceDirectory?.children?.map((item) => item.name)).toEqual(expect.arrayContaining(["renamed.ts", "renamed kopya.ts"]));
+  });
+
+  it("rejects editing a final file symlink before following it outside the project root", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "devbox-project-symlink-"));
+    const outsideRoot = await mkdtemp(path.join(os.tmpdir(), "devbox-project-outside-"));
+    temporaryDirectories.push(root, outsideRoot);
+    await mkdir(path.join(root, "src"));
+    const outsideFile = path.join(outsideRoot, "secret.ts");
+    await writeFile(outsideFile, "export const outside = 1;\n");
+    const linkPath = path.join(root, "src", "escape.ts");
+    await symlink(outsideFile, linkPath, "file");
+
+    const database = new StateDatabase(path.join(root, ".state", "test.sqlite"));
+    databases.push(database);
+    const projects = new ProjectService(database);
+    const project = await projects.open(root);
+
+    await expect(projects.readFile(project.id, path.join("src", "escape.ts"))).rejects.toThrow();
+    await expect(projects.writeFile(project.id, path.join("src", "escape.ts"), "0".repeat(64), "mutated\n"))
+      .rejects.toThrow("SYMLINK_FILE_EDIT_FORBIDDEN");
+    expect(await readFile(outsideFile, "utf8")).toBe("export const outside = 1;\n");
   });
 });

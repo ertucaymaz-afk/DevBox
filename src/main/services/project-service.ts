@@ -123,6 +123,8 @@ export class ProjectService {
   public async writeFile(projectId: string, relativePath: string, expectedSha256: string, content: string): Promise<FileSnapshot> {
     const project = this.get(projectId);
     const target = await resolveEntryWithinRoot(project.rootPath, relativePath);
+    const entryInfo = await lstat(target);
+    if (entryInfo.isSymbolicLink()) throw new Error("SYMLINK_FILE_EDIT_FORBIDDEN");
     const info = await stat(target);
     if (!info.isFile()) throw new Error("PATH_IS_NOT_A_FILE");
     const encoded = Buffer.from(content, "utf8");
