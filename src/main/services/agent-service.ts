@@ -346,7 +346,11 @@ function boundedConversation(history: readonly ThreadItem[], prompt: string, wor
     "- Her yazma/patch işleminden sonra aynı dosyayı tekrar oku ve içeriğin diskte gerçekten bulunduğunu doğrula. Araç başarı metnine tek başına güvenme.",
     "- git reset, git clean, git checkout --, rebase, force push veya commit çalıştırma. Kullanıcının önceden var olan kirli değişikliklerini koru.",
     "- Test/build komutu uygunsa çalıştır; mümkün değilse nedenini açıkça belirt.",
-    "- Son yanıtta yalnız gerçekten yapılan işleri ve diskten doğrulanan dosya yollarını söyle. Dosya değişmediyse başarı iddia etme."
+    "- Son yanıtta yalnız gerçekten yapılan işleri ve diskten doğrulanan dosya yollarını söyle. Dosya değişmediyse başarı iddia etme.",
+    "- SİMÜLASYON, DEMO, FAKE, SAHTE, placeholder, canned response, temsili başarı veya yalnız görsel maket üretme. İstenen özellik gerçek dosya ve çalışan davranış olarak bulunmalı.",
+    "- HTML/CSS/JS önizlemesinde kullanıcı açıkça istemedikçe CDN, uzak script, uzak stylesheet, uzak font veya ağ bağımlılığı kullanma. İlk görünüm ağ olmadan çalışmalı.",
+    "- Animasyon istenirse gerçek CSS keyframes/Web Animations API/vanilla JavaScript veya çalışma alanındaki yerel varlıklarla uygula. Eksik dış kütüphane yüzünden opacity:0/visibility:hidden durumda kalan içerik bırakma.",
+    "- index.html üretiminde geçerli doctype, görünür body içeriği, responsive viewport ve ilk paintte görünür içerik zorunludur; yalnız boş container veya sonradan çalışacağı varsayılan kod bırakma."
   ].join("\n") : "";
   const body = messages.join("\n\n");
   return `${base}${workspace ? `\n\n${workspace}` : ""}\n\n${body.slice(-MAX_HISTORY_CHARACTERS)}`;
