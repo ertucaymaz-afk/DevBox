@@ -481,10 +481,13 @@ export class ApiEvolutionService {
           if (nodeProbe.exitCode !== 0 || nodeProbe.timedOut || major < 24) return { ok: false, evidence, detail: `NODE_24_REQUIRED: detected=${nodeProbe.stdout.trim() || "unavailable"}` };
           const corepack = process.platform === "win32" ? "corepack.cmd" : "corepack";
           const pinned = pkg.packageManager?.startsWith("pnpm@") ? pkg.packageManager : "pnpm@11.19.0";
-          this.#publishByRoot(rootPath, { stage: "VERIFYING", kind: "command", message: `${pinned} Corepack cache/activation doğrulanıyor; Program Files shim yazımı kullanılmıyor.`, provider: null, model: null });
-          const prepared = await this.#runner.run({ executable: corepack, args: ["prepare", pinned, "--activate"], cwd: rootPath, cancellation, timeoutMs: 2 * 60_000, maxOutputBytes: 2 * 1024 * 1024 });
-          evidence.push(prepared.runId);
-          if (prepared.exitCode !== 0 || prepared.timedOut || prepared.truncated) return { ok: false, evidence, detail: `COREPACK_PREPARE_FAILED:${prepared.stderr.slice(0, 500)}` };
+          const expectedPnpmVersion = pinned.slice("pnpm@".length).trim();
+          this.#publishByRoot(rootPath, { stage: "VERIFYING", kind: "command", message: `${pinned} doğrudan Corepack meta-command ile doğrulanıyor; global pnpm shim veya Program Files yazımı kullanılmıyor.`, provider: null, model: null });
+          const managerProbe = await this.#runner.run({ executable: corepack, args: ["pnpm", "--version"], cwd: rootPath, cancellation, timeoutMs: 2 * 60_000, maxOutputBytes: 2 * 1024 * 1024 });
+          evidence.push(managerProbe.runId);
+          if (managerProbe.exitCode !== 0 || managerProbe.timedOut || managerProbe.truncated) return { ok: false, evidence, detail: `COREPACK_PNPM_PROBE_FAILED:${managerProbe.stderr.slice(0, 500)}` };
+          const detectedPnpmVersion = managerProbe.stdout.trim().split(/\r?\n/u)[0]?.trim() ?? "";
+          if (expectedPnpmVersion && detectedPnpmVersion !== expectedPnpmVersion) return { ok: false, evidence, detail: `PNPM_VERSION_MISMATCH:expected=${expectedPnpmVersion}:detected=${detectedPnpmVersion || "unknown"}` };
           if (!existsSync(path.join(rootPath, "node_modules"))) {
             this.#publishByRoot(rootPath, { stage: "VERIFYING", kind: "command", message: "İlk gerçek çalışma: bağımlılıklar kilit dosyasından corepack pnpm ile kuruluyor.", provider: null, model: null });
             const install = await this.#runner.run({ executable: corepack, args: ["pnpm", "install", "--frozen-lockfile"], cwd: rootPath, cancellation, timeoutMs: 20 * 60_000, maxOutputBytes: 12 * 1024 * 1024 });
@@ -625,7 +628,7 @@ export class ApiEvolutionService {
   }
 
   #isExternalBlocker(message: string): boolean {
-    return /EVOLUTION_REQUIRES_GIT_REPOSITORY|EVOLUTION_REQUIRES_NETWORK_PROFILE|CODEX_AUTH_UNAVAILABLE|CODEX_EXECUTABLE_UNAVAILABLE|NVIDIA_CREDENTIAL_UNAVAILABLE|HERMES.*UNAVAILABLE|NODE_24_REQUIRED|COREPACK_PREPARE_FAILED|PNPM_INSTALL_FAILED|PROVIDER_CHAIN_EXHAUSTED:.*(?:AUTH_UNAVAILABLE|EXECUTABLE_UNAVAILABLE|CREDENTIAL_UNAVAILABLE)/iu.test(message);
+    return /EVOLUTION_REQUIRES_GIT_REPOSITORY|EVOLUTION_REQUIRES_NETWORK_PROFILE|CODEX_AUTH_UNAVAILABLE|CODEX_EXECUTABLE_UNAVAILABLE|NVIDIA_CREDENTIAL_UNAVAILABLE|HERMES.*UNAVAILABLE|NODE_24_REQUIRED|COREPACK_PREPARE_FAILED|COREPACK_PNPM_PROBE_FAILED|PNPM_VERSION_MISMATCH|PNPM_INSTALL_FAILED|PROVIDER_CHAIN_EXHAUSTED:.*(?:AUTH_UNAVAILABLE|EXECUTABLE_UNAVAILABLE|CREDENTIAL_UNAVAILABLE)/iu.test(message);
   }
 
   #canContinue(campaign: EvolutionCampaign): boolean {

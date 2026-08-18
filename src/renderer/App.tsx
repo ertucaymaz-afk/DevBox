@@ -442,7 +442,8 @@ function LiveActivity({ event }: { event: ThreadActivityEvent }): ReactNode {
       : event.kind === "failure"
         ? <XCircle size={13} />
         : <LoaderCircle className="spin" size={13} />;
-  return <div className={`activity-line live ${event.kind}`} aria-live="polite">{icon}<span>{event.message}</span><time title={exactDateTime(event.createdAt)}>{new Date(event.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time></div>;
+  const meta = [event.stage, event.provider ? `${event.provider}${event.model ? ` · ${event.model}` : ""}` : null].filter(Boolean).join(" · ");
+  return <div className={`activity-line live ${event.kind}`} aria-live="polite">{icon}<div className="activity-copy"><span>{event.message}</span>{meta && <small>{meta}</small>}</div><time title={exactDateTime(event.createdAt)}>{new Date(event.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time></div>;
 }
 
 function ThreadEmptyState({ project }: { project: ProjectSummary | null }): ReactNode {

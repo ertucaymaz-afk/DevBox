@@ -405,7 +405,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     await enforcePermissionPolicy(event, services, { title: "NVIDIA ajan isteği", message: "Bu görev Hermes üzerinden NVIDIA NIM sağlayıcısına gönderilsin mi?", detail: "DevBox, son görev metnini ve sınırlandırılmış sohbet bağlamını gönderir; ortam gizli değerini renderer'a taşımaz.", risky: false });
     const started = services.database.beginMessage(input.threadId, input.content, input.attachmentIds);
     if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadSnapshot, ThreadDetailSchema.parse(started.detail));
-    const publishActivity = (activity: { kind: "provider" | "command" | "evidence" | "failure" | "waiting"; message: string; createdAt: string }): void => {
+    const publishActivity = (activity: { kind: "provider" | "command" | "evidence" | "waiting" | "failure"; stage?: string | null; provider?: string | null; model?: string | null; message: string; createdAt: string }): void => {
       const payload = ThreadActivityEventSchema.parse({ threadId: input.threadId, ...activity });
       services.database.appendTurnActivity(input.threadId, started.turnId, payload.message, payload.createdAt);
       if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadActivity, payload);
