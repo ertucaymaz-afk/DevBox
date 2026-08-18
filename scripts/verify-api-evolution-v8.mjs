@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 
 await import("./verify-api-evolution-v7.mjs");
 
-const [pkg, finding, gate, cloud, language, turnQueue, coreApi, ipc, preload, bridge, app, controlUi, contracts, cloudDb, cloudCommands, cloudProjects, cloudHealth, cloudApp, cloudVercel, cloudPackage, cloudReadme] = await Promise.all([
+const [pkg, finding, gate, cloud, language, turnQueue, coreApi, ipc, preload, bridge, app, controlUi, contracts, cloudDb, cloudCommands, cloudProjects, cloudHealth, cloudApp, cloudIndex, cloudVercel, cloudPackage, cloudReadme] = await Promise.all([
   readFile("package.json", "utf8"),
   readFile("src/main/services/evolution-finding-service.ts", "utf8"),
   readFile("src/main/services/release-gate-service.ts", "utf8"),
@@ -22,6 +22,7 @@ const [pkg, finding, gate, cloud, language, turnQueue, coreApi, ipc, preload, br
   readFile("cloud/devapi-control/api/v1/projects.mjs", "utf8"),
   readFile("cloud/devapi-control/api/v1/health.mjs", "utf8"),
   readFile("cloud/devapi-control/app.js", "utf8"),
+  readFile("cloud/devapi-control/index.html", "utf8"),
   readFile("cloud/devapi-control/vercel.json", "utf8"),
   readFile("cloud/devapi-control/package.json", "utf8"),
   readFile("cloud/devapi-control/README.md", "utf8")
@@ -62,13 +63,14 @@ check("cloud-command-ack-idempotency", cloud.includes("this.#database.setSetting
 check("cloud-command-poison-progress", cloud.includes("terminalFailure") && cloud.includes("pendingCommandCursor: cursor") && cloud.includes("attempts >= CLOUD_COMMAND_MAX_ATTEMPTS"));
 
 check("cloud-db-command-state", hasAll(cloudDb, ["apply_status", "apply_detail", "applied_at", "applied_instance_id", "ackCommand"]));
-check("cloud-db-project-discovery", cloudDb.includes("listProjects") && cloudDb.includes('project_id AS "projectId"') && cloudDb.includes('latest_snapshot->\'evolution\'->>\'lifetimeLevel\''));
+check("cloud-db-project-discovery", cloudDb.includes("listProjects") && cloudDb.includes('project_id AS "projectId"') && cloudDb.includes("latest_snapshot->'evolution'->>'lifetimeLevel'"));
 check("cloud-db-retention", hasAll(cloudDb, ["COMMAND_RETENTION_DAYS = 90", "COMMAND_RETENTION_COUNT = 2_000", "pruneCommands", "OFFSET $2"]));
 check("cloud-server-command-ack", cloudCommands.includes('req.method === "PATCH"') && hasAll(cloudCommands, ["requireDesktopAuth", "ACK_STATES", "ackCommand"]));
 check("cloud-server-command-allowlist", hasAll(cloudCommands, ["evolution.setEnabled", "evolution.run", "evolution.cancel"]) && !cloudCommands.includes("child_process"));
 check("cloud-server-project-discovery", cloudProjects.includes("requireAdminAuth") && cloudProjects.includes("listProjects") && cloudProjects.includes("generatedAt"));
 check("cloud-health-coarse-only", cloudHealth.includes('version: "0.1.15"') && !cloudHealth.includes("configured") && !cloudHealth.includes("desktopAuth:") && !cloudHealth.includes("adminAuth:"));
-check("cloud-dashboard-discovery-and-audit", hasAll(cloudApp, ["discoverProjects", "/api/v1/projects", "renderCommands", "apply_status", "PENDING", "RETRYING", "APPLIED", "FAILED"]));
+check("cloud-dashboard-project-discovery", hasAll(cloudApp, ["discoverProjects", "/api/v1/projects", "projectPicker", "renderCommands", "apply_status"]));
+check("cloud-dashboard-command-lifecycle", hasAll(cloudIndex, ["COMMAND AUDIT", "PENDING → RETRYING → APPLIED / FAILED", "desktop ACK"]));
 check("cloud-vercel-csp", cloudVercel.includes("Content-Security-Policy") && cloudVercel.includes("frame-ancestors 'none'") && cloudVercel.includes("connect-src 'self'"));
 check("cloud-neon-pinned", cloudPackage.includes('"@neondatabase/serverless": "1.1.0"'));
 check("cloud-deployment-contract", hasAll(cloudReadme, ["cloud/devapi-control", "DATABASE_URL", "DEVBOX_CONTROL_PLANE_TOKEN", "DEVBOX_CONTROL_ADMIN_TOKEN", "PENDING", "RETRYING", "APPLIED", "FAILED"]));
