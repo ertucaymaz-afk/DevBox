@@ -20,7 +20,7 @@ need(pkgRaw,'"production:verify"',"production-gate-script");
 for(const track of ["cloud-continuity","deployment-safety","public-api-contract","command-delivery","disaster-recovery","database-performance","site-performance","protocol-compatibility","secret-rotation","dependency-provenance"]){need(contracts,`"${track}"`,`track-contract-${track}`);need(evolution,`track: "${track}"`,`track-focus-${track}`);}
 for(const table of ["devbox_project_state","devbox_project_state_history","devbox_control_commands"])need(db,table,`canonical-table-${table}`);
 forbid(db,"devbox_projects","legacy-current-table");forbid(db,"devbox_snapshot_history","legacy-history-table");forbid(db,"devbox_commands","legacy-command-table");
-need(cloudVerify,"crossLinks=pass","cross-link-gate");need(devboxIndex,"https://devapi-virid.vercel.app/","devbox-to-devapi");need(devapiIndex,"https://devbox.vercel.app/","devapi-to-devbox");
+need(cloudVerify,"crossLinks=pass","cross-link-gate");need(devboxIndex,"https://devapi-virid.vercel.app","devbox-to-devapi");need(devapiIndex,"https://devbox.vercel.app","devapi-to-devbox");
 need(devboxApp,"UNAVAILABLE","devbox-unavailable");need(devapiApp,"UNCONFIGURED","devapi-unconfigured");
 if(!["BLOCKED_EXTERNAL","PASS"].includes(evidence.state))throw new Error("API_EVOLUTION_V13_VERIFY_FAIL:evidence-state");
 if(!evidence.neon?.schemaVerified)throw new Error("API_EVOLUTION_V13_VERIFY_FAIL:neon-schema-evidence");
