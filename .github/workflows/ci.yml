@@ -143,7 +143,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           pnpm build
           if ($LASTEXITCODE -ne 0) { throw 'PRODUCTION_BUILD_FAILED' }
-          pnpm --filter devbox deploy --prod --force .packaged-app
+          pnpm --filter devbox deploy --prod --legacy --force .packaged-app
           if ($LASTEXITCODE -ne 0) { throw 'PNPM_DEPLOY_FAILED' }
           if (-not (Test-Path '.packaged-app/package.json' -PathType Leaf)) { throw 'STAGE_PACKAGE_JSON_MISSING' }
           if (-not (Test-Path '.packaged-app/dist/main/main/main.js' -PathType Leaf)) { throw 'STAGE_MAIN_ENTRY_MISSING' }
