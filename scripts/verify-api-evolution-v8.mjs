@@ -110,6 +110,9 @@ check("lsp-uri-filter", language.includes("documentUri") && language.includes("p
 check("lsp-document-budget", hasAll(language, ["MAX_OPEN_DOCUMENTS_PER_SESSION = 64", "openDocuments: Map", "textDocument/didClose", "#touchDocument"]));
 check("lsp-monotonic-version", language.includes("existing.version + 1") && language.includes("Math.max(1, requestedVersion)"));
 check("lsp-idle-session-eviction", hasAll(language, ["activeRequests", "#makeRoomForLanguageSession", "#trimLanguageSessions", "session.activeRequests === 0"]));
+check("dap-response-contract", language.includes("return { session: managed.snapshot, body: response.body ?? null }") && language.includes("Promise<DebugResponse>"));
+check("dap-breakpoint-boundary", hasAll(language, ["managed.builtIn && command === \"setBreakpoints\"", "resolveExistingPathWithinRoot", "DEBUG_BREAKPOINT_SOURCE_REQUIRED"]));
+check("dap-failure-cleanup", hasAll(language, ["state: \"FAILED\"", "launchPromise?.catch", "this.#sessions.delete(snapshot.id)"]));
 check("no-sync-compiler-in-main", !language.includes("execSync(") && !language.includes("spawnSync("));
 
 check("devapi-control-ui", hasAll(controlUi, ["DevBox API komuta merkezi", "Severity · ownership", "RELEASE GATE", "DEVAPI CHATBOX", "CLOUD CONTINUITY"]));
