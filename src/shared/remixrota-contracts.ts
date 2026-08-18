@@ -42,7 +42,7 @@ export const RemixRotaCommandSchema = z.enum([
 ]);
 export type RemixRotaCommand = z.infer<typeof RemixRotaCommandSchema>;
 
-const RemixRotaJsonValueSchema: z.ZodType<unknown> = z.lazy(() => z.union([
+export const RemixRotaJsonValueSchema: z.ZodType<unknown> = z.lazy(() => z.union([
   z.string().max(32_768),
   z.number().finite(),
   z.boolean(),
@@ -58,28 +58,52 @@ export const RemixRotaInvokeInputSchema = z.object({
 export type RemixRotaInvokeInput = z.infer<typeof RemixRotaInvokeInputSchema>;
 
 export const RemixRotaTrackSchema = z.object({
-  id: z.string().max(512).nullable(),
+  videoId: z.string().min(1).max(512),
   title: z.string().max(1_000),
   artist: z.string().max(1_000),
-  album: z.string().max(1_000).nullable(),
-  durationSeconds: z.number().finite().nonnegative().nullable(),
-  artworkUrl: z.string().max(8_192).nullable(),
-  favorite: z.boolean().nullable()
-}).strict();
+  thumbnailUrl: z.string().max(8_192),
+  source: z.string().max(256).default("YouTube Music"),
+  durationText: z.string().max(64).nullable().optional(),
+  discoveryContext: z.string().max(2_000).optional(),
+  discoveredAt: z.string().datetime().nullable().optional()
+}).passthrough();
 export type RemixRotaTrack = z.infer<typeof RemixRotaTrackSchema>;
 
 export const RemixRotaPlayerSnapshotSchema = z.object({
-  playbackState: z.enum(["PLAYING", "PAUSED", "STOPPED", "BUFFERING", "UNKNOWN"]),
+  serviceId: z.literal("com.remixrota.player"),
+  serviceVersion: z.string().min(1).max(64),
+  protocol: z.object({ major: z.literal(1), minor: z.number().int().nonnegative() }).strict(),
   current: RemixRotaTrackSchema.nullable(),
-  positionSeconds: z.number().finite().nonnegative(),
-  volume: z.number().finite().min(0).max(1),
-  muted: z.boolean(),
-  queueLength: z.number().int().nonnegative(),
-  repeatMode: z.string().max(64).nullable(),
-  shuffle: z.boolean().nullable(),
-  updatedAt: z.string().datetime()
-}).strict();
+  isPlaying: z.boolean(),
+  playerReady: z.boolean(),
+  isFavorite: z.boolean(),
+  repeat: z.boolean(),
+  volume: z.number().finite().min(0).max(100),
+  progress: z.number().finite().nonnegative(),
+  duration: z.number().finite().nonnegative(),
+  queueCount: z.number().int().nonnegative(),
+  activeView: z.string().max(160),
+  windowVisible: z.boolean(),
+  viewModes: z.record(z.string(), z.object({
+    preferredWidth: z.number().int().positive(),
+    preferredHeight: z.number().int().positive(),
+    minimumWidth: z.number().int().positive(),
+    minimumHeight: z.number().int().positive()
+  }).strict()).optional()
+}).passthrough();
 export type RemixRotaPlayerSnapshot = z.infer<typeof RemixRotaPlayerSnapshotSchema>;
+
+export const RemixRotaLibraryViewSchema = z.object({
+  activeView: z.string().max(160),
+  activeGenreId: z.string().max(256).nullable(),
+  title: z.string().max(1_000),
+  subtitle: z.string().max(2_000),
+  busy: z.boolean(),
+  currentVideoId: z.string().max(512).nullable(),
+  tracks: z.array(RemixRotaTrackSchema).max(100),
+  favoriteIds: z.array(z.string().max(512)).max(500)
+}).passthrough();
+export type RemixRotaLibraryView = z.infer<typeof RemixRotaLibraryViewSchema>;
 
 export const RemixRotaStatusSchema = z.object({
   state: RemixRotaConnectionStateSchema,
@@ -88,6 +112,7 @@ export const RemixRotaStatusSchema = z.object({
   discovery: RemixRotaDiscoverySchema.nullable(),
   grantedCapabilities: z.array(RemixRotaCapabilitySchema).max(16),
   player: RemixRotaPlayerSnapshotSchema.nullable(),
+  library: RemixRotaLibraryViewSchema.nullable(),
   lastConnectedAt: z.string().datetime().nullable(),
   lastEventAt: z.string().datetime().nullable(),
   lastError: z.string().max(2_000).nullable()
