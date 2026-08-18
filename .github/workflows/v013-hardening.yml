@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - codex/v0.1.13-gif-runtime-hardening
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -64,6 +66,7 @@ jobs:
         run: pnpm build
 
       - name: Doğrulanmış ürün kaynaklarını dala yaz
+        if: github.event_name != 'pull_request'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
