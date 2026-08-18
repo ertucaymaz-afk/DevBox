@@ -51,6 +51,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'V016_EVOLUTION_MATERIALIZER_FAILED' }
           node scripts/apply-v016-evolution-fix.mjs
           if ($LASTEXITCODE -ne 0) { throw 'V016_EVOLUTION_BOUNDARY_FIX_FAILED' }
+          node scripts/apply-v016-system-theme-fix.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V016_SYSTEM_THEME_FIX_FAILED' }
           node scripts/apply-v016-verifier.mjs
           if ($LASTEXITCODE -ne 0) { throw 'V016_VERIFIER_MATERIALIZER_FAILED' }
           node scripts/apply-v016-v9-fix.mjs
