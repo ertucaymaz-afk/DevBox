@@ -1,6 +1,6 @@
 {
   "name": "devbox",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "private": true,
   "description": "Windows için kanıt temelli açık kaynak mühendislik masaüstü",
   "author": "Yaaertu",
@@ -22,12 +22,13 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
+    "icon:generate": "node scripts/generate-app-icon.mjs",
     "research:generate": "node scripts/generate-research.mjs",
     "spec:import": "node scripts/import-development-spec.mjs",
     "spec:verify": "node scripts/verify-development-spec.mjs",
     "build:main": "tsc -p config/tsconfig.node.json",
     "build:renderer": "vite build --config config/vite.config.ts",
-    "build": "pnpm clean && pnpm research:generate && pnpm build:main && pnpm build:renderer && pnpm truth:audit",
+    "build": "pnpm clean && pnpm icon:generate && pnpm research:generate && pnpm build:main && pnpm build:renderer && pnpm truth:audit",
     "typecheck": "tsc -p config/tsconfig.node.json --noEmit && tsc -p config/tsconfig.renderer.json --noEmit",
     "test": "vitest run --config config/vitest.config.ts --maxWorkers=1 --no-file-parallelism",
     "test:watch": "vitest --config config/vitest.config.ts",
@@ -49,7 +50,7 @@
     "release:deliver": "pnpm release:prepare && pnpm release:verify && pnpm release:sync && pnpm release:source && pnpm release:install-local",
     "release:local": "pnpm package:installer && pnpm release:deliver",
     "verify": "pnpm spec:verify && pnpm evolution:verify && pnpm typecheck && pnpm test && pnpm build",
-    "evolution:verify": "node scripts/verify-api-evolution-v8.mjs"
+    "evolution:verify": "node scripts/verify-api-evolution-v9.mjs"
   },
   "dependencies": {
     "@fastify/rate-limit": "11.2.0",
