@@ -38,8 +38,8 @@ const PREVIEW_BRIDGE = `<script data-devbox-preview-bridge>(function(){
   for(const level of ['log','info','warn','error']){const original=console[level]?.bind(console);console[level]=(...args)=>{send(level,args);original?.(...args)}}
   addEventListener('error',(event)=>send('error',[event.message,event.filename,event.lineno+':'+event.colno]));
   addEventListener('unhandledrejection',(event)=>send('error',['Unhandled promise rejection',String(event.reason)]));
-  addEventListener('securitypolicyviolation',(event)=>send('warn',['CSP',event.violatedDirective,event.blockedURI||'blocked']));
-  addEventListener('DOMContentLoaded',()=>{try{parent.postMessage({source:'devbox-preview',type:'ready',title:document.title,createdAt:new Date().toISOString()},'*')}catch{}});
+  addEventListener('securitypolicyviolation',(event)=>send('error',['CSP',event.violatedDirective,event.blockedURI||'blocked']));
+  addEventListener('DOMContentLoaded',()=>requestAnimationFrame(()=>{try{const body=document.body;const rect=body?.getBoundingClientRect();parent.postMessage({source:'devbox-preview',type:'ready',title:document.title,bodyWidth:Math.round(rect?.width||0),bodyHeight:Math.round(rect?.height||0),createdAt:new Date().toISOString()},'*')}catch{}}));
 })();</script>`;
 
 function instrumentHtml(html: string): string {
