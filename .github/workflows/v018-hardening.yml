@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - codex/v0.1.18-integrity-boundary-hardening
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -15,7 +18,7 @@ concurrency:
 
 jobs:
   harden:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'codex/v0.1.18-integrity-boundary-hardening')
     runs-on: windows-latest
     timeout-minutes: 50
     steps:
