@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - codex/v0.1.9-chat-api-repair
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -40,6 +43,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "V019_DIFF_CHECK_FAILED:$LASTEXITCODE" }
 
       - name: Kaynak değişikliklerini kalıcı commit et
+        if: github.event_name != 'pull_request'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
