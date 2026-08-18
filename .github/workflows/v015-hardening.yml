@@ -23,6 +23,7 @@ jobs:
       - name: Kaynağı al
         uses: actions/checkout@v6
         with:
+          ref: codex/v0.1.15-control-plane-release-findings-theme
           fetch-depth: 0
           persist-credentials: true
       - name: pnpm 11.19.0 kur
@@ -50,7 +51,6 @@ jobs:
       - name: Eski ve yeni gerçeklik kapıları dahil tüm doğrulamayı çalıştır
         run: pnpm verify
       - name: Doğrulanmış ürün kaynaklarını dala yaz
-        if: github.event_name != 'pull_request'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
