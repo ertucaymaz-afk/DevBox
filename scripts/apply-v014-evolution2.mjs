@@ -1,0 +1,20 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
+import path from "node:path";
+
+let source = await readFile("scripts/apply-v014-ui-evolution.mjs", "utf8");
+const appStart = source.indexOf('await patch("src/renderer/App.tsx", [');
+const evolutionStart = source.indexOf('await patch("src/main/services/api-evolution-service.ts", [', appStart);
+if (appStart < 0 || evolutionStart < 0 || evolutionStart <= appStart) throw new Error("V014_EVOLUTION2_APP_BLOCK_INVALID");
+source = source.slice(0, appStart) + source.slice(evolutionStart);
+const readAnchor = '  let source = await readFile(file, "utf8");';
+const readAt = source.indexOf(readAnchor);
+if (readAt < 0 || readAt !== source.lastIndexOf(readAnchor)) throw new Error("V014_EVOLUTION2_PATCH_READER_INVALID");
+source = source.slice(0, readAt) + '  let source = (await readFile(file, "utf8")).replace(/\\r\\n?/gu, "\\n");' + source.slice(readAt + readAnchor.length);
+const stylesAnchor = 'let styles = await readFile(stylesPath, "utf8");';
+const stylesAt = source.indexOf(stylesAnchor);
+if (stylesAt < 0 || stylesAt !== source.lastIndexOf(stylesAnchor)) throw new Error("V014_EVOLUTION2_STYLES_READER_INVALID");
+source = source.slice(0, stylesAt) + 'let styles = (await readFile(stylesPath, "utf8")).replace(/\\r\\n?/gu, "\\n");' + source.slice(stylesAt + stylesAnchor.length);
+const temporary = path.resolve("scripts/.apply-v014-evolution2-runtime.mjs");
+await writeFile(temporary, source, "utf8");
+await import(`${pathToFileURL(temporary).href}?run=${Date.now()}`);
