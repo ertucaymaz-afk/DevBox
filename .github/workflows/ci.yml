@@ -163,6 +163,12 @@ jobs:
           "$hash  DevBox-Setup.exe" | Set-Content 'release/DevBox-Setup.exe.sha256' -Encoding ascii
           Write-Host "DEVBOX_INSTALLER_VERIFIED version=${{ steps.package_meta.outputs.version }} bytes=$($installer.Length) sha256=$hash"
 
+      - name: Windows kurulum başlatma ve kaldırma kabul testi
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & './scripts/verify-installer-runtime.ps1' -Workspace '.'
+
       - name: Gerçek Windows kurucusunu yükle
         uses: actions/upload-artifact@v6
         with:
@@ -170,5 +176,6 @@ jobs:
           path: |
             release/DevBox-Setup.exe
             release/DevBox-Setup.exe.sha256
+            outputs/installer-runtime-acceptance.json
           if-no-files-found: error
           retention-days: 14

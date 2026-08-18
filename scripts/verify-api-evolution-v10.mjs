@@ -24,7 +24,22 @@ const [pkgRaw, findings, findingTests, main, app, remix, remixTests, remixUi] = 
   readFile("src/renderer/RemixRotaWorkspace.tsx", "utf8")
 ]);
 const pkg = JSON.parse(pkgRaw);
-if (pkg.version !== "0.1.17") throw new Error("API_EVOLUTION_V10_VERIFY_FAIL:version");
+function parseSemver(value) {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u.exec(String(value ?? ""));
+  return match ? match.slice(1, 4).map(Number) : null;
+}
+function semverAtLeast(value, minimum) {
+  const parsed = parseSemver(value);
+  if (!parsed) return false;
+  for (let index = 0; index < 3; index += 1) {
+    if (parsed[index] > minimum[index]) return true;
+    if (parsed[index] < minimum[index]) return false;
+  }
+  return true;
+}
+if (!semverAtLeast(pkg.version, [0, 1, 17])) throw new Error("API_EVOLUTION_V10_VERIFY_FAIL:version-minimum");
+const verifierMatch = /verify-api-evolution-v(\d+)\.mjs/u.exec(String(pkg.scripts?.["evolution:verify"] ?? ""));
+if (!verifierMatch || Number(verifierMatch[1]) < 10) throw new Error("API_EVOLUTION_V10_VERIFY_FAIL:verifier-forward-compat");
 
 let checks = 0;
 const need = (source, needle, id) => { requireText(source, needle, id); checks += 1; };

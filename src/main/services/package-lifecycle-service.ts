@@ -2,7 +2,7 @@ import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { SignedManifestSchema, SignedManifestService, type VerifiedPackage } from "./signed-manifest-service.js";
+import { SignedManifestSchema, SignedManifestService, signedManifestPayload, type VerifiedPackage } from "./signed-manifest-service.js";
 import { AuditLogService } from "./audit-log-service.js";
 import { RevocationListService, type RevocationStatus } from "./revocation-list-service.js";
 
@@ -80,6 +80,10 @@ function objectHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 }
 
+function packagePayloadHash(manifest: VerifiedPackage["manifest"]): string {
+  return createHash("sha256").update(signedManifestPayload(manifest)).digest("hex");
+}
+
 export class PackageLifecycleService {
   readonly #root: string;
   readonly #packagesRoot: string;
@@ -151,12 +155,14 @@ export class PackageLifecycleService {
       if (staged.manifest.id !== candidate.manifest.id || staged.manifest.version !== candidate.manifest.version || staged.manifest.kind !== candidate.manifest.kind) {
         throw new Error("SIGNED_PACKAGE_IDENTITY_CHANGED");
       }
+      const stagedPayloadHash = packagePayloadHash(staged.manifest);
       try {
         await rename(stagingDirectory, finalDirectory);
       } catch (error) {
         const existing = await lstat(finalDirectory).catch(() => null);
         if (!existing?.isDirectory()) throw error;
-        await verifier.verifyDirectory(finalDirectory);
+        const installed = await verifier.verifyDirectory(finalDirectory);
+        if (packagePayloadHash(installed.manifest) !== stagedPayloadHash) throw new Error("PACKAGE_VERSION_CONTENT_CONFLICT");
       }
     } finally {
       await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
@@ -184,7 +190,7 @@ export class PackageLifecycleService {
       targetId: `${pointer.id}/${pointer.version}`,
       beforeHash: state.active ? objectHash(state.active) : null,
       afterHash: objectHash(pointer),
-      artifactSha256: createHash("sha256").update(await readFile(candidate.manifestPath)).digest("hex"),
+      artifactSha256: createHash("sha256").update(await readFile(path.join(finalDirectory, "manifest.devbox.json"))).digest("hex"),
       correlationId: randomUUID()
     });
     return pointer;
