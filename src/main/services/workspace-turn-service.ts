@@ -149,22 +149,21 @@ export class WorkspaceTurnService {
         try { diskAfterEntry = inspectFile(after.rootPath, relative, "CLEAN"); }
         catch { diskAfterEntry = undefined; }
       }
-      const newlyCreatedText = kind === "added" && diskAfterEntry?.exists && !diskAfterEntry.binary;
+      const newlyCreatedText = kind === "added" && Boolean(diskAfterEntry?.exists && !diskAfterEntry.binary);
       const deleted = kind === "deleted";
-      const reverted = kind === "reverted";
+      const createdLineCount = newlyCreatedText ? diskAfterEntry?.lineCount ?? null : null;
+      const afterVerified = deleted
+        ? diskAfterEntry?.exists === false || diskAfterEntry === undefined
+        : Boolean(diskAfterEntry?.exists && diskAfterEntry.sha256);
       changes.push({
         path: relative,
         kind,
         beforeSha256: beforeEntry?.sha256 && /^[a-f0-9]{64}$/u.test(beforeEntry.sha256) ? beforeEntry.sha256 : null,
         afterSha256: diskAfterEntry?.sha256 && /^[a-f0-9]{64}$/u.test(diskAfterEntry.sha256) ? diskAfterEntry.sha256 : null,
-        additions: stat?.additions ?? (newlyCreatedText ? diskAfterEntry.lineCount : null),
+        additions: stat?.additions ?? createdLineCount,
         deletions: stat?.deletions ?? (deleted && beforeEntry?.lineCount !== null ? beforeEntry?.lineCount ?? null : null),
         binary: diskAfterEntry?.binary ?? beforeEntry?.binary ?? false,
-        verified: deleted
-          ? diskAfterEntry?.exists === false || diskAfterEntry === undefined
-          : reverted
-            ? Boolean(diskAfterEntry?.exists && diskAfterEntry.sha256)
-            : Boolean(diskAfterEntry?.exists && diskAfterEntry.sha256)
+        verified: afterVerified
       });
     }
 
