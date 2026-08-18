@@ -175,8 +175,31 @@ jobs:
           if (-not (Test-Path '.packaged-app/build/icon.ico' -PathType Leaf)) { throw 'STAGE_ICON_MISSING' }
           Write-Host 'DEVBOX_STAGE_READY projectRoot=.packaged-app package=ok main=ok node_modules=ok build=ok vendor=ok asar=false afterPack=fail-closed'
 
+      - name: NSIS eksik upstream include dosyasını doğrula ve yerel builder'a bağla
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $builderPackage = Get-ChildItem -LiteralPath 'node_modules/.pnpm' -Directory |
+            Where-Object { $_.Name -like 'app-builder-lib@26.15.3*' } |
+            Select-Object -First 1
+          if (-not $builderPackage) { throw 'APP_BUILDER_LIB_26_15_3_NOT_FOUND' }
+          $includeDir = Join-Path $builderPackage.FullName 'node_modules/app-builder-lib/templates/nsis/include'
+          if (-not (Test-Path -LiteralPath $includeDir -PathType Container)) { throw "NSIS_INCLUDE_DIR_NOT_FOUND:$includeDir" }
+          $sourceInclude = 'build/allowOnlyOneInstallerInstance.nsh'
+          if (-not (Test-Path -LiteralPath $sourceInclude -PathType Leaf)) { throw 'REVIEWED_NSIS_INCLUDE_SOURCE_MISSING' }
+          $targetInclude = Join-Path $includeDir 'allowOnlyOneInstallerInstance.nsh'
+          Copy-Item -LiteralPath $sourceInclude -Destination $targetInclude -Force
+          $sourceHash = (Get-FileHash -LiteralPath $sourceInclude -Algorithm SHA256).Hash.ToLowerInvariant()
+          $targetHash = (Get-FileHash -LiteralPath $targetInclude -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sourceHash -ne $targetHash) { throw "NSIS_INCLUDE_COPY_HASH_MISMATCH:$sourceHash:$targetHash" }
+          Write-Host "DEVBOX_NSIS_INCLUDE_READY target=$targetInclude sha256=$targetHash"
+
       - name: NSIS Windows kurucusunu üret
-        run: pnpm dlx electron-builder@26.15.3 --projectDir .packaged-app --config electron-builder.yml --win nsis
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pnpm exec electron-builder --projectDir .packaged-app --config electron-builder.yml --win nsis
+          if ($LASTEXITCODE -ne 0) { throw "ELECTRON_BUILDER_NSIS_FAILED:$LASTEXITCODE" }
 
       - name: EXE yapısını ve özetini fail-closed doğrula
         shell: pwsh
