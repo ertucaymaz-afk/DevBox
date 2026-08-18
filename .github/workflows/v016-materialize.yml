@@ -47,6 +47,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'V016_IPC_MATERIALIZER_FAILED' }
           node scripts/apply-v016-ui.mjs
           if ($LASTEXITCODE -ne 0) { throw 'V016_UI_MATERIALIZER_FAILED' }
+          node scripts/apply-v016-remix-ui-fix.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V016_REMIX_UI_FIX_FAILED' }
           node scripts/apply-v016-evolution.mjs
           if ($LASTEXITCODE -ne 0) { throw 'V016_EVOLUTION_MATERIALIZER_FAILED' }
           node scripts/apply-v016-evolution-fix.mjs
