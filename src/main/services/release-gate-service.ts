@@ -51,8 +51,11 @@ function gitChangeFingerprint(status: GitStatus): string {
 function isSelfReleaseAggregate(item: EvolutionFinding): boolean {
   return item.owner === "release" && item.source === "release-gate" && /release gate başarısız/iu.test(item.title);
 }
-function blockingFindings(items: EvolutionFinding[]): EvolutionFinding[] {
-  return items.filter((item) => item.status === "OPEN" && ["CRITICAL", "HIGH"].includes(item.severity) && !isSelfReleaseAggregate(item));
+function blockingFindings(items: EvolutionFinding[], revalidatesTypeScript: boolean): EvolutionFinding[] {
+  return items.filter((item) => item.status === "OPEN"
+    && ["CRITICAL", "HIGH"].includes(item.severity)
+    && !isSelfReleaseAggregate(item)
+    && !(revalidatesTypeScript && item.owner === "typescript"));
 }
 
 export class ReleaseGateService {
@@ -135,6 +138,7 @@ export class ReleaseGateService {
     const checks: ReleaseGateCheck[] = [];
     const manifest = await this.#manifest(project.rootPath);
     const strictDevBox = manifest?.name?.trim().toLowerCase() === "devbox";
+    const revalidatesTypeScript = Boolean(manifest?.scripts?.typecheck);
 
     const integrityStarted = performance.now();
     const integrity = this.#database.integrityCheck();
@@ -179,10 +183,10 @@ export class ReleaseGateService {
     checks.push({ id: "project-ownership", title: "Project ownership", state: ownershipState, blocking: ownershipBlocking, durationMs: Math.round(performance.now() - ownershipStarted), detail: ownershipDetail, command: "git rev-parse --show-toplevel", evidence: [canonicalProjectRoot, git.repositoryRoot ?? "non-git"] });
 
     const findingsBefore = this.#findings.summary(projectId);
-    const blockingItems = blockingFindings(findingsBefore.items);
+    const blockingItems = blockingFindings(findingsBefore.items, revalidatesTypeScript);
     checks.push({
       id: "blocking-findings", title: "Açık kritik/yüksek bulgular", state: blockingItems.length === 0 ? "PASS" : "FAIL", blocking: blockingItems.length > 0,
-      durationMs: 0, detail: blockingItems.length === 0 ? `Açık ${findingsBefore.open} bulgu içinde release bloklayan CRITICAL/HIGH yok.` : `${blockingItems.length} adet CRITICAL/HIGH açık bulgu release'i bloke ediyor.`,
+      durationMs: 0, detail: blockingItems.length === 0 ? `Açık ${findingsBefore.open} bulgu içinde release bloklayan ve bu gate tarafından yeniden doğrulanmayacak CRITICAL/HIGH yok.` : `${blockingItems.length} adet CRITICAL/HIGH açık bulgu release'i bloke ediyor.`,
       command: null, evidence: blockingItems.slice(0, 20).map((item) => `${item.severity}:${item.owner}:${item.title}`)
     });
 
@@ -253,7 +257,7 @@ export class ReleaseGateService {
     });
 
     const refreshedFindings = this.#findings.summary(projectId);
-    const lateBlockers = blockingFindings(refreshedFindings.items);
+    const lateBlockers = blockingFindings(refreshedFindings.items, revalidatesTypeScript);
     const blockingFailures = checks.filter((check) => check.blocking && check.state === "FAIL").length + (lateBlockers.length > blockingItems.length ? lateBlockers.length - blockingItems.length : 0);
     const completedAt = new Date().toISOString();
     const run: ReleaseGateRun = {
