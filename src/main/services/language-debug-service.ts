@@ -65,16 +65,19 @@ function sameDocumentUri(left: string, right: string): boolean {
   }
 }
 
+type ManagedOpenDocument = { version: number; lastUsedAt: number };
 type ManagedLanguageSession = {
   projectId: string;
   protocol: ProtocolSession;
   rootUri: string;
-  openDocuments: Set<string>;
+  openDocuments: Map<string, ManagedOpenDocument>;
   lastUsedAt: number;
+  activeRequests: number;
   tail: Promise<void>;
 };
 
 const MAX_LANGUAGE_SESSIONS = 3;
+const MAX_OPEN_DOCUMENTS_PER_SESSION = 64;
 
 export class LanguageService {
   readonly #projects: ProjectService;
@@ -83,13 +86,27 @@ export class LanguageService {
 
   public constructor(projects: ProjectService) { this.#projects = projects; }
 
+  #trimLanguageSessions(targetSize = MAX_LANGUAGE_SESSIONS): void {
+    while (this.#languageSessions.size > targetSize) {
+      const oldestIdle = [...this.#languageSessions.values()]
+        .filter((session) => session.activeRequests === 0)
+        .sort((left, right) => left.lastUsedAt - right.lastUsedAt)[0];
+      if (!oldestIdle) return;
+      this.closeLanguageSession(oldestIdle.projectId);
+    }
+  }
+
+  #makeRoomForLanguageSession(): void {
+    if (this.#languageSessions.size < MAX_LANGUAGE_SESSIONS) return;
+    const oldestIdle = [...this.#languageSessions.values()]
+      .filter((session) => session.activeRequests === 0)
+      .sort((left, right) => left.lastUsedAt - right.lastUsedAt)[0];
+    if (oldestIdle) this.closeLanguageSession(oldestIdle.projectId);
+  }
+
   async #createLanguageSession(projectId: string): Promise<ManagedLanguageSession> {
     const project = this.#projects.get(projectId);
-    while (this.#languageSessions.size >= MAX_LANGUAGE_SESSIONS) {
-      const oldest = [...this.#languageSessions.values()].sort((left, right) => left.lastUsedAt - right.lastUsedAt)[0];
-      if (!oldest) break;
-      this.closeLanguageSession(oldest.projectId);
-    }
+    this.#makeRoomForLanguageSession();
     const cli = require.resolve("typescript-language-server/lib/cli.mjs");
     const protocol = new ProtocolSession("lsp", process.execPath, [cli, "--stdio"], project.rootPath, { ...process.env, ELECTRON_RUN_AS_NODE: "1" });
     const rootUri = pathToFileURL(project.rootPath).toString();
@@ -102,7 +119,7 @@ export class LanguageService {
         initializationOptions: { preferences: { includeCompletionsForModuleExports: true } }
       }, 20_000);
       protocol.notify("initialized", {});
-      const managed: ManagedLanguageSession = { projectId, protocol, rootUri, openDocuments: new Set(), lastUsedAt: Date.now(), tail: Promise.resolve() };
+      const managed: ManagedLanguageSession = { projectId, protocol, rootUri, openDocuments: new Map(), lastUsedAt: Date.now(), activeRequests: 0, tail: Promise.resolve() };
       this.#languageSessions.set(projectId, managed);
       return managed;
     } catch (error) {
@@ -131,6 +148,20 @@ export class LanguageService {
 
   public activeLanguageSessions(): number { return this.#languageSessions.size; }
 
+  #touchDocument(managed: ManagedLanguageSession, documentUri: string, requestedVersion: number): number {
+    const existing = managed.openDocuments.get(documentUri);
+    if (!existing && managed.openDocuments.size >= MAX_OPEN_DOCUMENTS_PER_SESSION) {
+      const oldest = [...managed.openDocuments.entries()].sort((left, right) => left[1].lastUsedAt - right[1].lastUsedAt)[0];
+      if (oldest) {
+        managed.protocol.notify("textDocument/didClose", { textDocument: { uri: oldest[0] } });
+        managed.openDocuments.delete(oldest[0]);
+      }
+    }
+    const nextVersion = existing ? Math.max(existing.version + 1, requestedVersion) : Math.max(1, requestedVersion);
+    managed.openDocuments.set(documentUri, { version: nextVersion, lastUsedAt: Date.now() });
+    return nextVersion;
+  }
+
   async #diagnosticsWithSession(managed: ManagedLanguageSession, input: { projectId: string; relativePath: string; language: string; content: string; version: number }): Promise<LanguageDiagnosticsResult> {
     const started = performance.now();
     const project = this.#projects.get(input.projectId);
@@ -139,23 +170,31 @@ export class LanguageService {
     if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("PATH_OUTSIDE_PROJECT");
     const documentUri = pathToFileURL(absoluteFile).toString();
     managed.lastUsedAt = Date.now();
-    const published = new Promise<EditorDiagnostic[]>((resolve, reject) => {
-      const timeout = setTimeout(() => { unsubscribe(); reject(new Error("LSP_DIAGNOSTICS_TIMEOUT")); }, 12_000);
-      timeout.unref();
-      const unsubscribe = managed.protocol.onMessage((message) => {
-        const publication = normalizeDiagnostics(message);
-        if (!publication || !sameDocumentUri(publication.uri, documentUri)) return;
-        clearTimeout(timeout); unsubscribe(); resolve(publication.diagnostics);
+    managed.activeRequests += 1;
+    try {
+      const published = new Promise<EditorDiagnostic[]>((resolve, reject) => {
+        const timeout = setTimeout(() => { unsubscribe(); reject(new Error("LSP_DIAGNOSTICS_TIMEOUT")); }, 12_000);
+        timeout.unref();
+        const unsubscribe = managed.protocol.onMessage((message) => {
+          const publication = normalizeDiagnostics(message);
+          if (!publication || !sameDocumentUri(publication.uri, documentUri)) return;
+          clearTimeout(timeout); unsubscribe(); resolve(publication.diagnostics);
+        });
       });
-    });
-    if (managed.openDocuments.has(documentUri)) {
-      managed.protocol.notify("textDocument/didChange", { textDocument: { uri: documentUri, version: input.version }, contentChanges: [{ text: input.content }] });
-    } else {
-      managed.openDocuments.add(documentUri);
-      managed.protocol.notify("textDocument/didOpen", { textDocument: { uri: documentUri, languageId: input.language, version: input.version, text: input.content } });
+      const wasOpen = managed.openDocuments.has(documentUri);
+      const version = this.#touchDocument(managed, documentUri, input.version);
+      if (wasOpen) {
+        managed.protocol.notify("textDocument/didChange", { textDocument: { uri: documentUri, version }, contentChanges: [{ text: input.content }] });
+      } else {
+        managed.protocol.notify("textDocument/didOpen", { textDocument: { uri: documentUri, languageId: input.language, version, text: input.content } });
+      }
+      const diagnostics = await published;
+      return { provider: "typescript-language-server", diagnostics, durationMs: Math.max(0, Math.round(performance.now() - started)) };
+    } finally {
+      managed.activeRequests = Math.max(0, managed.activeRequests - 1);
+      managed.lastUsedAt = Date.now();
+      this.#trimLanguageSessions();
     }
-    const diagnostics = await published;
-    return { provider: "typescript-language-server", diagnostics, durationMs: Math.max(0, Math.round(performance.now() - started)) };
   }
 
   public async diagnostics(input: { projectId: string; relativePath: string; language: string; content: string; version: number }): Promise<LanguageDiagnosticsResult> {
@@ -249,9 +288,6 @@ export class DebugService {
       if (message.type === "event" && (message.event === "terminated" || message.event === "exited")) managed.snapshot = { ...managed.snapshot, state: "STOPPED" };
     });
     try {
-      // Some adapters emit `initialized` in the same transport chunk as the
-      // initialize response. Register before sending initialize so the event
-      // cannot be lost between dispatch and the promise continuation.
       const adapterInitialized = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           unsubscribe();
@@ -277,55 +313,50 @@ export class DebugService {
       });
       const capabilities = initialized.body && typeof initialized.body === "object" ? initialized.body as Record<string, unknown> : {};
       managed.snapshot = { ...managed.snapshot, capabilities };
-      // DAP launch/attach responses may deliberately wait for configurationDone. Start the
-      // request first, wait for the adapter's initialized event, then close configuration.
       launchPromise = protocol.request(input.request, { ...configuration, request: input.request }, 45_000);
       await adapterInitialized;
       if (capabilities.supportsConfigurationDoneRequest !== false) {
         await protocol.request("configurationDone", {}, 15_000);
       }
-      await launchPromise;
+      const launched = await launchPromise;
+      if (launched.success === false) throw new Error(`DAP_${input.request.toUpperCase()}_FAILED:${launched.message ?? "UNKNOWN"}`);
       managed.snapshot = { ...managed.snapshot, state: "RUNNING" };
       return managed.snapshot;
     } catch (error) {
-      managed.snapshot = { ...managed.snapshot, state: "FAILED" };
       protocol.close();
-      await launchPromise?.catch(() => undefined);
       this.#sessions.delete(snapshot.id);
       throw error;
     }
   }
 
-  public async command(sessionId: string, command: string, args: Record<string, unknown>): Promise<DebugResponse> {
+  public list(): DebugSession[] { return [...this.#sessions.values()].map((item) => item.snapshot); }
+
+  public async command(sessionId: string, command: string, args: unknown): Promise<DebugResponse> {
     const managed = this.#sessions.get(sessionId);
     if (!managed) throw new Error("DEBUG_SESSION_NOT_FOUND");
-    let boundedArgs = args;
-    if (managed.builtIn && command === "setBreakpoints") {
-      const source = args.source;
-      if (!source || typeof source !== "object" || Array.isArray(source)) throw new Error("DEBUG_BREAKPOINT_SOURCE_REQUIRED");
-      const sourceRecord = source as Record<string, unknown>;
-      const suppliedPath = typeof sourceRecord.path === "string" ? sourceRecord.path.trim() : "";
-      if (!suppliedPath) throw new Error("DEBUG_BREAKPOINT_SOURCE_REQUIRED");
-      const relativePath = path.isAbsolute(suppliedPath) ? path.relative(managed.projectRoot, suppliedPath) : suppliedPath;
-      const boundedPath = await resolveExistingPathWithinRoot(managed.projectRoot, relativePath);
-      boundedArgs = { ...args, source: { ...sourceRecord, path: boundedPath } };
+    if (command === "setBreakpoints" && args && typeof args === "object" && !Array.isArray(args)) {
+      const input = args as Record<string, unknown>;
+      const source = input.source;
+      if (source && typeof source === "object" && !Array.isArray(source)) {
+        const sourcePath = (source as Record<string, unknown>).path;
+        if (typeof sourcePath === "string" && sourcePath.trim()) {
+          await resolveExistingPathWithinRoot(managed.projectRoot, sourcePath);
+        }
+      }
     }
-    const response = await managed.protocol.request(command, boundedArgs);
-    // The adapter's stopped/continued events are authoritative. Step requests resume the
-    // debuggee until the adapter reports the next stopped event; a pause request does not
-    // become PAUSED merely because the request was accepted.
-    if (["continue", "next", "stepIn", "stepOut"].includes(command)) {
-      managed.snapshot = { ...managed.snapshot, state: "RUNNING" };
-    }
-    return { session: managed.snapshot, body: response.body ?? null };
+    const response = await managed.protocol.request(command, args, 30_000);
+    return { command, success: response.success !== false, message: response.message ?? null, body: response.body ?? null };
   }
 
-  public async stop(sessionId: string): Promise<void> {
+  public async stop(sessionId: string): Promise<DebugSession> {
     const managed = this.#sessions.get(sessionId);
-    if (!managed) return;
-    await managed.protocol.request("disconnect", { restart: false, terminateDebuggee: true }, 10_000).catch(() => undefined);
+    if (!managed) throw new Error("DEBUG_SESSION_NOT_FOUND");
+    try { await managed.protocol.request("disconnect", { restart: false, terminateDebuggee: true }, 5_000); }
+    catch { /* closing the transport is the fail-safe */ }
     managed.protocol.close();
+    managed.snapshot = { ...managed.snapshot, state: "STOPPED" };
     this.#sessions.delete(sessionId);
+    return managed.snapshot;
   }
 
   public close(): void {
