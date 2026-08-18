@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: İncelenen kaynak kodu al
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -58,7 +58,7 @@ jobs:
     needs: verify
     steps:
       - name: İncelenen kaynak kodu al
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
