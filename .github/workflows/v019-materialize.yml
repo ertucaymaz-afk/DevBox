@@ -1,0 +1,70 @@
+name: DevBox v0.1.9 source materialization
+
+on:
+  push:
+    branches:
+      - codex/v0.1.9-chat-api-repair
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v019-materialize-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize-and-verify:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v6
+        with:
+          ref: codex/v0.1.9-chat-api-repair
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Node.js 24 kullan
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: v0.1.9 gerçek runtime onarımlarını kaynaklara uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/apply-v019-runtime-fixes.mjs
+          if ($LASTEXITCODE -ne 0) { throw "V019_MATERIALIZER_FAILED:$LASTEXITCODE" }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw "V019_DIFF_CHECK_FAILED:$LASTEXITCODE" }
+
+      - name: Kaynak değişikliklerini kalıcı commit et
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $changes = git status --porcelain
+          if (-not $changes) {
+            Write-Host 'V019_SOURCE_ALREADY_MATERIALIZED'
+            exit 0
+          }
+          git config user.name 'DevBox CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add package.json src/shared/contracts.ts src/main/ipc.ts src/main/services/agent-service.ts src/main/services/v019-runtime-regression.test.ts src/renderer/App.tsx src/renderer/styles.css
+          git commit -m 'v0.1.9 sohbet ve API runtime onarımlarını materialize et [skip ci]'
+          git push origin HEAD:codex/v0.1.9-chat-api-repair
+
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Bağımlılıkları kilit dosyasından kur
+        run: pnpm install --frozen-lockfile
+
+      - name: Regresyon testini tek başına çalıştır
+        run: pnpm exec vitest run --config config/vitest.config.ts src/main/services/v019-runtime-regression.test.ts
+
+      - name: Tam kaynak ve gerçeklik kapısı
+        run: pnpm verify
