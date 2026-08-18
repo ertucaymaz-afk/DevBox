@@ -39,10 +39,14 @@ jobs:
       - name: Bağımlılıkları kilitten kur
         run: pnpm install --frozen-lockfile
 
-      - name: GIF runtime hardening patchlerini uygula
+      - name: Kalan GIF runtime patchlerini fail-closed uygula
+        shell: pwsh
         run: |
-          node scripts/apply-v013-hardening.mjs
+          $ErrorActionPreference = 'Stop'
+          node scripts/apply-v013-core2.mjs
+          if ($LASTEXITCODE -ne 0) { throw "V013_CORE_PATCH_FAILED:$LASTEXITCODE" }
           node scripts/apply-v013-score-refactor.mjs
+          if ($LASTEXITCODE -ne 0) { throw "V013_SCORE_PATCH_FAILED:$LASTEXITCODE" }
 
       - name: Patch biçimini doğrula
         shell: pwsh
@@ -72,6 +76,6 @@ jobs:
             Write-Host 'DEVBOX_V013_ALREADY_MATERIALIZED'
             exit 0
           }
-          git commit -m 'v0.1.13: GIF runtime, Canvas ve API evolution hardening'
+          git commit -m 'v0.1.13: complete GIF runtime and evolution hardening'
           git push origin HEAD:codex/v0.1.13-gif-runtime-hardening
           Write-Host 'DEVBOX_V013_SOURCE_COMMITTED'
