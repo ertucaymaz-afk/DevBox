@@ -505,6 +505,7 @@ export function App(): ReactNode {
   const [confirmation, setConfirmation] = useState<ConfirmState | null>(null);
   const [threadMenu, setThreadMenu] = useState<ThreadMenuState | null>(null);
   const [settingsResolved, setSettingsResolved] = useState(false);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [introVisible, setIntroVisible] = useState(false);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
   const [liveActivities, setLiveActivities] = useState<ThreadActivityEvent[]>([]);
@@ -637,6 +638,14 @@ export function App(): ReactNode {
     })();
     return () => { active = false; };
   }, [loadProject]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = (): void => setSystemDark(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   const dismissIntro = useCallback(async (neverAgain = false): Promise<void> => {
     setIntroVisible(false);
@@ -1167,6 +1176,7 @@ export function App(): ReactNode {
   }, []);
 
   const activePendingTurns = thread ? pendingTurns[thread.thread.id] ?? 0 : 0;
+  const resolvedThemeBase: "light" | "dark" = appSettings?.theme.base === "system" ? (systemDark ? "dark" : "light") : appSettings?.theme.base ?? "dark";
   const capabilities = bootstrap?.capabilities ?? [];
   const readyCount = useMemo(() => capabilities.filter((item) => item.state === "READY").length, [capabilities]);
   const agentReady = capabilities.some((item) => item.id === "hermes-nvidia-agent" && item.state === "READY");
@@ -1232,9 +1242,9 @@ export function App(): ReactNode {
   if (!bootstrap) return <div className="boot-error" role="alert"><AlertTriangle size={24} /><strong>DevBox yerel çalışma alanını açamadı</strong><span>{notice ?? "Başlangıç verisi alınamadı."}</span></div>;
 
   return (
-    <div data-theme-base={appSettings?.theme.base ?? "dark"} style={themeStyle(appSettings)} className={`app-shell ${sidebarVisible ? "" : "sidebar-hidden"} ${inspectorVisible ? "inspector-visible" : ""} ${appSettings?.reduceMotion ? "reduced-motion" : ""} ${appSettings?.theme.contrast === "high" ? "high-contrast" : ""}`}>
+    <div data-theme-base={resolvedThemeBase} style={themeStyle(appSettings)} className={`app-shell ${sidebarVisible ? "" : "sidebar-hidden"} ${inspectorVisible ? "inspector-visible" : ""} ${appSettings?.reduceMotion ? "reduced-motion" : ""} ${appSettings?.theme.contrast === "high" ? "high-contrast" : ""}`}>
       <header className="system-bar">
-        <div className="system-left"><button onClick={() => setSidebarVisible((value) => !value)} aria-label="Kenar çubuğu"><LayoutPanelLeft size={16} /></button><button disabled={view === "thread" && historyIndex <= 0} onClick={() => void navigateHistory(-1)} aria-label="Geri" title={view === "thread" ? "Önceki sohbete dön" : "Sohbete dön"}><ArrowLeft size={17} /></button><button disabled={view !== "thread" || historyIndex < 0 || historyIndex >= history.length - 1} onClick={() => void navigateHistory(1)} aria-label="İleri" title="Sonraki sohbete git"><ArrowRight size={17} /></button><nav aria-label="Uygulama menüsü"><button onClick={() => void handleMenu("file")}>Dosya</button><button onClick={() => void handleMenu("edit")}>Düzenle</button><button onClick={() => void handleMenu("view")}>Görünüm</button><button onClick={() => void handleMenu("help")}>Yardım</button></nav></div><div className="system-theme"><button onClick={() => { if (!appSettings) return; void window.devbox.patchSettings({ theme: appSettings.theme.base === "light" ? DEVBOX_OBSIDIAN_THEME : DEVBOX_DAY_THEME }).then((nextSettings) => { setAppSettings(nextSettings); setPermission(nextSettings.permissionProfile); }); }} title={appSettings?.theme.base === "light" ? "Koyu moda geç" : "Gündüz moduna geç"} aria-label="Tema modunu değiştir">{appSettings?.theme.base === "light" ? <Moon size={15} /> : <Sun size={15} />}</button></div>
+        <div className="system-left"><button onClick={() => setSidebarVisible((value) => !value)} aria-label="Kenar çubuğu"><LayoutPanelLeft size={16} /></button><button disabled={view === "thread" && historyIndex <= 0} onClick={() => void navigateHistory(-1)} aria-label="Geri" title={view === "thread" ? "Önceki sohbete dön" : "Sohbete dön"}><ArrowLeft size={17} /></button><button disabled={view !== "thread" || historyIndex < 0 || historyIndex >= history.length - 1} onClick={() => void navigateHistory(1)} aria-label="İleri" title="Sonraki sohbete git"><ArrowRight size={17} /></button><nav aria-label="Uygulama menüsü"><button onClick={() => void handleMenu("file")}>Dosya</button><button onClick={() => void handleMenu("edit")}>Düzenle</button><button onClick={() => void handleMenu("view")}>Görünüm</button><button onClick={() => void handleMenu("help")}>Yardım</button></nav></div><div className="system-theme"><button onClick={() => { if (!appSettings) return; void window.devbox.patchSettings({ theme: resolvedThemeBase === "light" ? DEVBOX_OBSIDIAN_THEME : DEVBOX_DAY_THEME }).then((nextSettings) => { setAppSettings(nextSettings); setPermission(nextSettings.permissionProfile); }); }} title={resolvedThemeBase === "light" ? "Koyu moda geç" : "Gündüz moduna geç"} aria-label="Tema modunu değiştir">{resolvedThemeBase === "light" ? <Moon size={15} /> : <Sun size={15} />}</button></div>
       </header>
 
       <div className="workbench">

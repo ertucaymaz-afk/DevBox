@@ -49,7 +49,9 @@ describe("RemixRotaService", () => {
     const executable = path.join(root, "RemixRota.exe");
     await writeFile(executable, Buffer.from([0x4d, 0x5a, 0, 0]));
     const pipeName = `devbox-remixrota-test-${randomUUID()}`;
+    let connectedSocket: net.Socket | null = null;
     const server = net.createServer((socket) => {
+      connectedSocket = socket;
       socket.setEncoding("utf8");
       let buffer = "";
       socket.on("data", (chunk) => {
@@ -89,8 +91,28 @@ describe("RemixRotaService", () => {
       expect((played.result as { isPlaying?: boolean }).isPlaying).toBe(true);
       expect(RemixRotaService.isSafeAutomaticRetry("player.getSnapshot")).toBe(true);
       expect(RemixRotaService.isSafeAutomaticRetry("player.next")).toBe(false);
+      connectedSocket?.write(`${JSON.stringify({ type: "event", eventName: "x".repeat(161), payload: null })}\n`);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      expect((await service.inspect()).lastError).toBe("REMIXROTA_INVALID_EVENT");
     } finally { service.close(); }
   }, 30_000);
+
+  windowsIt("rejects a stale discovery record whose advertised process is no longer running", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "devbox-remixrota-stale-"));
+    temporaryDirectories.push(root);
+    const executable = path.join(root, "RemixRota.exe");
+    await writeFile(executable, Buffer.from([0x4d, 0x5a, 0, 0]));
+    const discoveryPath = path.join(root, "companion.json");
+    await writeFile(discoveryPath, JSON.stringify({ schemaVersion: 1, serviceId: "com.remixrota.player", serviceVersion: "1.1.0", protocol: { major: 1, minor: 0 }, transport: "windows-named-pipe", pipeName: "stale-remixrota", currentUserOnly: true, processId: 2147483000, executablePath: executable, integrationAssetDirectory: root, startedAt: new Date().toISOString() }), "utf8");
+    const database = new StateDatabase(path.join(root, "state.sqlite"));
+    databases.push(database);
+    const service = new RemixRotaService(database, { discoveryPath, appVersion: "0.1.17" });
+    await service.configureExecutable(executable);
+    const status = await service.inspect();
+    expect(status.discovery).toBeNull();
+    expect(status.lastError).toBe("REMIXROTA_DISCOVERY_PROCESS_NOT_RUNNING");
+    service.close();
+  });
 
   it("rejects non-RemixRota executables before storing a companion path", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "devbox-remixrota-invalid-"));

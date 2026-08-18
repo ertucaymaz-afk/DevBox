@@ -42,6 +42,13 @@ type ServiceOptions = {
 
 function failure(error: unknown): string { return (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, " ").trim().slice(0, 2_000); }
 function record(value: unknown): Record<string, unknown> | null { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
+function processAlive(processId: number): boolean {
+  if (processId === process.pid) return true;
+  try { process.kill(processId, 0); return true; } catch { return false; }
+}
+function sameWindowsPath(left: string, right: string): boolean {
+  return path.resolve(left).replace(/\\/gu, "/").toLocaleLowerCase("en-US") === path.resolve(right).replace(/\\/gu, "/").toLocaleLowerCase("en-US");
+}
 
 export class RemixRotaService {
   readonly #database: StateDatabase;
@@ -93,7 +100,21 @@ export class RemixRotaService {
   async #readDiscovery(): Promise<RemixRotaDiscovery | null> {
     try {
       const raw = await readFile(this.#options.discoveryPath, "utf8");
-      return RemixRotaDiscoverySchema.parse(JSON.parse(raw));
+      const discovery = RemixRotaDiscoverySchema.parse(JSON.parse(raw));
+      if (path.basename(discovery.executablePath).toLocaleLowerCase("en-US") !== "remixrota.exe") {
+        this.#lastError = "REMIXROTA_DISCOVERY_EXECUTABLE_NAME_INVALID";
+        return null;
+      }
+      if (process.platform === "win32" && !processAlive(discovery.processId)) {
+        this.#lastError = "REMIXROTA_DISCOVERY_PROCESS_NOT_RUNNING";
+        return null;
+      }
+      const configured = this.configuredExecutable();
+      if (configured && !sameWindowsPath(configured, discovery.executablePath)) {
+        this.#lastError = "REMIXROTA_DISCOVERY_EXECUTABLE_MISMATCH";
+        return null;
+      }
+      return discovery;
     } catch { return null; }
   }
 
@@ -240,7 +261,13 @@ export class RemixRotaService {
       }, REQUEST_TIMEOUT_MS);
       timer.unref();
       this.#pending.set(requestId, { command, resolve, reject, timer });
-      this.#write({ type: "request", requestId, command, payload });
+      try {
+        this.#write({ type: "request", requestId, command, payload });
+      } catch (error) {
+        clearTimeout(timer);
+        this.#pending.delete(requestId);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 
@@ -277,7 +304,12 @@ export class RemixRotaService {
         continue;
       }
       if (message.type === "event" && typeof message.eventName === "string") {
-        const event = RemixRotaEventSchema.parse({ type: message.eventName, payload: message.payload ?? null, receivedAt: new Date().toISOString() });
+        const parsedEvent = RemixRotaEventSchema.safeParse({ type: message.eventName, payload: message.payload ?? null, receivedAt: new Date().toISOString() });
+        if (!parsedEvent.success) {
+          this.#lastError = "REMIXROTA_INVALID_EVENT";
+          continue;
+        }
+        const event = parsedEvent.data;
         this.#lastEventAt = event.receivedAt;
         this.#applyEvent(event);
         for (const listener of this.#listeners) listener(event);

@@ -40,6 +40,62 @@ function severityForTaskState(state: string): FindingSeverity { if (state === "R
 function emptyCounts(): Record<FindingSeverity, number> { return { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 }; }
 export function emptyOwnerCounts(): Record<FindingOwner, number> { return { core: 0, agent: 0, api: 0, release: 0, typescript: 0, evolution: 0, workspace: 0, cloud: 0, ui: 0, security: 0, project: 0, integration: 0 }; }
 
+const FINDING_SEVERITIES = new Set<FindingSeverity>(["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]);
+const FINDING_STATUSES = new Set<FindingStatus>(["OPEN", "RESOLVED", "REJECTED"]);
+const FINDING_OWNER_SET = new Set<FindingOwner>(FINDING_OWNERS);
+const FINDING_TRACKS = new Set<EvolutionTrack>(["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain"]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
+function storedRecord(value: unknown): Record<string, unknown> | null { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
+function storedIso(value: unknown, fallback: string): string { return typeof value === "string" && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : fallback; }
+function storedNullableString(value: unknown, max: number): string | null { return typeof value === "string" ? bounded(value, max) || null : null; }
+function deterministicLegacyId(projectId: string, source: string, key: string): string {
+  const hex = createHash("sha256").update(`${projectId}\u0000${source}\u0000${key}`).digest("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+function normalizeStoredFinding(projectId: string, value: unknown, fallbackUpdatedAt: string): EvolutionFinding | null {
+  const item = storedRecord(value);
+  if (!item || item.projectId !== projectId) return null;
+  const source = typeof item.source === "string" ? bounded(item.source, 120) || "legacy" : "legacy";
+  const title = typeof item.title === "string" ? bounded(item.title, 500) || "Eski bulgu" : "Eski bulgu";
+  const detail = typeof item.detail === "string" ? bounded(item.detail, 4_000) : "Eski finding kaydı v0.1.17 tarafından güvenli biçimde normalize edildi.";
+  const track = typeof item.track === "string" && FINDING_TRACKS.has(item.track as EvolutionTrack) ? item.track as EvolutionTrack : null;
+  const severity = typeof item.severity === "string" && FINDING_SEVERITIES.has(item.severity as FindingSeverity) ? item.severity as FindingSeverity : "MEDIUM";
+  const status = typeof item.status === "string" && FINDING_STATUSES.has(item.status as FindingStatus) ? item.status as FindingStatus : "OPEN";
+  const owner = typeof item.owner === "string" && FINDING_OWNER_SET.has(item.owner as FindingOwner) ? item.owner as FindingOwner : ownerForTrack(track);
+  const stableKey = typeof item.id === "string" ? item.id : `${source}:${title}`;
+  const id = typeof item.id === "string" && UUID_PATTERN.test(item.id) ? item.id : deterministicLegacyId(projectId, source, stableKey);
+  const fingerprintValue = typeof item.fingerprint === "string" ? item.fingerprint.toLocaleLowerCase("en-US") : "";
+  const findingFingerprint = SHA256_PATTERN.test(fingerprintValue)
+    ? fingerprintValue
+    : fingerprint({ projectId, source, key: stableKey });
+  const evidence = Array.isArray(item.evidence) ? uniqueEvidence(item.evidence.filter((entry): entry is string => typeof entry === "string")) : [];
+  const occurrences = typeof item.occurrences === "number" && Number.isFinite(item.occurrences) ? Math.max(1, Math.trunc(item.occurrences)) : 1;
+  const firstSeenAt = storedIso(item.firstSeenAt, fallbackUpdatedAt);
+  const lastSeenAt = storedIso(item.lastSeenAt, firstSeenAt);
+  return {
+    id,
+    fingerprint: findingFingerprint,
+    projectId,
+    title,
+    detail,
+    source,
+    track,
+    specTaskId: storedNullableString(item.specTaskId, 160),
+    taskId: storedNullableString(item.taskId, 160),
+    severity,
+    status,
+    owner,
+    evidence,
+    occurrences,
+    firstSeenAt,
+    lastSeenAt,
+    resolvedAt: status === "RESOLVED" ? storedIso(item.resolvedAt, lastSeenAt) : null,
+    rejectedAt: status === "REJECTED" ? storedIso(item.rejectedAt, lastSeenAt) : null,
+    resolution: storedNullableString(item.resolution, 2_000)
+  };
+}
+
 export class EvolutionFindingService {
   readonly #database: StateDatabase;
   public constructor(database: StateDatabase) { this.#database = database; }
@@ -49,8 +105,12 @@ export class EvolutionFindingService {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { schemaVersion: STORE_VERSION, items: [], updatedAt: new Date(0).toISOString() };
     const candidate = raw as Partial<FindingStore>;
     if (candidate.schemaVersion !== STORE_VERSION || !Array.isArray(candidate.items)) return { schemaVersion: STORE_VERSION, items: [], updatedAt: new Date(0).toISOString() };
-    const items = candidate.items.filter((item): item is EvolutionFinding => Boolean(item && typeof item === "object" && typeof (item as EvolutionFinding).id === "string" && typeof (item as EvolutionFinding).fingerprint === "string" && (item as EvolutionFinding).projectId === projectId));
-    return { schemaVersion: STORE_VERSION, items: items.slice(-MAX_FINDINGS), updatedAt: typeof candidate.updatedAt === "string" ? candidate.updatedAt : new Date(0).toISOString() };
+    const updatedAt = storedIso(candidate.updatedAt, new Date(0).toISOString());
+    const items = candidate.items.flatMap((item): EvolutionFinding[] => {
+      const normalized = normalizeStoredFinding(projectId, item, updatedAt);
+      return normalized ? [normalized] : [];
+    });
+    return { schemaVersion: STORE_VERSION, items: items.slice(-MAX_FINDINGS), updatedAt };
   }
   #save(projectId: string, items: EvolutionFinding[]): FindingStore {
     const store: FindingStore = { schemaVersion: STORE_VERSION, items: items.slice(-MAX_FINDINGS), updatedAt: new Date().toISOString() };
