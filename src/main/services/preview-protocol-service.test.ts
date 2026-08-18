@@ -35,8 +35,11 @@ describe("devbox preview protocol", () => {
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
     expect(response.headers.get("content-security-policy")).toContain("connect-src 'none'");
+    expect(response.headers.get("content-security-policy")).toContain("media-src 'self' data: blob:");
     expect(html).toContain("data-devbox-preview-bridge");
+    expect(html).toContain("securitypolicyviolation");
     expect(html).toContain("devbox-preview");
     expect(html).toContain("<title>Test</title>");
   });
@@ -62,5 +65,20 @@ describe("devbox preview protocol", () => {
     expect(response.headers.get("content-type")).toContain("text/css");
     expect(css).toBe("body { color: red; }");
     expect(css).not.toContain("devbox-preview-bridge");
+  });
+
+  it("serves modern Canvas media and manifest assets with explicit MIME types", async () => {
+    const rootPath = await root();
+    await writeFile(path.join(rootPath, "site.webmanifest"), "{}", "utf8");
+    await writeFile(path.join(rootPath, "module.wasm"), Buffer.from([0x00, 0x61, 0x73, 0x6d]));
+    const handler = createPreviewProtocolHandler(projects(rootPath));
+
+    const manifest = await handler(new Request("devbox-preview://preview/project-12345678/site.webmanifest"));
+    const wasm = await handler(new Request("devbox-preview://preview/project-12345678/module.wasm"));
+
+    expect(manifest.status).toBe(200);
+    expect(manifest.headers.get("content-type")).toContain("application/manifest+json");
+    expect(wasm.status).toBe(200);
+    expect(wasm.headers.get("content-type")).toBe("application/wasm");
   });
 });
