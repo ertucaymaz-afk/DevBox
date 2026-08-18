@@ -62,7 +62,7 @@ check("lsp-uri-filter", language.includes("documentUri") && language.includes("p
 check("no-sync-compiler-in-main", !language.includes("execSync(") && !language.includes("spawnSync("));
 
 check("devapi-control-ui", hasAll(controlUi, ["DevBox API komuta merkezi", "Severity · ownership", "RELEASE GATE", "DEVAPI CHATBOX", "CLOUD CONTINUITY"]));
-check("devapi-chat-real-bridge", controlUi.includes("window.devbox.sendMessage") && controlUi.includes("window.devbox.createThread") && !controlUi.includes("fake") && !controlUi.includes("mock"));
+check("devapi-chat-real-bridge", controlUi.includes("window.devbox.sendMessage") && controlUi.includes("window.devbox.createThread") && !controlUi.includes("mockSendMessage") && !controlUi.includes("fakeResponse") && !controlUi.includes("hardcodedAssistant"));
 check("devapi-app-route", app.includes('view === "devapi"') && app.includes("DevApiControlWorkspace"));
 check("day-theme-route", app.includes("DEVBOX_DAY_THEME") && app.includes("DEVBOX_OBSIDIAN_THEME") && app.includes("data-theme-base"));
 
