@@ -12,8 +12,9 @@ type QueueState = {
 
 /**
  * Serializes turns inside one conversation while allowing different conversations
- * to execute in parallel. The first turn of an idle thread starts immediately;
- * only later turns pay the queue wait, avoiding an unnecessary microtask delay.
+ * to execute in parallel. A deferred completion tail is installed in the map
+ * before the operation is invoked, so synchronous failures and re-entrant queueing
+ * cannot leave a stale record or bypass FIFO ordering.
  */
 export class ThreadTurnCoordinator {
   readonly #queues = new Map<string, QueueState>();
@@ -31,11 +32,15 @@ export class ThreadTurnCoordinator {
 
   public run<T>(threadId: string, operation: () => Promise<T>): Promise<T> {
     const existing = this.#queues.get(threadId);
+    const previousTail = existing?.tail ?? null;
     const state: QueueState = existing ?? { tail: Promise.resolve(), queued: 0, running: false };
     state.queued += 1;
 
-    let task!: Promise<T>;
-    let tail!: Promise<void>;
+    let settleTail!: () => void;
+    const currentTail = new Promise<void>((resolve) => { settleTail = resolve; });
+    state.tail = currentTail;
+    this.#queues.set(threadId, state);
+
     const execute = async (): Promise<T> => {
       state.queued = Math.max(0, state.queued - 1);
       state.running = true;
@@ -43,16 +48,15 @@ export class ThreadTurnCoordinator {
         return await operation();
       } finally {
         state.running = false;
-        if (this.#queues.get(threadId)?.tail === tail) this.#queues.delete(threadId);
+        const current = this.#queues.get(threadId);
+        if (current === state && current.tail === currentTail && state.queued === 0) this.#queues.delete(threadId);
       }
     };
 
-    task = existing
-      ? existing.tail.catch(() => undefined).then(execute)
+    const task = previousTail
+      ? previousTail.catch(() => undefined).then(execute)
       : execute();
-    tail = task.then(() => undefined, () => undefined);
-    state.tail = tail;
-    this.#queues.set(threadId, state);
+    void task.then(settleTail, settleTail);
     return task;
   }
 }
