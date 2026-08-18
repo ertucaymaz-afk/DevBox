@@ -191,7 +191,7 @@ jobs:
           Copy-Item -LiteralPath $sourceInclude -Destination $targetInclude -Force
           $sourceHash = (Get-FileHash -LiteralPath $sourceInclude -Algorithm SHA256).Hash.ToLowerInvariant()
           $targetHash = (Get-FileHash -LiteralPath $targetInclude -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($sourceHash -ne $targetHash) { throw "NSIS_INCLUDE_COPY_HASH_MISMATCH:$sourceHash:$targetHash" }
+          if ($sourceHash -ne $targetHash) { throw "NSIS_INCLUDE_COPY_HASH_MISMATCH:${sourceHash}:${targetHash}" }
           Write-Host "DEVBOX_NSIS_INCLUDE_READY target=$targetInclude sha256=$targetHash"
 
       - name: NSIS Windows kurucusunu üret
