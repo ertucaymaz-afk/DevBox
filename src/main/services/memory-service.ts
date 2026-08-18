@@ -62,7 +62,12 @@ export class MemoryService {
 
   public buildContext(projectId: string, threadId: string, prompt: string): string {
     const ftsQuery = queryTerms(prompt);
-    const entries = this.#database.searchMemoryEntries({ projectId, threadId, query: ftsQuery, limit: 8 });
+    const relevant = this.#database.searchMemoryEntries({ projectId, threadId, query: ftsQuery, limit: 8 });
+    const highValueProjectMemory = this.#database.listRecentMemory(projectId, 24)
+      .filter((entry) => entry.threadId === null && entry.importance >= 0.8);
+    const entries = [...relevant, ...highValueProjectMemory]
+      .filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index)
+      .slice(0, 12);
     if (entries.length === 0) return "";
     const lines: string[] = [
       "DEVBOX YEREL KALICI HAFIZA:",
