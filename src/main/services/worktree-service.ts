@@ -56,6 +56,26 @@ export class WorktreeService {
     return parsePorcelain(result.stdout, repositoryRoot);
   }
 
+  public async ensureEvolution(repositoryRoot: string, projectId: string): Promise<Worktree> {
+    const projectKey = createHash("sha256").update(projectId).digest("hex").slice(0, 16);
+    const name = `api-evolution-${projectKey.slice(0, 8)}`;
+    const target = path.join(this.#managedRoot, projectKey, name);
+    const branch = `devbox/${name}`;
+    await mkdir(path.dirname(target), { recursive: true });
+    const registered = await this.list(repositoryRoot);
+    const existing = registered.find((worktree) => path.resolve(worktree.path).toLocaleLowerCase("en-US") === path.resolve(target).toLocaleLowerCase("en-US"));
+    if (existing) return existing;
+    const branchProbe = await this.#runner.run({ executable: "git", args: ["-C", repositoryRoot, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`], cwd: repositoryRoot, timeoutMs: 15_000, maxOutputBytes: 256 * 1024 });
+    const args = branchProbe.exitCode === 0
+      ? ["-C", repositoryRoot, "worktree", "add", target, branch]
+      : ["-C", repositoryRoot, "worktree", "add", "-b", branch, target, "HEAD"];
+    const created = await this.#runner.run({ executable: "git", args, cwd: repositoryRoot, timeoutMs: 120_000, maxOutputBytes: 2 * 1_048_576 });
+    if (created.exitCode !== 0 || created.timedOut || created.truncated) throw new Error(created.stderr.trim() || "EVOLUTION_WORKTREE_CREATE_FAILED");
+    const resolved = (await this.list(repositoryRoot)).find((worktree) => path.resolve(worktree.path).toLocaleLowerCase("en-US") === path.resolve(target).toLocaleLowerCase("en-US"));
+    if (!resolved) throw new Error("EVOLUTION_WORKTREE_NOT_REGISTERED");
+    return resolved;
+  }
+
   public async create(repositoryRoot: string, projectId: string, name: string, ref: string, mode: "detached" | "branch"): Promise<Worktree> {
     const projectKey = createHash("sha256").update(projectId).digest("hex").slice(0, 16);
     const projectRoot = path.join(this.#managedRoot, projectKey);

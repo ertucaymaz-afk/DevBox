@@ -137,6 +137,13 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
+function inferWorkspaceTargetPath(content: string): string | null {
+  const match = content.match(/(?:^|[\s'"`])((?:[a-z0-9._-]+[\/])?[a-z0-9._-]+\.(?:html?|css|jsx?|tsx?|json|md|py|go|rs|java|php|vue|svelte))(?:$|[\s'"`,;:!?])/iu);
+  if (!match?.[1]) return null;
+  const normalized = match[1].replace(/\\/gu, "/").replace(/^\.\//u, "");
+  return normalized.includes("..") || normalized.startsWith("/") ? null : normalized;
+}
+
 function formatThreadTime(value: string): string {
   const date = new Date(value);
   const now = new Date();
@@ -409,7 +416,7 @@ function Message({ item, busy, onEdit, onRegenerate, onCopy, onQuote }: {
       // The pressed state still reflects the current session if persistent storage is unavailable.
     }
   };
-  if (item.role === "activity") return <div className="activity-line completed"><CheckCircle2 size={13} /><span>{item.content}</span><time title={exactDateTime(item.createdAt)}>{new Date(item.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time></div>;
+  if (item.role === "activity") return null;
   return (
     <article className={`message ${item.role}`} onContextMenu={(event) => {
       event.preventDefault();
@@ -492,6 +499,8 @@ export function App(): ReactNode {
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
   const [liveActivities, setLiveActivities] = useState<ThreadActivityEvent[]>([]);
   const [workspaceResult, setWorkspaceResult] = useState<ThreadWorkspaceResult | null>(null);
+  const [liveWorkspacePath, setLiveWorkspacePath] = useState<string | null>(null);
+  const [liveWorkspaceActive, setLiveWorkspaceActive] = useState(false);
   const [changeSummaryOpen, setChangeSummaryOpen] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -684,6 +693,8 @@ export function App(): ReactNode {
     setComposer("");
     setDraftAttachments([]);
     setWorkspaceResult(null);
+    setLiveWorkspacePath(null);
+    setLiveWorkspaceActive(false);
     setView("thread");
     setChangeSummaryOpen(false);
     requestAnimationFrame(() => composerRef.current?.focus());
@@ -694,8 +705,12 @@ export function App(): ReactNode {
     if (!content && draftAttachments.length === 0) return;
     const activeThread = thread ?? await createThread();
     if (!activeThread) return;
+    const liveTarget = inferWorkspaceTargetPath(content);
     setComposer("");
     setWorkspaceResult(null);
+    setLiveWorkspacePath(liveTarget);
+    setLiveWorkspaceActive(Boolean(liveTarget));
+    if (liveTarget) setInspectorVisible(true);
     setChangeSummaryOpen(false);
     setLiveActivities((current) => current.filter((activity) => activity.threadId !== activeThread.thread.id));
     setBusy("message");
@@ -713,6 +728,7 @@ export function App(): ReactNode {
       setNotice(errorMessage(error));
     } finally {
       setLiveActivities((current) => current.filter((activity) => activity.threadId !== activeThread.thread.id));
+      setLiveWorkspaceActive(false);
       setBusy(null);
     }
   }, [composer, createThread, draftAttachments, loadProject, selectedProject, thread, updateThreads]);
@@ -738,6 +754,8 @@ export function App(): ReactNode {
 
   useEffect(() => window.devbox.onThreadWorkspaceResult((result) => {
     setWorkspaceResult(result);
+    setLiveWorkspaceActive(false);
+    setLiveWorkspacePath(result.previewPath ?? result.primaryFile ?? null);
     setInspectorVisible(true);
     setChangeSummaryOpen(false);
   }), []);
@@ -1200,8 +1218,7 @@ export function App(): ReactNode {
                   {thread ? <>
                     {thread.items.length === 0 && <ThreadEmptyState project={selectedProject} />}
                     {thread.items.map((item) => <Message key={item.id} item={item} busy={busy?.startsWith("message") ?? false} onEdit={updateMessage} onRegenerate={regenerateMessage} onCopy={copyMessage} onQuote={quoteMessage} />)}
-                    {busy === "message" && liveActivities.filter((activity) => activity.threadId === thread.thread.id).map((activity, index) => <LiveActivity key={`${activity.createdAt}:${index}`} event={activity} />)}
-                    {busy === "message" && !liveActivities.some((activity) => activity.threadId === thread.thread.id) && <div className="activity-line running"><LoaderCircle className="spin" size={14} /><span>İstek izin ve ek bağlam kontrollerinden geçiyor…</span></div>}
+                    {busy === "message" && <div className="activity-line running compact"><LoaderCircle className="spin" size={14} /><span>{liveWorkspaceActive ? "Gerçek dosya değişiklikleri diske yazılıyor ve Canvas kod görünümü canlı okunuyor…" : "DevBox yanıt hazırlıyor…"}</span></div>}
                   </> : <ThreadEmptyState project={selectedProject} />}
                 </div>
               </div>
@@ -1235,7 +1252,7 @@ export function App(): ReactNode {
             {view === "settings" && <SettingsWorkspace settings={appSettings} onSettings={(next) => { setAppSettings(next); setPermission(next.permissionProfile); }} onClose={() => setView(thread ? "thread" : selectedProject ? "files" : "thread")} />}
           </div>
 
-          {inspectorVisible && <CanvasInspector project={selectedProject} result={workspaceResult} threadTitle={thread?.thread.title ?? null} threadState={thread?.thread.state ?? null} gitBranch={gitStatus?.branch ?? null} coreState={bootstrap?.core.state ?? "FAILED"} onClose={() => setInspectorVisible(false)} onRefresh={async () => { if (selectedProject) await loadProject(selectedProject); }} />}
+          {inspectorVisible && <CanvasInspector project={selectedProject} result={workspaceResult} liveTargetPath={liveWorkspacePath} liveActive={liveWorkspaceActive} threadTitle={thread?.thread.title ?? null} threadState={thread?.thread.state ?? null} gitBranch={gitStatus?.branch ?? null} coreState={bootstrap?.core.state ?? "FAILED"} onClose={() => setInspectorVisible(false)} onRefresh={async () => { if (selectedProject) await loadProject(selectedProject); }} />}
         </main>
       </div>
 

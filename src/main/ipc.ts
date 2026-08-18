@@ -94,6 +94,7 @@ import type { LocalCatalogService } from "./services/local-catalog-service.js";
 import type { DebugService, LanguageService } from "./services/language-debug-service.js";
 import type { PackageLifecycleService } from "./services/package-lifecycle-service.js";
 import type { ProjectService } from "./services/project-service.js";
+import type { PreviewRenderService } from "./services/preview-render-service.js";
 import type { RemoteWorkerService } from "./services/remote-worker-service.js";
 import type { SettingsService } from "./services/settings-service.js";
 import type { SshTrustService } from "./services/ssh-trust-service.js";
@@ -112,6 +113,7 @@ type IpcServices = {
   selfDevelopmentProjectId: string | null;
   git: GitService;
   workspaceTurns: WorkspaceTurnService;
+  previewRender: PreviewRenderService;
   tasks: TaskService;
   settings: SettingsService;
   terminals: TerminalService;
@@ -418,8 +420,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadSnapshot, ThreadDetailSchema.parse(started.detail));
     const publishActivity = (activity: { kind: "provider" | "command" | "evidence" | "waiting" | "failure"; stage?: string | null; provider?: string | null; model?: string | null; message: string; createdAt: string }): void => {
       const payload = ThreadActivityEventSchema.parse({ threadId: input.threadId, ...activity });
-      services.database.appendTurnActivity(input.threadId, started.turnId, payload.message, payload.createdAt);
-      if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadActivity, payload);
+      try { services.database.appendEvent("thread.agent-internal", input.threadId, payload, activity.kind === "failure"); } catch { /* diagnostics must never pollute or break the user conversation */ }
     };
     let assistantContent: string;
     try {
@@ -438,7 +439,35 @@ export function registerIpcHandlers(services: IpcServices): () => void {
         assistantContent = `Ajan yanıtı üretilemedi (**${code}**). ${remediation}`;
     }
     if (baseline) {
-      const workspaceResult = ThreadWorkspaceResultSchema.parse(await services.workspaceTurns.finalize({ projectId: project.id, threadId: input.threadId, turnId: started.turnId, intent: "WORKSPACE_MUTATION", before: baseline }));
+      let workspaceResult = ThreadWorkspaceResultSchema.parse(await services.workspaceTurns.finalize({ projectId: project.id, threadId: input.threadId, turnId: started.turnId, intent: "WORKSPACE_MUTATION", before: baseline }));
+      if (workspaceResult.verified && workspaceResult.previewPath) {
+        const renderEvidence: string[] = [];
+        for (let repairAttempt = 0; repairAttempt < 3; repairAttempt += 1) {
+          const currentPreviewPath = workspaceResult.previewPath;
+          if (!currentPreviewPath) {
+            renderEvidence.push("preview-render:FAIL:preview-path-lost");
+            break;
+          }
+          const render = await services.previewRender.verify(project.id, currentPreviewPath);
+          renderEvidence.push(...render.evidence);
+          if (render.ok) break;
+          if (repairAttempt < 2) {
+            const repairPrompt = [
+              `${currentPreviewPath} dosyasını düzelt ve gerçek önizlemeyi çalışır hale getir.`,
+              `DevBox render doğrulaması başarısız: ${render.detail}`,
+              "Dosyanın mevcut halini oku. Kullanıcı açıkça istemedikçe tüm HTML/CSS/JS ilk görünümü ağdan bağımsız, self-contained ve yerel çalışmalı.",
+              "CDN, uzak script/font/stylesheet bağımlılıklarını kaldır. Animasyonları gerçek CSS keyframes/Web Animations API/vanilla JS ile uygula.",
+              "İlk paintte görünür içerik zorunlu; opacity:0/visibility:hidden halinde dış kütüphane bekleyen içerik bırakma.",
+              "SİMÜLASYON, DEMO, FAKE, SAHTE, placeholder veya yalnız başarı metni yasak. Dosyayı gerçekten değiştir, tekrar oku ve doğrula."
+            ].join("\n");
+            assistantContent = await services.agent.respond(repairPrompt, project.rootPath, current.items).then((response) => response.content);
+            workspaceResult = ThreadWorkspaceResultSchema.parse(await services.workspaceTurns.finalize({ projectId: project.id, threadId: input.threadId, turnId: started.turnId, intent: "WORKSPACE_MUTATION", before: baseline }));
+            continue;
+          }
+          workspaceResult = ThreadWorkspaceResultSchema.parse({ ...workspaceResult, verified: false, previewPath: null, evidence: [...workspaceResult.evidence, ...renderEvidence, `preview-render:FAIL:${render.detail}`].slice(0, 64) });
+        }
+        if (workspaceResult.previewPath) workspaceResult = ThreadWorkspaceResultSchema.parse({ ...workspaceResult, evidence: [...workspaceResult.evidence, ...renderEvidence].slice(0, 64) });
+      }
       if (workspaceResult.gitHeadChanged) {
         publishActivity({ kind: "failure", stage: "VERIFYING", message: "Görev sırasında Git HEAD değişti; DevBox bu turu güvenli dosya mutasyonu olarak onaylamadı.", createdAt: new Date().toISOString() });
         assistantContent = `Dosya görevi güvenli biçimde tamamlanmış sayılmadı: ajan çalışma sırasında Git HEAD'i değiştirdi. Önceden var olan çalışma ağacı korunmadan başarı verilemez.\n\n${assistantContent}`;

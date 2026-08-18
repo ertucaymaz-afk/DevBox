@@ -19,6 +19,7 @@ import type { DevelopmentSpecService, DevelopmentSpecTask } from "./development-
 import type { GitService } from "./git-service.js";
 import type { ProjectService } from "./project-service.js";
 import type { SettingsService } from "./settings-service.js";
+import type { WorktreeService } from "./worktree-service.js";
 
 const PRIMARY_PROVIDER = "OpenAI Codex CLI";
 const PRIMARY_MODEL = "gpt-5.6-sol";
@@ -114,6 +115,7 @@ export class ApiEvolutionService {
   readonly #spec: DevelopmentSpecService;
   readonly #git: GitService;
   readonly #runner: CommandRunner;
+  readonly #worktrees: WorktreeService | null;
   readonly #inFlight = new Set<string>();
   readonly #controllers = new Map<string, AbortController>();
   readonly #listeners = new Set<ActivityListener>();
@@ -121,8 +123,8 @@ export class ApiEvolutionService {
   readonly #continuations = new Map<string, NodeJS.Timeout>();
   #timer: NodeJS.Timeout | null = null;
 
-  public constructor(database: StateDatabase, projects: ProjectService, agent: AgentService, settings: SettingsService, spec: DevelopmentSpecService, git: GitService, runner: CommandRunner) {
-    this.#database = database; this.#projects = projects; this.#agent = agent; this.#settings = settings; this.#spec = spec; this.#git = git; this.#runner = runner;
+  public constructor(database: StateDatabase, projects: ProjectService, agent: AgentService, settings: SettingsService, spec: DevelopmentSpecService, git: GitService, runner: CommandRunner, worktrees: WorktreeService | null = null) {
+    this.#database = database; this.#projects = projects; this.#agent = agent; this.#settings = settings; this.#spec = spec; this.#git = git; this.#runner = runner; this.#worktrees = worktrees;
   }
 
   public start(): void {
@@ -282,6 +284,9 @@ export class ApiEvolutionService {
   async #runCycle(projectId: string, manual: boolean): Promise<EvolutionCampaign> {
     if (!this.#settings.get().networkAccess) throw new Error("EVOLUTION_REQUIRES_NETWORK_PROFILE");
     const project = this.#projects.get(projectId); let campaign = this.#resetDaily(this.get(projectId));
+    const evolutionWorktree = this.#worktrees ? await this.#worktrees.ensureEvolution(project.rootPath, projectId) : null;
+    const executionRoot = evolutionWorktree?.path ?? project.rootPath;
+    const isolatedEvolutionRoot = Boolean(evolutionWorktree && path.resolve(executionRoot).toLocaleLowerCase("en-US") !== path.resolve(project.rootPath).toLocaleLowerCase("en-US"));
     const specTask = this.#spec.next(projectId, { ignoreRetryAfter: manual, allowBlockedExternalRetry: manual, allowRecoveryRetry: manual });
     if (!specTask) {
       const summary = this.#spec.summary(projectId);
@@ -298,7 +303,7 @@ export class ApiEvolutionService {
     const persistedAttempt = this.#spec.getState(projectId, specTask.taskId)?.attempts ?? 1;
     const startedAt = new Date().toISOString();
     task.state = "PREPARING"; task.durableJobId = durable.id; task.startedAt = startedAt; task.attempts = persistedAttempt;
-    campaign = this.#save({ ...campaign, isRunning: true, lastError: null, tasks: [...campaign.tasks, task].slice(-MAX_EXECUTION_HISTORY), spec: this.#spec.summary(projectId), runtime: { stage: "PREPARING", detail: `Görev hazırlanıyor: ${specTask.taskId} · deneme ${persistedAttempt}`, waitingReason: null, activeTaskId: task.id, activeSpecTaskId: specTask.taskId, activePhaseId: specTask.phaseId, durableJobId: durable.id, provider: null, model: null, worktreePath: project.rootPath, startedAt, updatedAt: startedAt }, updatedAt: startedAt });
+    campaign = this.#save({ ...campaign, isRunning: true, lastError: null, tasks: [...campaign.tasks, task].slice(-MAX_EXECUTION_HISTORY), spec: this.#spec.summary(projectId), runtime: { stage: "PREPARING", detail: `Görev hazırlanıyor: ${specTask.taskId} · deneme ${persistedAttempt}`, waitingReason: null, activeTaskId: task.id, activeSpecTaskId: specTask.taskId, activePhaseId: specTask.phaseId, durableJobId: durable.id, provider: null, model: null, worktreePath: executionRoot, startedAt, updatedAt: startedAt }, updatedAt: startedAt });
     this.#publish(projectId, { stage: "PREPARING", kind: "state", message: `${specTask.phaseId} / ${specTask.taskId} · deneme ${persistedAttempt} hazırlanıyor: ${specTask.title}`, provider: null, model: null });
 
     const heartbeat = setInterval(() => { try { this.#database.heartbeatDurableJob(durable.id, workerId, JOB_LEASE_MS); } catch { /* settlement/recovery handles terminal lease */ } }, JOB_HEARTBEAT_MS); heartbeat.unref();
@@ -309,7 +314,7 @@ export class ApiEvolutionService {
     const systemPrompt = [
       "DEVBOX GELİŞTİRME.MD GERÇEK UYGULAMA DÖNGÜSÜ",
       `Execution ID: ${task.id}`, `Spec task: ${specTask.taskId}`, `Faz: ${specTask.phaseId}`, `Kaynak satır: ${specTask.sourceLine ?? "bilinmiyor"}`,
-      `Proje: ${project.name}`, `Yazılabilir kök: ${project.rootPath}`,
+      `Proje: ${project.name}`, `Yazılabilir kök: ${executionRoot}`,
       "BU ATOMİK GÖREV:", specTask.objective,
       "KALICI ANA YÖNERGE:", campaign.directive,
       "ZORUNLU UYGULAMA KURALI:",
@@ -324,19 +329,23 @@ export class ApiEvolutionService {
     ].join("\n\n");
 
     try {
-      const baselineStatus = await this.#git.status(project.rootPath);
+      let baselineStatus = await this.#git.status(executionRoot);
       if (!baselineStatus.available) throw new Error(`EVOLUTION_REQUIRES_GIT_REPOSITORY:${baselineStatus.error ?? "NOT_A_GIT_REPOSITORY"}`);
       if (!baselineStatus.head || !/^[a-f0-9]{40}$/u.test(baselineStatus.head)) throw new Error("EVOLUTION_BASELINE_HEAD_INVALID");
-      baselineHead = baselineStatus.head;
-      baselineManaged = this.#isManagedWorkspace(project.rootPath);
+      if (baselineStatus.changes.length > 0 && isolatedEvolutionRoot) {
+        await this.#restoreManagedWorkspace(executionRoot, baselineStatus.head);
+        baselineStatus = await this.#git.status(executionRoot);
+      }
       if (baselineStatus.changes.length > 0) throw new Error(`EVOLUTION_WORKSPACE_DIRTY_BASELINE:${baselineStatus.changes.slice(0, 12).map((item) => item.path).join(",")}`);
+      baselineHead = baselineStatus.head;
+      baselineManaged = isolatedEvolutionRoot || this.#isManagedWorkspace(executionRoot);
       baselineWasClean = true;
-      baselineFingerprint = await this.#workspaceFingerprint(project.rootPath, controller.signal);
+      baselineFingerprint = await this.#workspaceFingerprint(executionRoot, controller.signal);
       if (!baselineFingerprint) throw new Error("EVOLUTION_REQUIRES_GIT_REPOSITORY");
       const response = await this.#agent.respondForEvolution(
-        systemPrompt, project.rootPath, campaign.routing, (progress) => this.#fromAgentProgress(projectId, progress), controller.signal,
+        systemPrompt, executionRoot, campaign.routing, (progress) => this.#fromAgentProgress(projectId, progress), controller.signal,
         async () => {
-          const candidateFingerprint = await this.#workspaceFingerprint(project.rootPath, controller.signal);
+          const candidateFingerprint = await this.#workspaceFingerprint(executionRoot, controller.signal);
           if (!candidateFingerprint || candidateFingerprint === baselineFingerprint) throw new Error("PROVIDER_COMPLETED_WITHOUT_WORKSPACE_MUTATION");
         }
       );
@@ -344,11 +353,11 @@ export class ApiEvolutionService {
 
       if (response.outcome === "BLOCKED_EXTERNAL") {
         const blockedAt = new Date().toISOString(); const reason = response.blockReason ?? "Harici bağımlılık gerekli.";
-        const rollbackEvidence = baselineWasClean && baselineHead && baselineManaged ? await this.#restoreManagedWorkspace(project.rootPath, baselineHead) : [];
+        const rollbackEvidence = baselineWasClean && baselineHead && baselineManaged ? await this.#restoreManagedWorkspace(executionRoot, baselineHead) : [];
         const evidence = [durable.id, response.sessionId, ...response.evidence, ...rollbackEvidence].slice(0, 40);
         this.#database.settleDurableJob(durable.id, workerId, "FAILED", { status: "BLOCKED_EXTERNAL", specTaskId: specTask.taskId, provider: response.provider, model: response.model, blockReason: reason, evidence });
         this.#spec.mark(projectId, specTask.taskId, "BLOCKED_EXTERNAL", { blockReason: reason, evidence });
-        const phaseEvidence = this.#spec.writePhaseEvidence(projectId, project.rootPath, specTask.phaseId);
+        const phaseEvidence: string[] = [];
         const current = this.get(projectId);
         this.#save({ ...current, isRunning: false, lastProvider: response.provider, lastModel: response.model, lastCycleAt: blockedAt, lastCycleDurationMs: response.durationMs, lastError: null, nextCycleAt: null,
           tasks: current.tasks.map((item) => item.id === task.id ? { ...item, state: "BLOCKED_EXTERNAL" as const, provider: response.provider, model: response.model, evidence: [...evidence, ...phaseEvidence].slice(0, 40), blockReason: reason, error: null, completedAt: blockedAt } : item),
@@ -359,24 +368,27 @@ export class ApiEvolutionService {
 
       this.#setTaskState(projectId, task.id, "VERIFYING");
       this.#publish(projectId, { stage: "VERIFYING", kind: "state", message: "Provider tamamlandı; bağımsız git ve proje doğrulaması çalışıyor.", provider: response.provider, model: response.model });
-      const verification = await this.#verifyWorkspace(project.rootPath, baselineFingerprint, controller.signal);
+      const verification = await this.#verifyWorkspace(executionRoot, baselineFingerprint, controller.signal);
       if (!verification.ok) throw new Error(`EVOLUTION_VERIFICATION_FAILED:${verification.detail}`);
       this.#setTaskState(projectId, task.id, "REVIEWING");
       this.#publish(projectId, { stage: "REVIEWING", kind: "evidence", message: "Doğrulanmış değişiklik kalıcı Git commit'ine yazılıyor. Commit oluşmadan PASS verilmeyecek.", provider: response.provider, model: response.model });
-      const commitEvidence = await this.#commitVerifiedMutation(project.rootPath, specTask, controller.signal);
+      const commitEvidence = await this.#commitVerifiedMutation(executionRoot, specTask, controller.signal);
       const thread = this.#database.createThread(projectId, `DevBox · ${specTask.taskId} · ${specTask.title.slice(0, 80)}`);
       this.#database.appendMessage(thread.thread.id, systemPrompt, response.content);
       const completedAt = new Date().toISOString(); const evidence = [durable.id, response.sessionId, ...response.evidence, ...verification.evidence, ...commitEvidence].slice(0, 40);
       this.#database.settleDurableJob(durable.id, workerId, "SUCCEEDED", { specTaskId: specTask.taskId, threadId: thread.thread.id, provider: response.provider, model: response.model, evidence });
       this.#spec.mark(projectId, specTask.taskId, "PASS", { evidence, lastError: null, blockReason: null, acceptance: response.acceptance, deterministicReviewer: "DEVBOX_DETERMINISTIC_GATE_V1" });
-      const phaseEvidence = this.#spec.writePhaseEvidence(projectId, project.rootPath, specTask.phaseId);
-      const learning: EvolutionLearning = { id: randomUUID(), track: specTask.track, title: `${specTask.taskId} · ${specTask.title}`, summary: conciseLearning(response.content), evidence: [...evidence, ...phaseEvidence].slice(0, 40), learnedAt: completedAt };
+      const phaseEvidence = this.#spec.writePhaseEvidence(projectId, executionRoot, specTask.phaseId);
+      const phaseEvidenceCommit = await this.#commitEvidenceSnapshot(executionRoot, specTask, controller.signal);
+      const finalEvidence = [...evidence, ...phaseEvidence, ...phaseEvidenceCommit].slice(0, 40);
+      this.#spec.mark(projectId, specTask.taskId, "PASS", { evidence: finalEvidence, lastError: null, blockReason: null, acceptance: response.acceptance, deterministicReviewer: "DEVBOX_DETERMINISTIC_GATE_V1" });
+      const learning: EvolutionLearning = { id: randomUUID(), track: specTask.track, title: `${specTask.taskId} · ${specTask.title}`, summary: conciseLearning(response.content), evidence: finalEvidence, learnedAt: completedAt };
       const updated = this.get(projectId); const specSummary = this.#spec.summary(projectId); const score = specSummary.totalTaskCount ? Math.round((specSummary.passCount / specSummary.totalTaskCount) * 100) : 0;
       this.#save({
         ...updated, isRunning: false, score, lastProvider: response.provider, lastModel: response.model, completedCycles: updated.completedCycles + 1, cyclesToday: updated.cyclesToday + 1,
         lastCycleAt: completedAt, lastCycleDurationMs: response.durationMs, lastError: null, nextCycleAt: updated.enabled && specSummary.remainingCount > 0 && specSummary.currentGateState !== "BLOCKED_EXTERNAL" && specSummary.currentGateState !== "RECOVERY_REQUIRED" ? new Date(Date.now() + 500).toISOString() : null,
         domainScores: { ...updated.domainScores, [specTask.track]: Math.max(updated.domainScores[specTask.track], score) },
-        tasks: updated.tasks.map((item) => item.id === task.id ? { ...item, state: "SUCCEEDED" as const, provider: response.provider, model: response.model, threadId: thread.thread.id, evidence: [...evidence, ...phaseEvidence].slice(0, 40), error: null, blockReason: null, retryAfterAt: null, completedAt } : item),
+        tasks: updated.tasks.map((item) => item.id === task.id ? { ...item, state: "SUCCEEDED" as const, provider: response.provider, model: response.model, threadId: thread.thread.id, evidence: finalEvidence, error: null, blockReason: null, retryAfterAt: null, completedAt } : item),
         learnings: [learning, ...updated.learnings].slice(0, MAX_LEARNINGS), spec: specSummary,
         runtime: { ...updated.runtime, stage: "COMPLETED", detail: `${specTask.taskId} doğrulandı ve tamamlandı.`, waitingReason: null, provider: response.provider, model: response.model, updatedAt: completedAt }, updatedAt: completedAt
       });
@@ -387,7 +399,7 @@ export class ApiEvolutionService {
       let rollbackEvidence: string[] = [];
       let rollbackFailed = false;
       if (baselineWasClean && baselineHead && baselineManaged) {
-        try { rollbackEvidence = await this.#restoreManagedWorkspace(project.rootPath, baselineHead); }
+        try { rollbackEvidence = await this.#restoreManagedWorkspace(executionRoot, baselineHead); }
         catch (rollbackError) {
           rollbackFailed = true;
           const rollbackMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
@@ -396,22 +408,18 @@ export class ApiEvolutionService {
       }
       const blocker = !cancelled && !rollbackFailed && this.#isExternalBlocker(message);
       const attempts = this.#spec.getState(projectId, specTask.taskId)?.attempts ?? persistedAttempt;
-      const recovery = !cancelled && (rollbackFailed || message.includes("EVOLUTION_WORKSPACE_DIRTY_BASELINE") || message.includes("EVOLUTION_BASELINE_HEAD_INVALID") || (!blocker && attempts >= MAX_AUTOMATIC_RETRIES));
+      const recovery = !cancelled && (rollbackFailed || (!isolatedEvolutionRoot && (message.includes("EVOLUTION_WORKSPACE_DIRTY_BASELINE") || message.includes("EVOLUTION_BASELINE_HEAD_INVALID"))));
       const retryDelay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * Math.pow(2, Math.max(0, attempts - 1))) + Math.floor(Math.random() * 1_000);
       const retryAfterAt = !cancelled && !blocker && !recovery ? new Date(Date.now() + retryDelay).toISOString() : null;
       const specState = cancelled ? "CANCELLED" as const : blocker ? "BLOCKED_EXTERNAL" as const : recovery ? "RECOVERY_REQUIRED" as const : "FAILED" as const;
       try { this.#database.settleDurableJob(durable.id, workerId, cancelled ? "CANCELLED" : "FAILED", { specTaskId: specTask.taskId, status: specState, error: message, attempt: attempts, retryAfterAt }); } catch { /* lease recovery is durable fallback */ }
       this.#spec.mark(projectId, specTask.taskId, specState, { blockReason: blocker ? message : null, lastError: cancelled ? "Kullanıcı tarafından durduruldu." : message, evidence: [durable.id, ...rollbackEvidence], retryAfterAt });
-      let phaseEvidence: string[] = [];
-      try { phaseEvidence = this.#spec.writePhaseEvidence(projectId, project.rootPath, specTask.phaseId); } catch (evidenceError) {
-        const evidenceMessage = evidenceError instanceof Error ? evidenceError.message : String(evidenceError);
-        if (!recovery && !blocker && !cancelled) this.#spec.mark(projectId, specTask.taskId, "RECOVERY_REQUIRED", { lastError: `EVIDENCE_WRITE_FAILED:${evidenceMessage}`, evidence: [durable.id] });
-      }
+      const phaseEvidence: string[] = [];
       const current = this.get(projectId);
       const stage: RuntimeStage = cancelled ? "CANCELLED" : blocker ? "BLOCKED_EXTERNAL" : recovery ? "RECOVERY_REQUIRED" : "BACKOFF";
       const detail = cancelled ? "Çevrim kullanıcı tarafından durduruldu."
         : blocker ? `Harici engel: ${message}`
-        : recovery ? `${specTask.taskId} ${attempts} başarısız denemeden sonra RECOVERY_REQUIRED. Kör tekrar durduruldu.`
+        : recovery ? `${specTask.taskId} güvenli recovery gerektiriyor; otomatik ilerleme veri kaybı riski nedeniyle durdu.`
         : `${specTask.taskId} başarısız. FIX → RETEST için ${Math.ceil(retryDelay / 1000)} sn backoff: ${message}`;
       this.#save({
         ...current, isRunning: false, failedCycles: current.failedCycles + (cancelled ? 0 : 1), cyclesToday: current.cyclesToday + 1, lastCycleAt: failedAt,
@@ -421,11 +429,27 @@ export class ApiEvolutionService {
         runtime: { ...current.runtime, stage, detail, waitingReason: retryAfterAt ? detail : blocker ? message : null, updatedAt: failedAt }, updatedAt: failedAt
       });
       this.#publish(projectId, { stage, kind: cancelled ? "state" : blocker ? "waiting" : recovery ? "failure" : "waiting", message: detail, provider: current.runtime.provider, model: current.runtime.model });
-      if (manual && !cancelled && !blocker) throw new Error(`EVOLUTION_CYCLE_FAILED:${message}`);
       return this.get(projectId);
     } finally {
       clearInterval(heartbeat); this.#controllers.delete(projectId);
     }
+  }
+
+  async #commitEvidenceSnapshot(rootPath: string, specTask: DevelopmentSpecTask, cancellation: AbortSignal): Promise<string[]> {
+    if (cancellation.aborted) throw new Error("EVOLUTION_CANCELLED");
+    const status = await this.#git.status(rootPath);
+    if (!status.available) throw new Error(`EVOLUTION_EVIDENCE_GIT_REQUIRED:${status.error ?? "NOT_A_GIT_REPOSITORY"}`);
+    if (status.changes.length === 0) return ["phase-evidence:no-change"];
+    const outsideEvidence = status.changes.filter((item) => !item.path.replace(/\\/gu, "/").startsWith("evidence/"));
+    if (outsideEvidence.length > 0) throw new Error(`EVOLUTION_EVIDENCE_UNEXPECTED_WORKSPACE_CHANGE:${outsideEvidence.slice(0, 12).map((item) => item.path).join(",")}`);
+    const add = await this.#runner.run({ executable: "git", args: ["-C", rootPath, "add", "-A", "--", "evidence"], cwd: rootPath, cancellation, timeoutMs: 60_000, maxOutputBytes: 2 * 1024 * 1024 });
+    if (add.exitCode !== 0 || add.timedOut || add.truncated) throw new Error(`EVOLUTION_EVIDENCE_GIT_ADD_FAILED:${add.stderr.slice(0, 500)}`);
+    const commit = await this.#runner.run({ executable: "git", args: ["-C", rootPath, "-c", "user.name=DevBox", "-c", "user.email=devbox@local.invalid", "commit", "--no-gpg-sign", "-m", `DevBox evidence ${specTask.phaseId} ${specTask.taskId}`], cwd: rootPath, cancellation, timeoutMs: 2 * 60_000, maxOutputBytes: 4 * 1024 * 1024 });
+    if (commit.exitCode !== 0 || commit.timedOut || commit.truncated) throw new Error(`EVOLUTION_EVIDENCE_COMMIT_FAILED:${commit.stderr.slice(0, 700) || commit.stdout.slice(0, 700)}`);
+    const head = await this.#runner.run({ executable: "git", args: ["-C", rootPath, "rev-parse", "HEAD"], cwd: rootPath, cancellation, timeoutMs: 30_000, maxOutputBytes: 64 * 1024 });
+    const commitSha = head.stdout.trim();
+    if (head.exitCode !== 0 || !/^[a-f0-9]{40}$/u.test(commitSha)) throw new Error("EVOLUTION_EVIDENCE_COMMIT_SHA_INVALID");
+    return [add.runId, commit.runId, `evidence-git-commit:${commitSha}`];
   }
 
   async #commitVerifiedMutation(rootPath: string, specTask: DevelopmentSpecTask, cancellation: AbortSignal): Promise<string[]> {

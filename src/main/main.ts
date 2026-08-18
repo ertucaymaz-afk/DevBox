@@ -20,6 +20,7 @@ import { DebugService, LanguageService } from "./services/language-debug-service
 import { PackageLifecycleService } from "./services/package-lifecycle-service.js";
 import { ProjectService } from "./services/project-service.js";
 import { createPreviewProtocolHandler } from "./services/preview-protocol-service.js";
+import { PreviewRenderService } from "./services/preview-render-service.js";
 import { RemoteWorkerService } from "./services/remote-worker-service.js";
 import { SettingsService } from "./services/settings-service.js";
 import { SelfDevelopmentService } from "./services/self-development-service.js";
@@ -170,8 +171,9 @@ async function start(): Promise<void> {
     ? path.join(process.resourcesPath, "development", "geliştirme-spec-task-graph.json")
     : path.join(app.getAppPath(), "specs", "development", "geliştirme-spec-task-graph.json");
   const developmentSpec = new DevelopmentSpecService(database, developmentSpecPath);
-  evolution = new ApiEvolutionService(database, projects, agent, settings, developmentSpec, git, runner);
   const worktrees = new WorktreeService(runner, path.join(app.getPath("userData"), "worktrees"));
+  evolution = new ApiEvolutionService(database, projects, agent, settings, developmentSpec, git, runner, worktrees);
+  const previewRender = new PreviewRenderService(projects);
   const packages = new PackageLifecycleService(path.join(app.getPath("userData"), "signed-runtime"));
   const sshTrust = new SshTrustService(path.join(app.getPath("userData"), "ssh", "known-hosts"), runner);
   const integrations = new IntegrationService(runner, packages, sshTrust);
@@ -215,6 +217,7 @@ async function start(): Promise<void> {
     selfDevelopmentProjectId: selfDevelopmentProject.id,
     git,
     workspaceTurns,
+    previewRender,
     tasks,
     settings,
     terminals,
