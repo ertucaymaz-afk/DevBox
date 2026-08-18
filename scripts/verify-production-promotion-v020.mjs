@@ -1,0 +1,13 @@
+import { readFile } from "node:fs/promises";
+const evidence=JSON.parse(await readFile("evidence/v020-production.json","utf8"));
+const fail=(id)=>{throw new Error(`PRODUCTION_PROMOTION_VERIFY_FAIL:${id}`);};
+if(evidence.state!=="PASS")fail(`state-${evidence.state??"missing"}`);
+for(const key of ["canonicalUrl","deploymentId","rollbackDeploymentId"])if(!evidence.devapi?.[key])fail(`devapi-${key}`);
+for(const key of ["canonicalUrl","deploymentId"])if(!evidence.devbox?.[key])fail(`devbox-${key}`);
+if(!evidence.neon?.schemaVerified)fail("neon-schema");
+if(evidence.canary?.snapshot!=="PASS")fail("snapshot-canary");
+for(const key of ["enable","run","cancel","idempotency","sequence"])if(evidence.canary?.commands?.[key]!=="PASS")fail(`command-${key}`);
+if(evidence.publicState?.sanitize!=="PASS"||evidence.publicState?.stale!=="PASS")fail("public-state");
+if(evidence.crossLinks!=="PASS")fail("cross-links");
+if(evidence.observability?.criticalHighFindings!==0)fail("runtime-critical-high");
+console.log("PRODUCTION_PROMOTION_VERIFY_PASS devapi=pass devbox=pass canary=pass observability=pass");
