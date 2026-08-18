@@ -12,10 +12,27 @@ export const EvolutionFindingSchema = z.object({
 }).strict();
 export type EvolutionFinding = z.infer<typeof EvolutionFindingSchema>;
 
+export const FindingOwnerCountsSchema = z.object({
+  core: z.number().int().nonnegative(),
+  agent: z.number().int().nonnegative(),
+  api: z.number().int().nonnegative(),
+  release: z.number().int().nonnegative(),
+  typescript: z.number().int().nonnegative(),
+  evolution: z.number().int().nonnegative(),
+  workspace: z.number().int().nonnegative(),
+  cloud: z.number().int().nonnegative(),
+  ui: z.number().int().nonnegative(),
+  security: z.number().int().nonnegative(),
+  project: z.number().int().nonnegative(),
+  integration: z.number().int().nonnegative()
+}).strict();
+export type FindingOwnerCounts = z.infer<typeof FindingOwnerCountsSchema>;
+
 export const FindingSummarySchema = z.object({
   total: z.number().int().nonnegative(), open: z.number().int().nonnegative(), resolved: z.number().int().nonnegative(), rejected: z.number().int().nonnegative(), blocking: z.number().int().nonnegative(),
   bySeverity: z.object({ CRITICAL: z.number().int().nonnegative(), HIGH: z.number().int().nonnegative(), MEDIUM: z.number().int().nonnegative(), LOW: z.number().int().nonnegative(), INFO: z.number().int().nonnegative() }).strict(),
-  byOwner: z.record(FindingOwnerSchema, z.number().int().nonnegative()), items: z.array(EvolutionFindingSchema).max(1_200)
+  byOwner: FindingOwnerCountsSchema,
+  items: z.array(EvolutionFindingSchema).max(1_200)
 }).strict();
 export type FindingSummary = z.infer<typeof FindingSummarySchema>;
 
