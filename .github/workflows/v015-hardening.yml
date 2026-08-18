@@ -38,7 +38,7 @@ jobs:
       - name: Bağımlılıkları kilit dosyasından kur
         run: pnpm install --frozen-lockfile
       - name: v0.1.15 kaynaklarını fail-closed materialize et
-        run: node scripts/apply-v015-control-plane.mjs
+        run: node scripts/apply-v015-control-plane2.mjs
       - name: Patch biçimini doğrula
         shell: pwsh
         run: |
