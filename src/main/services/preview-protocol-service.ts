@@ -42,7 +42,7 @@ function instrumentHtml(html: string): string {
   return `${PREVIEW_BRIDGE}${html}`;
 }
 
-function responseHeaders(contentType: string): HeadersInit {
+function responseHeaders(contentType: string): Record<string, string> {
   return {
     "content-type": contentType,
     "cache-control": "no-store",
