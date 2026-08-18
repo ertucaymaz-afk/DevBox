@@ -1,12 +1,8 @@
 {
   "name": "devbox-devapi-control",
   "private": true,
-  "version": "0.1.15",
+  "version": "0.1.19",
   "type": "module",
-  "engines": {
-    "node": ">=24"
-  },
-  "dependencies": {
-    "@neondatabase/serverless": "1.1.0"
-  }
+  "engines": { "node": ">=24" },
+  "dependencies": { "@neondatabase/serverless": "1.1.0" }
 }

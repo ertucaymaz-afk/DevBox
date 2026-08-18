@@ -77,7 +77,7 @@ check("cloud-db-retention", hasAll(cloudDb, ["COMMAND_RETENTION_DAYS = 90", "COM
 check("cloud-server-command-ack", cloudCommands.includes('req.method === "PATCH"') && hasAll(cloudCommands, ["requireDesktopAuth", "ACK_STATES", "ackCommand"]));
 check("cloud-server-command-allowlist", hasAll(cloudCommands, ["evolution.setEnabled", "evolution.run", "evolution.cancel"]) && !cloudCommands.includes("child_process"));
 check("cloud-server-project-discovery", cloudProjects.includes("requireAdminAuth") && cloudProjects.includes("listProjects") && cloudProjects.includes("generatedAt"));
-check("cloud-health-coarse-only", cloudHealth.includes('version: "0.1.15"') && !cloudHealth.includes("configured") && !cloudHealth.includes("desktopAuth:") && !cloudHealth.includes("adminAuth:"));
+check("cloud-health-coarse-only", cloudHealth.includes("version:") && cloudHealth.includes("state:") && cloudHealth.includes("time:") && !cloudHealth.includes("configured") && !cloudHealth.includes("desktopAuth:") && !cloudHealth.includes("adminAuth:"));
 check("cloud-dashboard-project-discovery", hasAll(cloudApp, ["discoverProjects", "/api/v1/projects", "projectPicker", "renderCommands", "apply_status"]));
 check("cloud-dashboard-command-lifecycle", hasAll(cloudIndex, ["COMMAND AUDIT", "PENDING → RETRYING → APPLIED / FAILED", "desktop ACK"]));
 check("cloud-vercel-csp", cloudVercel.includes("Content-Security-Policy") && cloudVercel.includes("frame-ancestors 'none'") && cloudVercel.includes("connect-src 'self'"));

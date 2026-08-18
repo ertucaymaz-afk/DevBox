@@ -1,6 +1,6 @@
 {
   "name": "devbox",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "private": true,
   "description": "Windows için kanıt temelli açık kaynak mühendislik masaüstü",
   "author": "Yaaertu",
@@ -12,14 +12,9 @@
     "url": "git+https://github.com/ertucaymaz-afk/DevBox.git"
   },
   "homepage": "https://github.com/ertucaymaz-afk/DevBox#readme",
-  "bugs": {
-    "url": "https://github.com/ertucaymaz-afk/DevBox/issues"
-  },
+  "bugs": { "url": "https://github.com/ertucaymaz-afk/DevBox/issues" },
   "packageManager": "pnpm@11.19.0",
-  "engines": {
-    "node": ">=24.0.0",
-    "pnpm": ">=11.0.0"
-  },
+  "engines": { "node": ">=24.0.0", "pnpm": ">=11.0.0" },
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "icon:generate": "node scripts/generate-app-icon.mjs",
@@ -36,6 +31,7 @@
     "test:failure": "pnpm build:main && node scripts/failure-injection.mjs",
     "test:soak": "pnpm build:main && node scripts/soak-smoke.mjs",
     "truth:audit": "node scripts/verify-product-truth.mjs",
+    "cloud:verify": "node scripts/verify-cloud-ecosystem.mjs",
     "start": "electron .",
     "package:dir": "pnpm build && electron-builder --config config/electron-builder.yml --win dir",
     "package:installer": "pnpm build && electron-builder --config config/electron-builder.yml --win nsis",
@@ -49,8 +45,8 @@
     "release:install-local": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/install-local-release.ps1 -Workspace .",
     "release:deliver": "pnpm release:prepare && pnpm release:verify && pnpm release:sync && pnpm release:source && pnpm release:install-local",
     "release:local": "pnpm package:installer && pnpm release:deliver",
-    "verify": "pnpm spec:verify && pnpm evolution:verify && pnpm typecheck && pnpm test && pnpm build",
-    "evolution:verify": "node scripts/verify-api-evolution-v11.mjs"
+    "verify": "pnpm spec:verify && pnpm evolution:verify && pnpm cloud:verify && pnpm typecheck && pnpm test && pnpm build",
+    "evolution:verify": "node scripts/verify-api-evolution-v12.mjs"
   },
   "dependencies": {
     "@fastify/rate-limit": "11.2.0",
