@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { resolveExistingPathWithinRoot } from "../security/path-boundary.js";
+import { PathBoundaryError, resolveExistingPathWithinRoot } from "../security/path-boundary.js";
 import type { ProjectService } from "./project-service.js";
 
 const MAX_PREVIEW_BYTES = 20 * 1024 * 1024;
@@ -73,8 +73,9 @@ export function createPreviewProtocolHandler(projects: ProjectService): (request
       }
       return new Response(bytes, { status: 200, headers: responseHeaders(contentType) });
     } catch (error) {
+      if (error instanceof PathBoundaryError) return new Response("Not found", { status: 404 });
       const code = error instanceof Error ? error.message : String(error);
-      if (/PROJECT_NOT_FOUND|PATH_|ENOENT/iu.test(code)) return new Response("Not found", { status: 404 });
+      if (/PROJECT_NOT_FOUND|ENOENT/iu.test(code)) return new Response("Not found", { status: 404 });
       return new Response("Preview unavailable", { status: 500 });
     }
   };
