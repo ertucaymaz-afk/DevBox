@@ -19,6 +19,7 @@ import { LocalCatalogService } from "./services/local-catalog-service.js";
 import { DebugService, LanguageService } from "./services/language-debug-service.js";
 import { PackageLifecycleService } from "./services/package-lifecycle-service.js";
 import { ProjectService } from "./services/project-service.js";
+import { createPreviewProtocolHandler } from "./services/preview-protocol-service.js";
 import { RemoteWorkerService } from "./services/remote-worker-service.js";
 import { SettingsService } from "./services/settings-service.js";
 import { SelfDevelopmentService } from "./services/self-development-service.js";
@@ -26,10 +27,12 @@ import { SshTrustService } from "./services/ssh-trust-service.js";
 import { TaskService } from "./services/task-service.js";
 import { TerminalService } from "./services/terminal-service.js";
 import { WorktreeService } from "./services/worktree-service.js";
+import { WorkspaceTurnService } from "./services/workspace-turn-service.js";
 import { IPC_CHANNELS, TerminalEventSchema } from "../shared/contracts.js";
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false } }
+  { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false } },
+  { scheme: "devbox-preview", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false } }
 ]);
 
 const devRendererUrl = process.env.DEVBOX_RENDERER_URL;
@@ -76,11 +79,14 @@ function installSessionSecurity(): void {
   activeSession.setPermissionCheckHandler(() => false);
   activeSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   activeSession.webRequest.onHeadersReceived((details, callback) => {
+    if (details.url.startsWith("devbox-preview://")) {
+      return callback(details.responseHeaders ? { responseHeaders: details.responseHeaders } : {});
+    }
     callback({
       responseHeaders: {
         ...details.responseHeaders,
         "Content-Security-Policy": [
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src devbox-preview:; base-uri 'none'; form-action 'none'"
         ]
       }
     });
@@ -141,6 +147,7 @@ async function start(): Promise<void> {
   const agent = new AgentService(runner, app.getVersion());
   const attachments = new AttachmentService(database, path.join(app.getPath("userData"), "attachments"));
   const projects = new ProjectService(database);
+  await protocol.handle("devbox-preview", createPreviewProtocolHandler(projects));
   const selfDevelopment = new SelfDevelopmentService(projects, runner, {
     packaged: app.isPackaged,
     appRoot: app.getAppPath(),
@@ -150,6 +157,7 @@ async function start(): Promise<void> {
   });
   const selfDevelopmentProject = await selfDevelopment.ensure();
   const git = new GitService(runner);
+  const workspaceTurns = new WorkspaceTurnService(projects, git);
   const tasks = new TaskService(runner);
   const settings = new SettingsService(database);
   const remoteWorkers = new RemoteWorkerService(database);
@@ -200,6 +208,7 @@ async function start(): Promise<void> {
     projects,
     selfDevelopmentProjectId: selfDevelopmentProject.id,
     git,
+    workspaceTurns,
     tasks,
     settings,
     terminals,

@@ -965,3 +965,49 @@ kbd { padding: 2px 5px; border: 1px solid var(--border-strong); border-radius: 4
 .model-catalog-state strong { color: var(--text-secondary); font-size: 10px; white-space: nowrap; }
 .model-catalog-state > span { min-width: 0; overflow: hidden; color: var(--text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1180px) { .routing-editor .panel-title { align-items: flex-start; } .routing-editor .panel-title > .routing-actions { flex-wrap: wrap; justify-content: flex-end; } .model-catalog-state { align-items: flex-start; flex-direction: column; } .model-catalog-state > span { white-space: normal; } }
+
+
+/* DevBox v0.1.10 Canvas + turn-local evidence */
+.inspector.canvas-inspector { width: min(48vw, 760px); min-width: 430px; display: flex; flex-direction: column; overflow: hidden; background: var(--panel); }
+.canvas-inspector .inspector-heading > div { display: flex; align-items: center; gap: 8px; }
+.canvas-inspector .inspector-heading small { display: inline-flex; align-items: center; gap: 4px; color: var(--success); font-size: 10px; text-transform: none; letter-spacing: 0; }
+.canvas-tabs { display: flex; gap: 2px; padding: 6px 7px; overflow-x: auto; border-bottom: 1px solid var(--border); }
+.canvas-tabs button { min-width: max-content; display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border-radius: 6px; color: var(--text-muted); font-size: 10.5px; }
+.canvas-tabs button.active { background: rgba(255,255,255,.075); color: var(--text-primary); }
+.canvas-tabs button:disabled { opacity: .34; }
+.canvas-body { flex: 1; min-height: 0; overflow: hidden; }
+.canvas-body > section { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.canvas-body section > header { min-height: 47px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.canvas-body section > header > div { min-width: 0; display: flex; flex-direction: column; }
+.canvas-body section > header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.canvas-body section > header small { color: var(--text-muted); font-size: 9.5px; }
+.canvas-preview iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: white; }
+.canvas-code textarea { flex: 1; min-height: 0; resize: none; border: 0; outline: 0; padding: 14px; background: #0b0d0e; color: #e9edef; font: 12px/1.55 var(--code-font); tab-size: 2; }
+.canvas-changes > div { overflow: auto; }
+.canvas-changes article { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.045); }
+.canvas-changes article > div { min-width: 0; display: flex; flex-direction: column; }
+.canvas-changes article strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--code-font); }
+.canvas-changes article small { color: var(--text-muted); font-size: 9.5px; }
+.canvas-change-kind { min-width: 58px; padding: 3px 5px; border: 1px solid var(--border); border-radius: 5px; text-align: center; color: var(--text-muted); font-size: 8px; }
+.canvas-change-kind.added { color: var(--success); } .canvas-change-kind.deleted { color: var(--danger); } .canvas-change-kind.reverted { color: var(--warning); }
+.canvas-console > div { overflow: auto; padding: 6px 0; }
+.canvas-console p { display: grid; grid-template-columns: 58px 44px minmax(0,1fr); gap: 7px; margin: 0; padding: 5px 9px; font: 10.5px/1.45 var(--code-font); border-bottom: 1px solid rgba(255,255,255,.035); }
+.canvas-console p.warn { color: var(--warning); } .canvas-console p.error { color: var(--danger); }
+.canvas-console time, .canvas-console b { color: var(--text-muted); font-size: 9px; }
+.canvas-evidence { overflow: auto; padding: 10px; }
+.canvas-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.canvas-facts > div { min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: rgba(255,255,255,.025); display: flex; flex-direction: column; }
+.canvas-facts span { color: var(--text-muted); font-size: 9px; } .canvas-facts strong { margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; }
+.canvas-evidence-list { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+.canvas-evidence-list code { padding: 6px 7px; border: 1px solid rgba(255,255,255,.05); border-radius: 5px; color: var(--text-muted); overflow-wrap: anywhere; font-size: 9.5px; }
+.canvas-empty { flex: 1; min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 20px; color: var(--text-muted); text-align: center; }
+.canvas-empty strong { color: var(--text-secondary); }
+.canvas-notice, .canvas-danger { margin: 8px 10px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); font-size: 10px; }
+.canvas-danger { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); color: var(--danger); }
+.change-summary-button.unverified { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.evolution-recovery-banner { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 12px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.025); }
+.evolution-recovery-banner.recovery { border-color: color-mix(in srgb, var(--warning) 48%, var(--border)); }
+.evolution-recovery-banner.blocked { border-color: color-mix(in srgb, var(--danger) 38%, var(--border)); }
+.evolution-recovery-banner div { min-width: 0; } .evolution-recovery-banner strong { font-size: 11.5px; } .evolution-recovery-banner p { margin: 4px 0; color: var(--text-secondary); font-size: 10.5px; overflow-wrap: anywhere; } .evolution-recovery-banner small { color: var(--text-muted); font-size: 9.5px; line-height: 1.45; }
+.recovery-action { color: var(--warning) !important; border-color: color-mix(in srgb, var(--warning) 42%, var(--border)) !important; }
+@media (max-width: 1100px) { .inspector.canvas-inspector { width: min(54vw, 650px); min-width: 380px; } }

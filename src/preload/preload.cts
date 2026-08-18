@@ -35,6 +35,7 @@ const CHANNELS = Object.freeze({
   threadMessage: "devbox:v1:thread:message",
   threadActivity: "devbox:v1:thread:activity",
   threadSnapshot: "devbox:v1:thread:snapshot",
+  threadWorkspaceResult: "devbox:v1:thread:workspace-result",
   threadMessageUpdate: "devbox:v1:thread:message-update",
   threadMessageRegenerate: "devbox:v1:thread:message-regenerate",
   threadRename: "devbox:v1:thread:rename",
@@ -123,6 +124,11 @@ const bridge: DevBoxBridge = Object.freeze({
     const handler = (_event: Electron.IpcRendererEvent, payload: unknown): void => listener(payload as Parameters<typeof listener>[0]);
     ipcRenderer.on(CHANNELS.threadSnapshot, handler);
     return () => ipcRenderer.removeListener(CHANNELS.threadSnapshot, handler);
+  },
+  onThreadWorkspaceResult: (listener: Parameters<DevBoxBridge["onThreadWorkspaceResult"]>[0]) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown): void => listener(payload as Parameters<typeof listener>[0]);
+    ipcRenderer.on(CHANNELS.threadWorkspaceResult, handler);
+    return () => ipcRenderer.removeListener(CHANNELS.threadWorkspaceResult, handler);
   },
   updateMessage: async (threadId: string, itemId: string, content: string) => await ipcRenderer.invoke(CHANNELS.threadMessageUpdate, { threadId, itemId, content }),
   regenerateMessage: async (threadId: string, itemId: string) => await ipcRenderer.invoke(CHANNELS.threadMessageRegenerate, { threadId, itemId }),

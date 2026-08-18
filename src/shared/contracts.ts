@@ -309,6 +309,36 @@ export const ThreadActivityEventSchema = z.object({
 
 export type ThreadActivityEvent = z.infer<typeof ThreadActivityEventSchema>;
 
+export const ThreadWorkspaceChangeSchema = z.object({
+  path: z.string().trim().min(1).max(32_768),
+  kind: z.enum(["added", "modified", "deleted", "reverted"]),
+  beforeSha256: z.string().regex(/^[a-f0-9]{64}$/u).nullable(),
+  afterSha256: z.string().regex(/^[a-f0-9]{64}$/u).nullable(),
+  additions: z.number().int().nonnegative().nullable(),
+  deletions: z.number().int().nonnegative().nullable(),
+  binary: z.boolean(),
+  verified: z.boolean()
+}).strict();
+export type ThreadWorkspaceChange = z.infer<typeof ThreadWorkspaceChangeSchema>;
+
+export const ThreadWorkspaceResultSchema = z.object({
+  threadId: z.string().min(8).max(128),
+  turnId: z.string().min(8).max(128),
+  projectId: z.string().min(8).max(128),
+  intent: z.enum(["CHAT", "WORKSPACE_MUTATION"]),
+  mutated: z.boolean(),
+  verified: z.boolean(),
+  gitHeadChanged: z.boolean(),
+  baselineDirtyCount: z.number().int().nonnegative(),
+  finalDirtyCount: z.number().int().nonnegative(),
+  changedFiles: z.array(ThreadWorkspaceChangeSchema).max(200),
+  primaryFile: z.string().max(32_768).nullable(),
+  previewPath: z.string().max(32_768).nullable(),
+  evidence: z.array(z.string().max(2_000)).max(64),
+  createdAt: z.string().datetime()
+}).strict();
+export type ThreadWorkspaceResult = z.infer<typeof ThreadWorkspaceResultSchema>;
+
 export const ThreadDetailSchema = z.object({
   thread: ThreadSummarySchema,
   items: z.array(ThreadItemSchema)
@@ -830,6 +860,7 @@ export const IPC_CHANNELS = {
   threadMessage: "devbox:v1:thread:message",
   threadActivity: "devbox:v1:thread:activity",
   threadSnapshot: "devbox:v1:thread:snapshot",
+  threadWorkspaceResult: "devbox:v1:thread:workspace-result",
   threadMessageUpdate: "devbox:v1:thread:message-update",
   threadMessageRegenerate: "devbox:v1:thread:message-regenerate",
   threadRename: "devbox:v1:thread:rename",

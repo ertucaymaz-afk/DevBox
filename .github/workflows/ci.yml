@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - codex/v0.1.9-chat-api-repair
+      - 'codex/**'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -78,9 +78,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Self-contained üretim sahnesini hazırla
+        id: package_meta
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content 'package.json' -Raw | ConvertFrom-Json
+          $version = [string]$manifest.version
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') { throw "PACKAGE_VERSION_INVALID:$version" }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           pnpm build
           if ($LASTEXITCODE -ne 0) { throw 'PRODUCTION_BUILD_FAILED' }
           pnpm --filter devbox deploy --prod --legacy --force .packaged-app
@@ -113,7 +118,7 @@ jobs:
           $cfg = [regex]::Replace($cfg, '(?ms)^asarUnpack:\s*\r?\n\s+- node_modules/node-pty/\*\*/\*\r?\n', '')
           Set-Content '.packaged-app/electron-builder.yml' -Value $cfg -Encoding utf8NoBOM -NoNewline
           if (-not (Test-Path '.packaged-app/build/icon.ico' -PathType Leaf)) { throw 'STAGE_ICON_MISSING' }
-          Write-Host 'DEVBOX_STAGE_READY projectRoot=.packaged-app package=ok main=ok node_modules=ok build=ok vendor=ok asar=false afterPack=fail-closed'
+          Write-Host "DEVBOX_STAGE_READY version=$version projectRoot=.packaged-app package=ok main=ok node_modules=ok build=ok vendor=ok asar=false afterPack=fail-closed"
 
       - name: NSIS upstream include dosyasını doğrula ve yerel builder'a bağla
         shell: pwsh
@@ -156,12 +161,12 @@ jobs:
           if ($b0 -ne 0x4D -or $b1 -ne 0x5A) { throw 'INSTALLER_NOT_PE_MZ' }
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  DevBox-Setup.exe" | Set-Content 'release/DevBox-Setup.exe.sha256' -Encoding ascii
-          Write-Host "DEVBOX_INSTALLER_VERIFIED bytes=$($installer.Length) sha256=$hash"
+          Write-Host "DEVBOX_INSTALLER_VERIFIED version=${{ steps.package_meta.outputs.version }} bytes=$($installer.Length) sha256=$hash"
 
       - name: Gerçek Windows kurucusunu yükle
         uses: actions/upload-artifact@v6
         with:
-          name: DevBox-v0.1.9-Windows-Installer
+          name: DevBox-v${{ steps.package_meta.outputs.version }}-Windows-Installer
           path: |
             release/DevBox-Setup.exe
             release/DevBox-Setup.exe.sha256
