@@ -49,6 +49,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'V016_UI_MATERIALIZER_FAILED' }
           node scripts/apply-v016-evolution.mjs
           if ($LASTEXITCODE -ne 0) { throw 'V016_EVOLUTION_MATERIALIZER_FAILED' }
+          node scripts/apply-v016-verifier.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V016_VERIFIER_MATERIALIZER_FAILED' }
           git diff --check
           if ($LASTEXITCODE -ne 0) { throw 'V016_GIT_DIFF_CHECK_FAILED' }
       - name: Tam ürün doğrulaması
@@ -64,7 +66,7 @@ jobs:
           }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- src package.json scripts/verify-api-evolution-v9.mjs scripts/generate-app-icon.mjs build/icon.ico build/icon-master.png
+          git add -- src package.json scripts/verify-api-evolution-v8.mjs scripts/verify-api-evolution-v9.mjs scripts/generate-app-icon.mjs build/icon.ico build/icon-master.png
           $staged = git diff --cached --name-only
           if (-not $staged) { throw 'V016_NO_PRODUCT_CHANGES_STAGED' }
           git diff --cached --check
