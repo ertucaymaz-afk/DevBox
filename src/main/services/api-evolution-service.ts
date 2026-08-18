@@ -414,11 +414,7 @@ export class ApiEvolutionService {
       const specState = cancelled ? "CANCELLED" as const : blocker ? "BLOCKED_EXTERNAL" as const : recovery ? "RECOVERY_REQUIRED" as const : "FAILED" as const;
       try { this.#database.settleDurableJob(durable.id, workerId, cancelled ? "CANCELLED" : "FAILED", { specTaskId: specTask.taskId, status: specState, error: message, attempt: attempts, retryAfterAt }); } catch { /* lease recovery is durable fallback */ }
       this.#spec.mark(projectId, specTask.taskId, specState, { blockReason: blocker ? message : null, lastError: cancelled ? "Kullanıcı tarafından durduruldu." : message, evidence: [durable.id, ...rollbackEvidence], retryAfterAt });
-      let phaseEvidence: string[] = [];
-      try { phaseEvidence = this.#spec.writePhaseEvidence(projectId, project.rootPath, specTask.phaseId); } catch (evidenceError) {
-        const evidenceMessage = evidenceError instanceof Error ? evidenceError.message : String(evidenceError);
-        if (!recovery && !blocker && !cancelled) this.#spec.mark(projectId, specTask.taskId, "RECOVERY_REQUIRED", { lastError: `EVIDENCE_WRITE_FAILED:${evidenceMessage}`, evidence: [durable.id] });
-      }
+      const phaseEvidence: string[] = [];
       const current = this.get(projectId);
       const stage: RuntimeStage = cancelled ? "CANCELLED" : blocker ? "BLOCKED_EXTERNAL" : recovery ? "RECOVERY_REQUIRED" : "BACKOFF";
       const detail = cancelled ? "Çevrim kullanıcı tarafından durduruldu."
@@ -433,7 +429,6 @@ export class ApiEvolutionService {
         runtime: { ...current.runtime, stage, detail, waitingReason: retryAfterAt ? detail : blocker ? message : null, updatedAt: failedAt }, updatedAt: failedAt
       });
       this.#publish(projectId, { stage, kind: cancelled ? "state" : blocker ? "waiting" : recovery ? "failure" : "waiting", message: detail, provider: current.runtime.provider, model: current.runtime.model });
-      if (manual && !cancelled && !blocker) throw new Error(`EVOLUTION_CYCLE_FAILED:${message}`);
       return this.get(projectId);
     } finally {
       clearInterval(heartbeat); this.#controllers.delete(projectId);
