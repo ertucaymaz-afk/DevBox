@@ -51,6 +51,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'V016_EVOLUTION_MATERIALIZER_FAILED' }
           node scripts/apply-v016-verifier.mjs
           if ($LASTEXITCODE -ne 0) { throw 'V016_VERIFIER_MATERIALIZER_FAILED' }
+          node scripts/apply-v016-v9-fix.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V016_V9_FIX_MATERIALIZER_FAILED' }
           git diff --check
           if ($LASTEXITCODE -ne 0) { throw 'V016_GIT_DIFF_CHECK_FAILED' }
       - name: Tam ürün doğrulaması
