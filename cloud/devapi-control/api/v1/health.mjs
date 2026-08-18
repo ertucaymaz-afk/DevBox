@@ -7,8 +7,8 @@ export default async function handler(req, res) {
     res.setHeader("cache-control", "no-store");
     return res.end(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }));
   }
-  const configured = configurationState();
-  const ready = configured.database && configured.desktopAuth && configured.adminAuth;
+  const configuration = configurationState();
+  const ready = configuration.database && configuration.desktopAuth && configuration.adminAuth;
   res.statusCode = ready ? 200 : 503;
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.setHeader("cache-control", "no-store");
