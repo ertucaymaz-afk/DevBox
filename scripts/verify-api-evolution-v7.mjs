@@ -20,6 +20,7 @@ const [contracts, service, agent, capability, specService, database, runner, ren
 ]);
 const graph = JSON.parse(graphText);
 const research = JSON.parse(researchText);
+const serviceLower = service.toLocaleLowerCase("tr-TR");
 
 check("spec-22-phases", graph?.summary?.phaseCount === 22 && Array.isArray(graph.phases) && graph.phases.length === 22, String(graph?.summary?.phaseCount));
 check("spec-3362-tasks", graph?.summary?.taskCount === 3362 && Array.isArray(graph.tasks) && graph.tasks.length === 3362, String(graph?.tasks?.length));
@@ -62,7 +63,6 @@ check("manual-recovery-retry", specService.includes("allowRecoveryRetry") && ser
 check("clean-baseline-gate", service.includes("EVOLUTION_WORKSPACE_DIRTY_BASELINE") && service.includes("baselineWasClean"));
 check("managed-source-rollback", service.includes("#restoreManagedWorkspace") && service.includes("rollback-head:"));
 check("restart-runtime-reconciliation", service.includes("yarım kalmış atomik görev RECOVERY_REQUIRED") && service.includes("isRunning: false"));
-
 check("reasoning-minimal-contract", contracts.includes('"minimal"') && renderer.includes('Minimal'));
 check("model-catalog-contract", contracts.includes("EvolutionModelCatalogSchema") && contracts.includes('"nvidia-models-api"'));
 check("codex-app-server-model-list", agent.includes('"model/list"') && agent.includes('["app-server", "--stdio"]') && agent.includes("parseCodexModelCatalog"));
@@ -76,18 +76,16 @@ check("persistent-history-ui", renderer.includes("listEvolutionActivity(project.
 check("event-desc-read", database.includes('order?: "asc" | "desc"') && database.includes('input.order === "desc" ? "DESC" : "ASC"'));
 check("execution-day-research-registry", research?.executionDate === "2026-08-14" && Array.isArray(research?.sources) && research.sources.length >= 5);
 check("research-not-runtime-pass", researchText.includes("does not mark") || researchText.includes("NOT mark") || researchText.includes("PASS"));
-
 check("click-is-explicit-approval", !ipc.includes('title: "geliştirme.md gerçek uygulama çevrimi"') && ipc.includes('“Şimdi çalıştır” tıklaması sürekli self-development döngüsünü başlatan açık kullanıcı eylemidir'));
 check("new-campaign-does-not-autostart", service.includes("enabled: false, isRunning: false") && service.includes("nextCycleAt: null, lastCycleDurationMs"));
 check("continuous-after-click", service.includes("sürekli gerçek API geliştirme etkinleştirildi") && service.includes("#scheduleContinuation(projectId, 500)"));
 const commitCall = service.indexOf("const commitEvidence = await this.#commitVerifiedMutation");
 const passCall = service.indexOf('this.#markSpecTask(projectId, specTask, "PASS"');
 check("verified-change-must-commit", service.includes("#commitVerifiedMutation") && service.includes("EVOLUTION_GIT_COMMIT_FAILED") && service.includes("git-commit:") && commitCall >= 0 && passCall > commitCall, `${commitCall}:${passCall}`);
-check("adaptive-task-contract", service.includes("ADAPTIVE_CONTINUOUS_MAINTENANCE") && service.includes("createAdaptiveEvolutionTask") && service.includes("gerçek kaynak koduna en küçük güvenli değişikliği") && service.includes("no-op"));
+check("adaptive-task-contract", service.includes("ADAPTIVE_CONTINUOUS_MAINTENANCE") && service.includes("createAdaptiveEvolutionTask") && serviceLower.includes("gerçek kaynak koduna en küçük güvenli değişikliği") && serviceLower.includes("no-op"));
 check("adaptive-continuation-contract", service.includes("shouldContinueEvolution") && service.includes("remainingCount <= 0") && service.includes("#scheduleContinuation(projectId, 500)"));
 check("adaptive-blockers-stop", service.includes('["BLOCKED_EXTERNAL", "RECOVERY_REQUIRED", "CANCELLED"].includes') && service.includes("adaptiveState"));
 check("packaged-self-development-source", main.includes("new SelfDevelopmentService") && selfDevelopment.includes("persistent-self-development-source") && builder.includes("development/source-template/src") && signedBuilder.includes("development/source-template/src"));
 check("corepack-no-global-shim-required", service.includes('args: ["pnpm", "install", "--frozen-lockfile"]') && !service.includes('corepack enable'));
 check("reality-contract-hard-rule", service.includes("SİMÜLASYON / DEMO / FAKE / SAHTE başarı") && selfDevelopment.includes("NO_FABRICATED_OR_REPRESENTATIVE_SUCCESS"));
-
 console.log(`API_EVOLUTION_V7_VERIFY_PASS checks=${checks.length} tasks=${graph.tasks.length} phases=${graph.summary.phaseCount}`);
