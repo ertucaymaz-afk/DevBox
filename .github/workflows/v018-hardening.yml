@@ -60,7 +60,7 @@ jobs:
           if (-not $changes) { Write-Host 'V018_ALREADY_MATERIALIZED'; exit 0 }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- package.json .github/workflows/ci.yml scripts/verify-api-evolution-v10.mjs scripts/verify-api-evolution-v11.mjs scripts/verify-installer-runtime.ps1 src/main/services/project-service.ts src/main/services/project-service.test.ts src/main/services/package-lifecycle-service.ts src/main/services/package-lifecycle-service.test.ts
+          git add -- package.json scripts/verify-api-evolution-v10.mjs scripts/verify-api-evolution-v11.mjs scripts/verify-installer-runtime.ps1 src/main/services/project-service.ts src/main/services/project-service.test.ts src/main/services/package-lifecycle-service.ts src/main/services/package-lifecycle-service.test.ts
           $staged = git diff --cached --name-only
           if (-not $staged) { throw 'V018_NO_PRODUCT_CHANGES_STAGED' }
           git diff --cached --check
