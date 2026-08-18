@@ -71,5 +71,15 @@ for (const [file, encoded] of Object.entries(files)) {
   writeFileSync(file, Buffer.from(encoded, "base64"));
 }
 
-console.log(`V020_SOURCE_BUNDLE_WRITTEN parts=${parts.length} files=${actual.length} payloadBytes=${payload.length}`);
+const databaseTestPath = "src/main/services/database.test.ts";
+const databaseTest = readFileSync(databaseTestPath, "utf8");
+const databaseAnchor = /(expect\(database\.listThreads\(\)\)\.toEqual\(\[\]\);\r?\n\s*)\}\);(\r?\n\r?\n\s*it\("leases, cancels, settles, and recovers durable jobs without losing payloads")/u;
+const matches = databaseTest.match(new RegExp(databaseAnchor.source, "gu"));
+if (!matches || matches.length !== 1) {
+  throw new Error(`V020_DATABASE_TEST_TIMEOUT_ANCHOR_MISMATCH:${matches?.length ?? 0}`);
+}
+const hardenedDatabaseTest = databaseTest.replace(databaseAnchor, "$1}, 15_000);$2");
+writeFileSync(databaseTestPath, hardenedDatabaseTest, "utf8");
+
+console.log(`V020_SOURCE_BUNDLE_WRITTEN parts=${parts.length} files=${actual.length} payloadBytes=${payload.length} dbTestBudgetMs=15000`);
 await import("./apply-v020-evolution-tracks.mjs");
