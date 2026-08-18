@@ -93,7 +93,9 @@ for (const file of [
   check(`cloud-syntax:${file}`, syntax.status === 0, (syntax.stderr || syntax.stdout || "syntax-check-failed").trim().slice(0, 400));
 }
 
-check("fifo-same-thread", turnQueue.includes("existing.tail") && turnQueue.includes("#queues") && turnQueue.includes("run<T>"));
+check("fifo-same-thread", hasAll(turnQueue, ["previousTail", "currentTail", "state.tail = currentTail", "previousTail.catch", "run<T>"]));
+check("fifo-tail-installed-before-execute", turnQueue.indexOf("this.#queues.set(threadId, state)") >= 0 && turnQueue.indexOf("this.#queues.set(threadId, state)") < turnQueue.indexOf("const execute"));
+check("fifo-stale-cleanup", hasAll(turnQueue, ["current.tail === currentTail", "state.queued === 0", "this.#queues.delete(threadId)", "task.then(settleTail, settleTail)"]));
 check("fifo-observability", turnQueue.includes("snapshots()") || turnQueue.includes("listSnapshots()"));
 check("ipc-devapi-control", hasAll(ipc, ["devApiControlGet", "evolutionFindingTransition", "releaseGateRun", "cloudControlSync"]));
 check("preload-devapi-control", hasAll(preload, ["devApiControlGet", "evolutionFindingTransition", "releaseGateRun", "cloudControlSync"]));
