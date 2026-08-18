@@ -1,2 +1,0 @@
-trigger=2026-08-18T06:37:00+03:00
-purpose=continuous-self-development-hardening

@@ -233,7 +233,7 @@ export class DevelopmentSpecService {
   }
   public getState(projectId: string, taskId: string): PersistedState | null { return this.#states(projectId)[taskId] ?? null; }
 
-  public next(projectId: string, options: { ignoreRetryAfter?: boolean; allowBlockedExternalRetry?: boolean } = {}): DevelopmentSpecTask | null {
+  public next(projectId: string, options: { ignoreRetryAfter?: boolean; allowBlockedExternalRetry?: boolean; allowRecoveryRetry?: boolean } = {}): DevelopmentSpecTask | null {
     const states = this.#states(projectId);
     for (const phase of this.#phases) {
       const phaseTasks = this.#tasks.filter((task) => task.phaseId === phase.phaseId);
@@ -244,7 +244,8 @@ export class DevelopmentSpecService {
       if (!task) continue;
       // Strict in-phase order: a failed/backoff task cannot be skipped to make the phase look busy.
       const state = states[task.taskId];
-      if (state?.state === "RECOVERY_REQUIRED" || state?.state === "RUNNING") return null;
+      if (state?.state === "RUNNING") return null;
+      if (state?.state === "RECOVERY_REQUIRED") return options.allowRecoveryRetry ? task : null;
       if (state?.state === "BLOCKED_EXTERNAL") return options.allowBlockedExternalRetry ? task : null;
       if (!options.ignoreRetryAfter && state?.retryAfterAt && Date.parse(state.retryAfterAt) > Date.now()) return null;
       return task;

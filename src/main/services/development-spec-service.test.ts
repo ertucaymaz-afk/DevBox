@@ -57,6 +57,7 @@ describe("DevelopmentSpecService", () => {
     expect(service.summary("project-spec-recovery").recoveryCount).toBe(1);
     expect(service.summary("project-spec-recovery").currentGateState).toBe("RECOVERY_REQUIRED");
     expect(service.next("project-spec-recovery")).toBeNull();
+    expect(service.next("project-spec-recovery", { allowRecoveryRetry: true })?.taskId).toBe("MAX-01-001");
   });
 
 

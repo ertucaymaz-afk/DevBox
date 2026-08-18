@@ -44,7 +44,7 @@ check("codex-primary-fallback-chain", agent.includes('model: "gpt-5.6-sol"') && 
 check("locked-no-fallback", agent.includes('if (routing.mode === "LOCKED") return'));
 check("streaming-command-runner", runner.includes("onStdoutLine") && runner.includes("onStderrLine"));
 check("durable-heartbeat", service.includes("heartbeatDurableJob") && service.includes("JOB_HEARTBEAT_MS"));
-check("real-verification-gate", service.includes('"diff", "--check"') && service.includes('["typecheck", "test"]'));
+check("real-verification-gate", service.includes('"diff", "--check"') && service.includes('scripts.verify ? ["verify"] : ["typecheck", "test", "build"]'));
 check("cancel-control", service.includes("public cancel(projectId") && ipc.includes("evolutionCancel") && renderer.includes("cancelEvolutionCycle"));
 check("failure-retry-backoff", service.includes("MAX_AUTOMATIC_RETRIES") && service.includes("RETRY_BASE_MS") && service.includes(': "BACKOFF"') && !service.includes("current.enabled && !current.lastError"));
 check("recovery-stops-blind-replay", specService.includes("RECOVERY_REQUIRED") && specService.includes("return null") && service.includes("EVOLUTION_PHASE_RECOVERY_REQUIRED"));
@@ -58,6 +58,10 @@ check("runtime-client-version-not-stale", agent.includes("#clientVersion") && mc
 check("source-archive-includes-spec-graph", sourceSync.includes('specs/development'));
 check("spec-state-v2", specService.includes("api-evolution.spec-state.v2") && specService.includes("#legacyKey"));
 check("manual-blocker-retry", specService.includes("allowBlockedExternalRetry") && service.includes("allowBlockedExternalRetry: manual"));
+check("manual-recovery-retry", specService.includes("allowRecoveryRetry") && service.includes("allowRecoveryRetry: manual"));
+check("clean-baseline-gate", service.includes("EVOLUTION_WORKSPACE_DIRTY_BASELINE") && service.includes("baselineWasClean"));
+check("managed-source-rollback", service.includes("#restoreManagedWorkspace") && service.includes("rollback-head:"));
+check("restart-runtime-reconciliation", service.includes("yarım kalmış atomik görev RECOVERY_REQUIRED") && service.includes("isRunning: false"));
 
 
 check("reasoning-minimal-contract", contracts.includes('"minimal"') && renderer.includes('Minimal'));
