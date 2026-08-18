@@ -1,0 +1,10 @@
+import { readFile, writeFile } from "node:fs/promises";
+const file = "src/main/services/api-evolution-service.ts";
+let source = (await readFile(file, "utf8")).replace(/\r\n/gu, "\n");
+const broken = "export function shouldContinueEvolutionexport function shouldContinueEvolution";
+const fixed = "export function shouldContinueEvolution";
+if (source.includes(broken)) source = source.replace(broken, fixed);
+if (!source.includes("const ADAPTIVE_FOCUS") || !source.includes("export function shouldContinueEvolution(")) throw new Error("V016_EVOLUTION_FUNCTION_BOUNDARY_INVALID");
+if (source.includes(broken)) throw new Error("V016_EVOLUTION_DUPLICATE_EXPORT_REMAINS");
+await writeFile(file, source, "utf8");
+console.log("DEVBOX_V016_EVOLUTION_FIX_APPLIED");
