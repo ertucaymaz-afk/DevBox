@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiEvolutionService } from "./api-evolution-service.js";
 import { CloudControlService } from "./cloud-control-service.js";
 import { StateDatabase } from "./database.js";
@@ -13,11 +13,12 @@ import type { ReleaseGateService } from "./release-gate-service.js";
 const directories: string[] = [];
 const databases: StateDatabase[] = [];
 afterEach(async () => {
+  vi.unstubAllGlobals();
   for (const database of databases.splice(0)) database.close();
   await Promise.all(directories.splice(0).map(async (directory) => await rm(directory, { recursive: true, force: true })));
 });
 
-async function fixture(environment: NodeJS.ProcessEnv = {}) {
+async function fixture(environment: NodeJS.ProcessEnv = {}, evolution: ApiEvolutionService = {} as ApiEvolutionService) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "devbox-cloud-control-"));
   directories.push(directory);
   const database = new StateDatabase(path.join(directory, "state.sqlite"));
@@ -29,14 +30,31 @@ async function fixture(environment: NodeJS.ProcessEnv = {}) {
   const service = new CloudControlService(
     database,
     projects,
-    {} as ApiEvolutionService,
+    evolution,
     {} as EvolutionFindingService,
     {} as ReleaseGateService,
     {} as MemoryService,
     environment
   );
-  return { service, projectId: "project-cloud-control" };
+  return { service, projectId: "project-cloud-control", database };
 }
+
+function response(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+}
+
+const cloudEnvironment = {
+  DEVBOX_CONTROL_PLANE_URL: "https://devbox.example",
+  DEVBOX_CONTROL_PLANE_TOKEN: "x".repeat(40)
+};
+const command = {
+  id: "11111111-1111-4111-8111-111111111111",
+  sequence: 1,
+  projectId: "project-cloud-control",
+  kind: "evolution.setEnabled",
+  payload: { enabled: true },
+  createdAt: new Date().toISOString()
+};
 
 describe("CloudControlService", () => {
   it("is explicitly UNCONFIGURED when no cloud endpoint/token exists", async () => {
@@ -58,5 +76,57 @@ describe("CloudControlService", () => {
     const { service, projectId } = await fixture({ DEVBOX_CONTROL_PLANE_URL: "http://127.0.0.1:43119", DEVBOX_CONTROL_PLANE_TOKEN: "x".repeat(40) });
     expect(service.status(projectId)).toMatchObject({ configured: true, state: "DEGRADED", endpoint: "http://127.0.0.1:43119" });
     service.stop();
+  });
+
+  it("applies an allowlisted cloud command once and acknowledges APPLIED before advancing the cursor", async () => {
+    const setEnabled = vi.fn();
+    const calls: Array<{ method: string; body: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, body: typeof init?.body === "string" ? init.body : "" });
+      if (method === "GET" && url.includes("/api/v1/commands")) return response({ items: [command] });
+      if (method === "PATCH" && url.includes("/api/v1/commands")) return response({ item: { ...command, applyStatus: "APPLIED" } });
+      return response({ error: "UNEXPECTED_REQUEST" }, 500);
+    }));
+    const evolution = { setEnabled } as unknown as ApiEvolutionService;
+    const { service, projectId } = await fixture(cloudEnvironment, evolution);
+
+    const status = await service.poll(projectId);
+
+    expect(setEnabled).toHaveBeenCalledTimes(1);
+    expect(setEnabled).toHaveBeenCalledWith(projectId, true);
+    expect(status).toMatchObject({ state: "READY", pendingCommandCursor: "1", lastError: null });
+    expect(calls.map((item) => item.method)).toEqual(["GET", "PATCH"]);
+    expect(JSON.parse(calls[1]?.body ?? "{}")).toMatchObject({ id: command.id, sequence: 1, status: "APPLIED" });
+  });
+
+  it("marks poison commands RETRYING and terminally FAILED after five bounded attempts", async () => {
+    const setEnabled = vi.fn(() => { throw new Error("provider exploded"); });
+    const acknowledgements: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.includes("/api/v1/commands")) return response({ items: [command] });
+      if (method === "PATCH" && url.includes("/api/v1/commands")) {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        acknowledgements.push(String(body.status));
+        return response({ item: { ...command, applyStatus: body.status } });
+      }
+      return response({ error: "UNEXPECTED_REQUEST" }, 500);
+    }));
+    const evolution = { setEnabled } as unknown as ApiEvolutionService;
+    const { service, projectId } = await fixture(cloudEnvironment, evolution);
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      expect(await service.poll(projectId)).toMatchObject({ state: "DEGRADED", pendingCommandCursor: null });
+    }
+    const terminal = await service.poll(projectId);
+
+    expect(setEnabled).toHaveBeenCalledTimes(5);
+    expect(acknowledgements).toEqual(["RETRYING", "RETRYING", "RETRYING", "RETRYING", "FAILED"]);
+    expect(terminal.state).toBe("DEGRADED");
+    expect(terminal.pendingCommandCursor).toBe("1");
+    expect(terminal.lastError).toContain("CLOUD_COMMAND_FAILED");
   });
 });
