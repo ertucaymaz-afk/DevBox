@@ -1,0 +1,55 @@
+name: DevBox v0.1.8 hardening materializer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/materialize-v018-hardening.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-v018-hardening
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: v0.1.8 dalını yazılabilir olarak al
+        uses: actions/checkout@v6
+        with:
+          ref: codex/v0.1.8-direct-self-development
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: İncelenen hardening dönüşümünü doğrudan kaynaklara uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path 'scripts/apply-v018-hardening.py' -PathType Leaf)) { throw 'V018_HARDEN_SCRIPT_MISSING' }
+          python scripts/apply-v018-hardening.py
+          if ($LASTEXITCODE -ne 0) { throw 'V018_HARDEN_SCRIPT_FAILED' }
+          Remove-Item 'scripts/apply-v018-hardening.py' -Force
+          if (Test-Path '.devbox-build') { throw 'HIDDEN_BUILD_PATCH_DIRECTORY_PRESENT' }
+          if (Test-Path '.github/workflows/harden-v018-v2.yml') { throw 'TRANSIENT_V2_WORKFLOW_PRESENT' }
+          if (Test-Path '.github/workflows/harden-v018-v3.yml') { throw 'TRANSIENT_V3_WORKFLOW_PRESENT' }
+          if (Test-Path '.github/workflows/harden-v018-pr.yml') { throw 'TRANSIENT_PR_WORKFLOW_PRESENT' }
+          if (-not (Select-String -LiteralPath 'src/main/services/development-spec-service.ts' -SimpleMatch 'allowRecoveryRetry?: boolean' -Quiet)) { throw 'RECOVERY_RETRY_NOT_MATERIALIZED' }
+          if (-not (Select-String -LiteralPath 'src/main/services/api-evolution-service.ts' -SimpleMatch 'EVOLUTION_WORKSPACE_DIRTY_BASELINE' -Quiet)) { throw 'CLEAN_BASELINE_NOT_MATERIALIZED' }
+          if (-not (Select-String -LiteralPath 'src/main/services/api-evolution-service.ts' -SimpleMatch '#restoreManagedWorkspace' -Quiet)) { throw 'ROLLBACK_NOT_MATERIALIZED' }
+          if (-not (Select-String -LiteralPath 'src/main/services/api-evolution-service.ts' -SimpleMatch 'scripts.verify ? ["verify"] : ["typecheck", "test", "build"]' -Quiet)) { throw 'FULL_VERIFY_NOT_MATERIALIZED' }
+
+      - name: Doğrudan kaynak commitini v0.1.8 dalına yaz
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'DevBox Source Materializer'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          if (-not (git status --porcelain)) { throw 'V018_HARDEN_PRODUCED_NO_CHANGES' }
+          git commit -m 'v0.1.8: recovery rollback clean-baseline ve full verify doğrudan kaynak [v018-materialized]'
+          git push origin HEAD:codex/v0.1.8-direct-self-development
