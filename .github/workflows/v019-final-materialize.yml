@@ -32,6 +32,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           node scripts/apply-v019-final-hardening.mjs
           if ($LASTEXITCODE -ne 0) { throw "V019_FINAL_HARDENING_FAILED:$LASTEXITCODE" }
+          node scripts/fix-v019-corepack-message.mjs
+          if ($LASTEXITCODE -ne 0) { throw "V019_COREPACK_GATE_FIX_FAILED:$LASTEXITCODE" }
           git diff --check
           if ($LASTEXITCODE -ne 0) { throw "V019_FINAL_DIFF_CHECK_FAILED:$LASTEXITCODE" }
       - name: Gerçek kaynak değişikliklerini commit et
