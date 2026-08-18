@@ -49,6 +49,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "V013_RUNTIME_PATCH_FAILED:$LASTEXITCODE" }
           node scripts/apply-v013-typefix.mjs
           if ($LASTEXITCODE -ne 0) { throw "V013_TYPEFIX_FAILED:$LASTEXITCODE" }
+          node scripts/apply-v013-evolution-final.mjs
+          if ($LASTEXITCODE -ne 0) { throw "V013_EVOLUTION_FINAL_FAILED:$LASTEXITCODE" }
           node scripts/apply-v013-score-refactor.mjs
           if ($LASTEXITCODE -ne 0) { throw "V013_SCORE_PATCH_FAILED:$LASTEXITCODE" }
 
@@ -81,6 +83,6 @@ jobs:
             Write-Host 'DEVBOX_V013_ALREADY_MATERIALIZED'
             exit 0
           }
-          git commit -m 'v0.1.13: complete GIF runtime and evolution hardening'
+          git commit -m 'v0.1.13: finalize continuous API evolution isolation'
           git push origin HEAD:codex/v0.1.13-gif-runtime-hardening
           Write-Host 'DEVBOX_V013_SOURCE_COMMITTED'
