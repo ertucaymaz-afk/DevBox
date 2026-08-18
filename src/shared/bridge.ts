@@ -36,6 +36,7 @@ import type {
   ,Worktree
 } from "./contracts.js";
 import type { CloudControlStatus, DevApiControlSnapshot, EvolutionFinding, ReleaseGateRun } from "./devapi-control-contracts.js";
+import type { RemixRotaCommand, RemixRotaCommandResult, RemixRotaEvent, RemixRotaStatus } from "./remixrota-contracts.js";
 
 export interface DevBoxBridge {
   bootstrap(): Promise<Bootstrap>;
@@ -111,6 +112,12 @@ export interface DevBoxBridge {
   transitionEvolutionFinding(projectId: string, findingId: string, status: "RESOLVED" | "REJECTED", resolution: string): Promise<EvolutionFinding>;
   runReleaseGate(projectId: string, mode: "PREFLIGHT" | "FULL"): Promise<ReleaseGateRun>;
   syncDevApiCloud(projectId: string): Promise<CloudControlStatus>;
+  inspectRemixRota(): Promise<RemixRotaStatus>;
+  selectRemixRotaExecutable(): Promise<RemixRotaStatus>;
+  connectRemixRota(): Promise<RemixRotaStatus>;
+  disconnectRemixRota(): Promise<RemixRotaStatus>;
+  invokeRemixRota(command: RemixRotaCommand, args?: Record<string, unknown>): Promise<RemixRotaCommandResult>;
+  onRemixRotaEvent(listener: (event: RemixRotaEvent) => void): () => void;
   inspectIntegrations(projectId?: string): Promise<IntegrationStatus[]>;
   runVercelAction(projectId: string, action: "link" | "preview" | "production" | "inspect" | "logs" | "rollback", target?: string): Promise<CommandResult>;
   runGitHubAction(projectId: string, action: "pr-list" | "pr-create" | "pr-merge" | "issue-list" | "issue-create" | "checks" | "run-list" | "run-log" | "run-rerun" | "release-list" | "release-create", target?: string): Promise<CommandResult>;

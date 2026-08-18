@@ -55,7 +55,7 @@ check("remix-real-pipe-test", all(remixTest, ["net.createServer", "windows-named
 
 const remixChannels = ["remixRotaInspect", "remixRotaSelectExecutable", "remixRotaConnect", "remixRotaDisconnect", "remixRotaInvoke", "remixRotaEvent"];
 check("remix-shared-channels", remixChannels.every((name) => contracts.includes(name)));
-check("remix-bridge", remixChannels.filter((name) => name !== "remixRotaEvent").every((name) => bridge.includes(name)) && bridge.includes("onRemixRotaEvent"));
+check("remix-bridge", all(bridge, ["inspectRemixRota", "selectRemixRotaExecutable", "connectRemixRota", "disconnectRemixRota", "invokeRemixRota", "onRemixRotaEvent"]));
 check("remix-preload-narrow", remixChannels.every((name) => preload.includes(name)) && !preload.includes("node:net") && !preload.includes("ipcRenderer: ipcRenderer"));
 check("remix-ipc", all(ipc, ["RemixRotaStatusSchema", "RemixRotaInvokeInputSchema", "services.remixRota.connect", "services.remixRota.invoke", "unsubscribeRemixRota"]));
 check("remix-main-wiring", all(main, ["RemixRotaService", "Integration", "companion.json", "remixRota: remixRotaService", "remixRotaService?.close"]));
@@ -70,7 +70,7 @@ check("native-window-theme", all(main, ["createWindow(themeBase", "titleBarOverl
 check("music-light-parity", musicCss.includes('[data-theme-base="light"] .music-now-playing') && musicCss.includes(".music-track-row.current"));
 
 check("icon-sizes", all(iconScript, ["16, 24, 32, 48, 64, 128, 256", 'writeFile(path.join(output,"icon.ico")', 'writeFile(path.join(output,"icon-master.png")']));
-check("icon-flame-glyph", all(iconScript, ["Flame ribbon", "DevBox cube / code glyph", "#"]));
+check("icon-flame-glyph", all(iconScript, ["Flame ribbon", "DevBox cube / code glyph", "[230,55,34,235]", "[255,103,40,225]", "terminal chevron and cursor"]));
 const iconSyntax = spawnSync(process.execPath, ["--check", "scripts/generate-app-icon.mjs"], { encoding: "utf8", windowsHide: true });
 check("icon-script-syntax", iconSyntax.status === 0, (iconSyntax.stderr || iconSyntax.stdout || "syntax").trim().slice(0, 300));
 

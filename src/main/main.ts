@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, Menu, net, protocol, session, shell } from "electron";
+import { app, BrowserWindow, Menu, nativeTheme, net, protocol, session, shell } from "electron";
 import { registerIpcHandlers } from "./ipc.js";
 import { SecretStore } from "./security/secret-store.js";
 import { isTrustedExternalUrl } from "./security/external-url.js";
@@ -26,6 +26,7 @@ import { createPreviewProtocolHandler } from "./services/preview-protocol-servic
 import { PreviewRenderService } from "./services/preview-render-service.js";
 import { RemoteWorkerService } from "./services/remote-worker-service.js";
 import { ReleaseGateService } from "./services/release-gate-service.js";
+import { RemixRotaService } from "./services/remixrota-service.js";
 import { SettingsService } from "./services/settings-service.js";
 import { SelfDevelopmentService } from "./services/self-development-service.js";
 import { SshTrustService } from "./services/ssh-trust-service.js";
@@ -62,6 +63,7 @@ let localCatalog: LocalCatalogService | null = null;
 let debugService: DebugService | null = null;
 let languageService: LanguageService | null = null;
 let cloudControlService: CloudControlService | null = null;
+let remixRotaService: RemixRotaService | null = null;
 
 function rendererRoot(): string {
   return path.resolve(app.getAppPath(), "dist", "renderer");
@@ -106,7 +108,8 @@ function installSessionSecurity(): void {
   });
 }
 
-function createWindow(): BrowserWindow {
+function createWindow(themeBase: "light" | "dark" | "system"): BrowserWindow {
+  const light = themeBase === "light" || (themeBase === "system" && !nativeTheme.shouldUseDarkColors);
   const window = new BrowserWindow({
     title: "DevBox",
     width: 1_280,
@@ -114,10 +117,10 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    backgroundColor: "#0B0D0E",
+    backgroundColor: light ? "#F6F3EF" : "#0B0D0E",
     autoHideMenuBar: true,
     titleBarStyle: "hidden",
-    titleBarOverlay: { color: "#191B1D", symbolColor: "#F3F5F6", height: 40 },
+    titleBarOverlay: { color: light ? "#FFFDFA" : "#191B1D", symbolColor: light ? "#342A25" : "#F3F5F6", height: 40 },
     webPreferences: {
       preload: path.join(app.getAppPath(), "dist", "main", "preload", "preload.cjs"),
       nodeIntegration: false,
@@ -185,6 +188,8 @@ async function start(): Promise<void> {
   evolution = new ApiEvolutionService(database, projects, agent, settings, developmentSpec, git, runner, worktrees);
   const releaseGate = new ReleaseGateService(database, projects, git, runner, findings);
   cloudControlService = new CloudControlService(database, projects, evolution, findings, releaseGate, memory);
+  const localAppData = process.env.LOCALAPPDATA?.trim() || path.join(app.getPath("home"), "AppData", "Local");
+  remixRotaService = new RemixRotaService(database, { discoveryPath: path.join(localAppData, "RemixRota", "Integration", "companion.json"), appVersion: app.getVersion() });
   const previewRender = new PreviewRenderService(projects);
   const packages = new PackageLifecycleService(path.join(app.getPath("userData"), "signed-runtime"));
   const sshTrust = new SshTrustService(path.join(app.getPath("userData"), "ssh", "known-hosts"), runner);
@@ -220,7 +225,7 @@ async function start(): Promise<void> {
   });
   await coreApi.start();
 
-  mainWindow = createWindow();
+  mainWindow = createWindow(settings.get().theme.base);
   terminals = new TerminalService((event) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.webContents.send(IPC_CHANNELS.terminalEvent, TerminalEventSchema.parse(event));
@@ -235,6 +240,7 @@ async function start(): Promise<void> {
     findings,
     releaseGate,
     cloudControl: cloudControlService,
+    remixRota: remixRotaService,
     attachments,
     projects,
     selfDevelopmentProjectId: selfDevelopmentProject.id,
@@ -286,6 +292,8 @@ app.on("before-quit", (event) => {
   evolution = null;
   cloudControlService?.stop();
   cloudControlService = null;
+  remixRotaService?.close();
+  remixRotaService = null;
   languageService?.close();
   languageService = null;
   const runner = commandRunner;

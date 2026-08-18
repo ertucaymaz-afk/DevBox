@@ -37,13 +37,33 @@ describe("adaptive API evolution tasks", () => {
     expect(shouldContinueEvolution({ enabled: false, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: null })).toBe(false);
   });
 
+  it("recovers an interrupted adaptive RUNNING mission instead of leaving stale runtime state", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "devbox-evolution-adaptive-recovery-"));
+    temporaryDirectories.push(directory);
+    const database = new StateDatabase(path.join(directory, "state.sqlite"));
+    openDatabases.push(database);
+    const projectId = "project-adaptive-recovery";
+    const now = new Date().toISOString();
+    database.upsertProject({ id: projectId, name: "adaptive-recovery", rootPath: directory, isGitRepository: false, createdAt: now, updatedAt: now });
+    const task = createAdaptiveEvolutionTask(1);
+    database.setSetting(`api-evolution:adaptive:${projectId}`, { schemaVersion: 1, sequence: 1, completed: 0, failed: 0, current: { task, state: "RUNNING", attempts: 1, retryAfterAt: null, lastError: null, updatedAt: now }, recent: [] });
+    const service = createService(database);
+    service.start();
+    try {
+      const recovered = database.getSetting<{ current?: { state?: string; lastError?: string | null } }>(`api-evolution:adaptive:${projectId}`);
+      expect(recovered?.current?.state).toBe("RECOVERY_REQUIRED");
+      expect(recovered?.current?.lastError).toMatch(/stale RUNNING|recovery/iu);
+      expect(service.get(projectId).runtime.stage).toBe("RECOVERY_REQUIRED");
+    } finally { service.stop(); }
+  });
+
   it("rotates real maintenance domains after the fixed core graph", () => {
     const first = createAdaptiveEvolutionTask(1);
     const second = createAdaptiveEvolutionTask(2);
-    const eleventh = createAdaptiveEvolutionTask(11);
+    const nineteenth = createAdaptiveEvolutionTask(19);
     expect(first.taskId).toBe("ADAPT-000001");
     expect(second.track).not.toBe(first.track);
-    expect(eleventh.track).toBe(first.track);
+    expect(nineteenth.track).toBe(first.track);
     expect(first.objective).toMatch(/gerçek kaynak|regresyon|verify/iu);
     expect(first.objective).toMatch(/demo|placeholder|no-op/iu);
   });
