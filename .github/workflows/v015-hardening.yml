@@ -41,6 +41,7 @@ jobs:
         run: |
           node scripts/apply-v015-control-plane2.mjs
           node scripts/apply-v015-ts-fix1.mjs
+          node scripts/apply-v015-ts-fix2.mjs
       - name: Patch biçimini doğrula
         shell: pwsh
         run: |
