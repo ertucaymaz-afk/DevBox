@@ -1,6 +1,6 @@
 import { CheckCircle2, Code2, Eye, FileCode2, LoaderCircle, RefreshCw, Save, ShieldCheck, SquareTerminal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Capability, FileSnapshot, ProjectSummary, ThreadState, ThreadWorkspaceResult } from "../shared/contracts";
+import type { Capability, FileSnapshot, ProjectSummary, ThreadSummary, ThreadWorkspaceResult } from "../shared/contracts";
 
 type CanvasTab = "preview" | "code" | "changes" | "console" | "evidence";
 type ConsoleEntry = { level: string; message: string; createdAt: string };
@@ -19,7 +19,7 @@ export function CanvasInspector(props: {
   project: ProjectSummary | null;
   result: ThreadWorkspaceResult | null;
   threadTitle: string | null;
-  threadState: ThreadState | null;
+  threadState: ThreadSummary["state"] | null;
   gitBranch: string | null;
   coreState: Capability["state"];
   onClose: () => void;

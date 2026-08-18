@@ -68,6 +68,7 @@ import {
   ThemeImportInputSchema,
   ThreadCreateInputSchema,
   ThreadActivityEventSchema,
+  ThreadWorkspaceResultSchema,
   ThreadDetailSchema,
   ThreadFlagInputSchema,
   ThreadIdInputSchema,
@@ -83,7 +84,7 @@ import {
   WorktreeSchema
 } from "../shared/contracts.js";
 import type { CapabilityService } from "./services/capability-service.js";
-import type { AgentService } from "./services/agent-service.js";
+import { isWorkspaceMutationRequest, type AgentService } from "./services/agent-service.js";
 import type { ApiEvolutionService } from "./services/api-evolution-service.js";
 import type { AttachmentService } from "./services/attachment-service.js";
 import type { CoreApi } from "./services/core-api.js";
@@ -99,6 +100,7 @@ import type { SshTrustService } from "./services/ssh-trust-service.js";
 import type { TaskService } from "./services/task-service.js";
 import type { TerminalService } from "./services/terminal-service.js";
 import type { WorktreeService } from "./services/worktree-service.js";
+import type { WorkspaceTurnService } from "./services/workspace-turn-service.js";
 
 type IpcServices = {
   coreApi: CoreApi;
@@ -109,6 +111,7 @@ type IpcServices = {
   projects: ProjectService;
   selfDevelopmentProjectId: string | null;
   git: GitService;
+  workspaceTurns: WorkspaceTurnService;
   tasks: TaskService;
   settings: SettingsService;
   terminals: TerminalService;
@@ -402,7 +405,15 @@ export function registerIpcHandlers(services: IpcServices): () => void {
   registerHandler(IPC_CHANNELS.threadMessage, services.rendererWebContentsId, async (unknownInput, event) => {
     const input = ThreadMessageInputSchema.parse(unknownInput);
     const current = services.database.getThread(input.threadId);
-    await enforcePermissionPolicy(event, services, { title: "NVIDIA ajan isteği", message: "Bu görev Hermes üzerinden NVIDIA NIM sağlayıcısına gönderilsin mi?", detail: "DevBox, son görev metnini ve sınırlandırılmış sohbet bağlamını gönderir; ortam gizli değerini renderer'a taşımaz.", risky: false });
+    const project = services.projects.get(current.thread.projectId);
+    const workspaceIntent = isWorkspaceMutationRequest(input.content);
+    await enforcePermissionPolicy(event, services, {
+      title: workspaceIntent ? "Çalışma alanı değişikliği" : "NVIDIA ajan isteği",
+      message: workspaceIntent ? "Bu görev seçili proje dosyalarını gerçekten değiştirebilir. Devam edilsin mi?" : "Bu görev Hermes üzerinden NVIDIA NIM sağlayıcısına gönderilsin mi?",
+      detail: workspaceIntent ? `Hedef kök: ${project.rootPath} · DevBox değişiklikten önce/sonra dosya hash'lerini karşılaştırır ve disk geri okuması olmadan başarı göstermez.` : "DevBox, son görev metnini ve sınırlandırılmış sohbet bağlamını gönderir; ortam gizli değerini renderer'a taşımaz.",
+      risky: workspaceIntent
+    });
+    const baseline = workspaceIntent ? await services.workspaceTurns.capture(project.id) : null;
     const started = services.database.beginMessage(input.threadId, input.content, input.attachmentIds);
     if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadSnapshot, ThreadDetailSchema.parse(started.detail));
     const publishActivity = (activity: { kind: "provider" | "command" | "evidence" | "waiting" | "failure"; stage?: string | null; provider?: string | null; model?: string | null; message: string; createdAt: string }): void => {
@@ -414,7 +425,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     try {
       const attachmentContext = await services.attachments.buildAgentContext(input.threadId, input.attachmentIds, false);
       const agentPrompt = `${input.content || "Ekli dosyaları incele."}${attachmentContext}`;
-      assistantContent = await services.agent.respond(agentPrompt, services.projects.get(current.thread.projectId).rootPath, current.items, publishActivity)
+      assistantContent = await services.agent.respond(agentPrompt, project.rootPath, current.items, publishActivity)
         .then((response) => response.content);
     } catch (error: unknown) {
         const code = error instanceof Error ? error.message : "AGENT_UNKNOWN_FAILURE";
@@ -425,6 +436,20 @@ export function registerIpcHandlers(services: IpcServices): () => void {
             ? "Hermes/NVIDIA çalıştırması başarısız oldu. Sistem kabiliyetlerini ve sağlayıcı erişimini denetleyin."
             : "Hermes yanıtı güvenli biçimde doğrulanıp ayrıştırılamadı. Ham çıktı, iç muhakeme ve sistem istemi güvenlik gereği gösterilmedi.";
         assistantContent = `Ajan yanıtı üretilemedi (**${code}**). ${remediation}`;
+    }
+    if (baseline) {
+      const workspaceResult = ThreadWorkspaceResultSchema.parse(await services.workspaceTurns.finalize({ projectId: project.id, threadId: input.threadId, turnId: started.turnId, intent: "WORKSPACE_MUTATION", before: baseline }));
+      if (workspaceResult.gitHeadChanged) {
+        publishActivity({ kind: "failure", stage: "VERIFYING", message: "Görev sırasında Git HEAD değişti; DevBox bu turu güvenli dosya mutasyonu olarak onaylamadı.", createdAt: new Date().toISOString() });
+        assistantContent = `Dosya görevi güvenli biçimde tamamlanmış sayılmadı: ajan çalışma sırasında Git HEAD'i değiştirdi. Önceden var olan çalışma ağacı korunmadan başarı verilemez.\n\n${assistantContent}`;
+      } else if (!workspaceResult.mutated || !workspaceResult.verified) {
+        publishActivity({ kind: "failure", stage: "VERIFYING", message: "Ajan yanıt verdi fakat disk üzerinde doğrulanmış dosya değişikliği bulunamadı; başarı reddedildi.", createdAt: new Date().toISOString() });
+        assistantContent = `İstenen çalışma alanı değişikliği **gerçekte oluşmadı**; DevBox dosya sistemi hash/read-back kapısı bu turu başarı olarak kabul etmedi.\n\n${assistantContent}`;
+      } else {
+        publishActivity({ kind: "evidence", stage: "VERIFYING", message: `${workspaceResult.changedFiles.length} dosya bu görevin başlangıç snapshot'ına göre gerçekten değişti ve diskten geri okuma doğrulaması geçti.`, createdAt: new Date().toISOString() });
+      }
+      try { services.database.appendEvent("thread.workspace-result", input.threadId, workspaceResult, workspaceResult.intent === "WORKSPACE_MUTATION" && !workspaceResult.verified); } catch { /* observability persistence must not crash the completed turn */ }
+      if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadWorkspaceResult, workspaceResult);
     }
     return ThreadDetailSchema.parse(services.database.completeMessage(input.threadId, started.turnId, assistantContent));
   });

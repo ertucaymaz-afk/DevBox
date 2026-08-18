@@ -68,6 +68,7 @@ import type {
   TaskPreset,
   ThreadDetail,
   ThreadActivityEvent,
+  ThreadWorkspaceResult,
   ThreadItem,
   ThreadSummary,
   AppSettings,
@@ -84,6 +85,7 @@ import {
   themeStyle
 } from "./AdvancedViews";
 import { WhatsNewWorkspace } from "./WhatsNewWorkspace";
+import { CanvasInspector } from "./CanvasInspector";
 
 type View = "thread" | "files" | "git" | "runs" | "sites" | "capabilities" | "settings" | "terminal" | "worktrees" | "automations" | "integrations" | "skills" | "pullRequests" | "whatsNew";
 type PromptState = {
@@ -489,6 +491,7 @@ export function App(): ReactNode {
   const [introVisible, setIntroVisible] = useState(false);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
   const [liveActivities, setLiveActivities] = useState<ThreadActivityEvent[]>([]);
+  const [workspaceResult, setWorkspaceResult] = useState<ThreadWorkspaceResult | null>(null);
   const [changeSummaryOpen, setChangeSummaryOpen] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -534,6 +537,7 @@ export function App(): ReactNode {
         ? { ...detail, thread: await window.devbox.setThreadUnread(threadId, false) }
         : detail;
       setThread(opened);
+      setWorkspaceResult(null);
       if (detail.thread.unread) setThreads((current) => current.map((item) => item.id === threadId ? opened.thread : item));
       setDraftAttachments(await window.devbox.listDraftAttachments(threadId));
       setView("thread");
@@ -658,6 +662,7 @@ export function App(): ReactNode {
       setThread(detail);
       setDraftAttachments([]);
       await updateThreads();
+      if (selectedProject) await loadProject(selectedProject);
       setView("thread");
       setHistory((current) => [...current.slice(0, historyIndex + 1), detail.thread.id].slice(-40));
       setHistoryIndex((current) => Math.min(current + 1, 39));
@@ -679,6 +684,7 @@ export function App(): ReactNode {
     setThread(null);
     setComposer("");
     setDraftAttachments([]);
+    setWorkspaceResult(null);
     setView("thread");
     setChangeSummaryOpen(false);
     requestAnimationFrame(() => composerRef.current?.focus());
@@ -690,6 +696,8 @@ export function App(): ReactNode {
     const activeThread = thread ?? await createThread();
     if (!activeThread) return;
     setComposer("");
+    setWorkspaceResult(null);
+    setChangeSummaryOpen(false);
     setLiveActivities((current) => current.filter((activity) => activity.threadId !== activeThread.thread.id));
     setBusy("message");
     try {
@@ -707,7 +715,7 @@ export function App(): ReactNode {
       setLiveActivities((current) => current.filter((activity) => activity.threadId !== activeThread.thread.id));
       setBusy(null);
     }
-  }, [composer, createThread, draftAttachments, thread, updateThreads]);
+  }, [composer, createThread, draftAttachments, loadProject, selectedProject, thread, updateThreads]);
 
   useEffect(() => window.devbox.onThreadActivity((activity) => {
     setLiveActivities((current) => [...current, activity].slice(-80));
@@ -726,6 +734,12 @@ export function App(): ReactNode {
     requestAnimationFrame(() => {
       if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
     });
+  }), []);
+
+  useEffect(() => window.devbox.onThreadWorkspaceResult((result) => {
+    setWorkspaceResult(result);
+    setInspectorVisible(true);
+    setChangeSummaryOpen(false);
   }), []);
 
   useEffect(() => {
@@ -1191,7 +1205,7 @@ export function App(): ReactNode {
                   </> : <ThreadEmptyState project={selectedProject} />}
                 </div>
               </div>
-              <div className="composer-wrap">{gitStatus?.available && gitStatus.changes.length > 0 && <div className={`change-summary-wrap ${changeSummaryOpen ? "open" : ""}`}><button className="change-summary-button" aria-haspopup="dialog" aria-expanded={changeSummaryOpen} onClick={() => setChangeSummaryOpen((value) => !value)} title={gitTotals.unknown > 0 ? `${gitTotals.unknown} dosyanın satır sayısı Git numstat tarafından ölçülemedi.` : "Gerçek Git numstat özeti"}><span className="change-state-dot" /><span>{gitStatus.changes.length} dosya değiştirildi</span><b className="additions">+{gitTotals.additions}</b><b className="deletions">-{gitTotals.deletions}</b><ChevronDown size={13} /></button>{changeSummaryOpen && <div className="change-summary-popover" role="dialog" aria-label="Değiştirilen dosyalar"><header><strong>Çalışma ağacı</strong><button onClick={() => { setChangeSummaryOpen(false); setView("git"); }}><GitBranch size={13} /> Git’i aç</button></header><div>{gitStatus.stats.map((stat) => <div className="change-stat-row" key={stat.path} title={stat.binary ? "İkili dosya; satır sayısı uygulanamaz." : stat.additions === null || stat.deletions === null ? "Git numstat bu dosya için satır sayısı sağlamadı." : stat.path}><span>{stat.path}</span><b className="additions">{stat.additions === null ? "—" : `+${stat.additions}`}</b><b className="deletions">{stat.deletions === null ? "—" : `-${stat.deletions}`}</b></div>)}</div><footer>{gitTotals.unknown > 0 ? `${gitTotals.unknown} dosya ölçülemeyen veya henüz izlenmeyen içerik içeriyor.` : "Tüm sayılar Git numstat çıktısından alındı."}</footer></div>}</div>}<button className="composer-project" onClick={() => void chooseProject()} title={selectedProject?.rootPath ?? "Yerel proje klasörü seçin"}><FolderOpen size={14} /><span>{selectedProject?.name ?? "Proje seç"}</span></button><div className={`composer ${busy === "message" ? "busy" : ""}`}>
+              <div className="composer-wrap">{workspaceResult && workspaceResult.threadId === thread?.thread.id && <div className={`change-summary-wrap ${changeSummaryOpen ? "open" : ""}`}><button className={`change-summary-button ${workspaceResult.verified ? "" : "unverified"}`} aria-haspopup="dialog" aria-expanded={changeSummaryOpen} onClick={() => setChangeSummaryOpen((value) => !value)} title="Yalnız bu görevde başlangıç snapshot'ına göre gerçekten değişen dosyalar"><span className="change-state-dot" /><span>{workspaceResult.changedFiles.length} dosya bu görevde değişti</span><b className="additions">+{workspaceResult.changedFiles.reduce((sum, item) => sum + (item.additions ?? 0), 0)}</b><b className="deletions">-{workspaceResult.changedFiles.reduce((sum, item) => sum + (item.deletions ?? 0), 0)}</b><ChevronDown size={13} /></button>{changeSummaryOpen && <div className="change-summary-popover" role="dialog" aria-label="Bu görevde değiştirilen dosyalar"><header><strong>{workspaceResult.verified ? "Diskten doğrulandı" : "Doğrulama başarısız"}</strong><button onClick={() => setInspectorVisible(true)}><PanelRight size={13} /> Canvas</button></header><div>{workspaceResult.changedFiles.map((item) => <div className="change-stat-row" key={item.path}><span>{item.path}</span><b className="additions">{item.additions === null ? "—" : `+${item.additions}`}</b><b className="deletions">{item.deletions === null ? "—" : `-${item.deletions}`}</b></div>)}</div><footer>Önce / sonra global kirli çalışma ağacı: {workspaceResult.baselineDirtyCount} / {workspaceResult.finalDirtyCount}. Bu sayılar görev değişikliği olarak sayılmaz.</footer></div>}</div>}<button className="composer-project" onClick={() => void chooseProject()} title={selectedProject?.rootPath ?? "Yerel proje klasörü seçin"}><FolderOpen size={14} /><span>{selectedProject?.name ?? "Proje seç"}</span></button><div className={`composer ${busy === "message" ? "busy" : ""}`}>
                 {draftAttachments.length > 0 && <div className="composer-attachments" aria-label="Gönderilecek dosyalar">{draftAttachments.map((attachment) => <span key={attachment.id}><AttachmentGlyph attachment={attachment} /><span><strong>{attachment.name}</strong><small>{formatBytes(attachment.size)} · {attachment.extension || attachment.kind}</small></span><button onClick={() => void removeAttachment(attachment)} aria-label={`${attachment.name} ekini kaldır`} title="Eki kaldır"><X size={13} /></button></span>)}</div>}
                 <textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} placeholder="DevBox'a bir görev verin" disabled={busy === "message"} rows={1} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void sendMessage(); } }} onContextMenu={(event) => { event.preventDefault(); const target = event.currentTarget; void window.devbox.showContextMenu("editable", target.selectionStart !== target.selectionEnd, true); }} />
                 <div className="composer-toolbar"><div><button onClick={() => void selectAttachments()} disabled={busy === "attachment"} title="Dosya ekle — tüm uzantılar, en fazla 300 MB"><Plus size={18} /></button><div className="permission-control"><button className={`permission-button ${permission === "Tam erişim" ? "full" : ""}`} onClick={() => setPermissionMenuOpen((value) => !value)} aria-haspopup="menu" aria-expanded={permissionMenuOpen} disabled={busy === "permission"}><ShieldCheck size={14} /><span>{permissionLabel(permission)}</span><ChevronDown size={12} /></button>{permissionMenuOpen && <div className="permission-menu" role="menu" aria-label="İzin profili">{PERMISSION_OPTIONS.map((option) => <button key={option.value} className={`${permission === option.value ? "selected" : ""} ${option.value === "Tam erişim" ? "full" : ""}`} role="menuitemradio" aria-checked={permission === option.value} onClick={() => void applyPermission(option.value)}><span className="permission-menu-icon"><ShieldCheck size={15} /></span><span><strong>{option.label}</strong><small>{option.detail}</small></span>{permission === option.value && <Check size={15} />}</button>)}</div>}</div></div><div><button className="model-button" onClick={() => setView("capabilities")} title={capabilitiesLoading ? "Gerçek sağlayıcılar denetleniyor" : agentReady ? "Hermes + NVIDIA canlı doğrulandı — kanıtları aç" : "Ajan sağlayıcısı doğrulanmadı — tanılamayı aç"}><span>{capabilitiesLoading ? "Denetleniyor" : agentReady ? "Hermes · NVIDIA" : "Sağlayıcı yok"}</span><small>{capabilitiesLoading ? "CANLI KONTROL" : agentReady ? "HAZIR" : "DOĞRULANMADI"}</small><ChevronDown size={13} /></button><button className="send-button" onClick={() => void sendMessage()} disabled={(!composer.trim() && draftAttachments.length === 0) || busy === "message"} aria-label="Gönder"><Send size={17} /></button></div></div>
@@ -1221,7 +1235,7 @@ export function App(): ReactNode {
             {view === "settings" && <SettingsWorkspace settings={appSettings} onSettings={(next) => { setAppSettings(next); setPermission(next.permissionProfile); }} onClose={() => setView(thread ? "thread" : selectedProject ? "files" : "thread")} />}
           </div>
 
-          {inspectorVisible && <aside className="inspector"><div className="inspector-heading"><span>DENETLEYİCİ</span><button onClick={() => setInspectorVisible(false)}><X size={14} /></button></div><div className="inspector-scroll"><section><h3>Çalışma alanı</h3><dl className="facts-list"><div><dt>Proje</dt><dd>{selectedProject?.name ?? "—"}</dd></div><div><dt>Git</dt><dd>{selectedProject?.isGitRepository ? "Depo" : "Yok"}</dd></div><div><dt>Dal</dt><dd>{gitStatus?.branch ?? "—"}</dd></div><div><dt>Çekirdek</dt><dd><StateBadge state={bootstrap?.core.state ?? "FAILED"} /></dd></div></dl></section><section><h3>Aktif görev</h3>{thread ? <><strong>{thread.thread.title}</strong><p>{thread.items.length} zaman çizelgesi öğesi</p><StateBadge state={thread.thread.state} /></> : <p>Görev seçilmedi.</p>}</section><section><h3>Güvenlik</h3><div className="security-note"><ShieldCheck size={18} /><span><strong>Bağlam izolasyonu</strong><small>Etkin</small></span></div><div className="security-note"><HardDrive size={18} /><span><strong>Yerel veri</strong><small>SQLite WAL</small></span></div></section></div></aside>}
+          {inspectorVisible && <CanvasInspector project={selectedProject} result={workspaceResult} threadTitle={thread?.thread.title ?? null} threadState={thread?.thread.state ?? null} gitBranch={gitStatus?.branch ?? null} coreState={bootstrap?.core.state ?? "FAILED"} onClose={() => setInspectorVisible(false)} onRefresh={async () => { if (selectedProject) await loadProject(selectedProject); }} />}
         </main>
       </div>
 

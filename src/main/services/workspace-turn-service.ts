@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { ThreadWorkspaceChange, ThreadWorkspaceResult } from "../../shared/contracts.js";
 import type { GitService } from "./git-service.js";

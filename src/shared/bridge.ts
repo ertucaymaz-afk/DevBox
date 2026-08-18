@@ -28,6 +28,7 @@ import type {
   SettingsPatchInput,
   ThreadDetail,
   ThreadActivityEvent,
+  ThreadWorkspaceResult,
   ThreadSummary,
   TaskPreset
   ,TerminalEvent
@@ -64,6 +65,7 @@ export interface DevBoxBridge {
   sendMessage(threadId: string, content: string, attachmentIds?: string[]): Promise<ThreadDetail>;
   onThreadActivity(listener: (event: ThreadActivityEvent) => void): () => void;
   onThreadSnapshot(listener: (detail: ThreadDetail) => void): () => void;
+  onThreadWorkspaceResult(listener: (result: ThreadWorkspaceResult) => void): () => void;
   updateMessage(threadId: string, itemId: string, content: string): Promise<ThreadDetail>;
   regenerateMessage(threadId: string, itemId: string): Promise<ThreadDetail>;
   renameThread(threadId: string, title: string): Promise<ThreadSummary>;
