@@ -18,6 +18,7 @@ $agent = [regex]::Replace($agent, '(?m)^(\s*)cancellation,\s*$', '$1...(cancella
 Set-Content -LiteralPath $agentPath -Value $agent -Encoding utf8NoBOM -NoNewline
 
 $runnerPath = 'src/main/services/command-runner.ts'
+Replace-Exact $runnerPath 'cancellation?: AbortSignal;' 'cancellation?: AbortSignal | undefined;' 'COMMAND_CANCELLATION_TYPE_PATTERN_MISSING'
 Replace-Exact $runnerPath 'child.stdout.on("data",' 'child.stdout?.on("data",' 'COMMAND_STDOUT_PATTERN_MISSING'
 Replace-Exact $runnerPath 'child.stderr.on("data",' 'child.stderr?.on("data",' 'COMMAND_STDERR_PATTERN_MISSING'
 
