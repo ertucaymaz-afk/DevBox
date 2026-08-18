@@ -1,0 +1,27 @@
+name: DevBox v0.1.8 UI truth materializer
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/materialize-v018-ui.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: codex/v0.1.8-direct-self-development
+          fetch-depth: 0
+          persist-credentials: true
+      - shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python scripts/patch-v018-ui-truth.py
+          if($LASTEXITCODE -ne 0){throw 'V018_UI_PATCH_FAILED'}
+          Remove-Item scripts/patch-v018-ui-truth.py -Force
+          git config user.name 'DevBox Source Materializer'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'v0.1.8: UI gerçeklik metnini full verify kapısıyla hizala'
+          git push origin HEAD:codex/v0.1.8-direct-self-development
