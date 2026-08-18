@@ -59,6 +59,11 @@ function rendererRoot(): string {
   return path.resolve(app.getAppPath(), "dist", "renderer");
 }
 
+function optionalCatalogRoot(name: "DEVBOX_SKILL_ROOT" | "DEVBOX_PLUGIN_ROOT"): string | null {
+  const value = process.env[name]?.trim();
+  return value ? path.resolve(value) : null;
+}
+
 async function registerApplicationProtocol(): Promise<void> {
   await protocol.handle("app", async (request) => {
     const url = new URL(request.url);
@@ -171,8 +176,8 @@ async function start(): Promise<void> {
   const sshTrust = new SshTrustService(path.join(app.getPath("userData"), "ssh", "known-hosts"), runner);
   const integrations = new IntegrationService(runner, packages, sshTrust);
   const catalog = new LocalCatalogService(path.join(app.getPath("userData"), "catalog"), runner, {
-    skillRoot: path.join(app.getPath("desktop"), "Yeni klasör", "12-Gelistirici-Araci-v1.2.0"),
-    pluginRoot: path.join(app.getPath("desktop"), "Yeni klasör", "12-Portable-AI-Plugins-v2.3.0")
+    skillRoot: optionalCatalogRoot("DEVBOX_SKILL_ROOT"),
+    pluginRoot: optionalCatalogRoot("DEVBOX_PLUGIN_ROOT")
   }, app.getVersion());
   localCatalog = catalog;
   const language = new LanguageService(projects);
