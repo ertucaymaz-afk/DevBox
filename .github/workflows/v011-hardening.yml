@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - codex/v0.1.11-api-canvas-hardening
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -58,6 +60,7 @@ jobs:
         run: pnpm build
 
       - name: Doğrulanmış kaynakları dala yaz
+        if: github.event_name != 'pull_request'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
