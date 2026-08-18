@@ -153,16 +153,8 @@ jobs:
           $cfg = [regex]::Replace($cfg, '(?m)^directories:\s*$', "directories:`n  app: .packaged-app", 1)
           $filesPattern = '(?ms)^files:\s*\r?\n\s+- dist/\*\*/\*\r?\n\s+- package\.json\r?\n'
           if ($cfg -notmatch $filesPattern) { throw 'BUILDER_FILES_PATTERN_MISSING' }
-          $explicitFiles = @'
-files:
-  - from: package.json
-    to: package.json
-  - from: dist
-    to: dist
-    filter:
-      - "**/*"
-'@
-          $cfg = [regex]::Replace($cfg, $filesPattern, "$explicitFiles`n", 1)
+          $explicitFiles = "files:`n  - from: package.json`n    to: package.json`n  - from: dist`n    to: dist`n    filter:`n      - `"**/*`"`n"
+          $cfg = [regex]::Replace($cfg, $filesPattern, $explicitFiles, 1)
           Set-Content 'config/electron-builder.yml' -Value $cfg -Encoding utf8NoBOM -NoNewline
           Write-Host 'DEVBOX_STAGE_READY package=ok main=ok node_modules=ok explicitFiles=ok'
 
