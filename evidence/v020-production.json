@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "productVersion": "0.1.20",
+  "state": "BLOCKED_EXTERNAL",
+  "reason": "VERCEL_PROJECT_AND_ENV_WRITE_CAPABILITY_UNAVAILABLE",
+  "capturedAt": "2026-08-19T00:00:00.000Z",
+  "devapi": {
+    "projectId": "prj_mJCrN5G6w4R32axSWYSLSuuAdmBz",
+    "canonicalUrl": "https://devapi-virid.vercel.app",
+    "currentDeploymentId": "dpl_G136cKsQQ3W4b7UneNJu7osR1n7x",
+    "rollbackDeploymentId": "dpl_AuUDtYcyZJdY5dYACxKJgs43LsjC",
+    "currentProductionVersion": "0.4.1",
+    "targetVersion": "0.1.20"
+  },
+  "devbox": {
+    "projectId": null,
+    "canonicalUrl": "https://devbox.vercel.app",
+    "deploymentId": null
+  },
+  "neon": {
+    "projectId": "delicate-heart-48380148",
+    "branchId": "br-broad-frog-aua7edwl",
+    "database": "neondb",
+    "schemaVerified": true,
+    "tables": ["devbox_project_state", "devbox_project_state_history", "devbox_control_commands"]
+  },
+  "canary": {
+    "snapshot": "BLOCKED",
+    "commands": {
+      "enable": "BLOCKED",
+      "run": "BLOCKED",
+      "cancel": "BLOCKED",
+      "idempotency": "BLOCKED",
+      "sequence": "BLOCKED"
+    }
+  },
+  "publicState": { "sanitize": "SOURCE_PASS", "stale": "SOURCE_PASS" },
+  "crossLinks": "SOURCE_PASS",
+  "observability": { "criticalHighFindings": null }
+}
