@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 function Replace-Exact([string]$Path, [string]$Old, [string]$New, [string]$Code) {
   $text = Get-Content -LiteralPath $Path -Raw
-  if (-not $text.Contains($Old)) { throw "$Code:$Path" }
+  if (-not $text.Contains($Old)) { throw "${Code}:$Path" }
   $updated = $text.Replace($Old, $New)
   Set-Content -LiteralPath $Path -Value $updated -Encoding utf8NoBOM -NoNewline
 }
