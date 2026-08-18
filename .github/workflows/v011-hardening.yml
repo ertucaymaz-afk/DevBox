@@ -42,7 +42,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: v0.1.11 kaynak sertleştirmesini uygula
-        run: node scripts/apply-v011-hardening.mjs
+        run: node scripts/run-v011-hardening.mjs
 
       - name: Patch biçimini doğrula
         shell: pwsh
@@ -66,7 +66,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package.json src/main src/renderer scripts/apply-v011-hardening.mjs
+          git add package.json src/main src/renderer scripts/apply-v011-hardening.mjs scripts/run-v011-hardening.mjs
           git diff --cached --check
           git diff --cached --quiet
           if ($LASTEXITCODE -eq 0) {
