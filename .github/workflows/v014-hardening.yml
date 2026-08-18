@@ -37,7 +37,7 @@ jobs:
           cache: pnpm
       - name: Bağımlılıkları kilitten kur
         run: pnpm install --frozen-lockfile
-      - name: v0.1.14 ürün değişikliklerini exact-anchor ile uygula
+      - name: v0.1.14 ürün değişikliklerini fail-closed uygula
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -47,8 +47,10 @@ jobs:
           } else {
             node scripts/apply-v014-core14.mjs
             if ($LASTEXITCODE -ne 0) { throw "V014_CORE_PATCH_FAILED:$LASTEXITCODE" }
-            node scripts/apply-v014-ui-evolution.mjs
-            if ($LASTEXITCODE -ne 0) { throw "V014_UI_EVOLUTION_PATCH_FAILED:$LASTEXITCODE" }
+            node scripts/apply-v014-ui2.mjs
+            if ($LASTEXITCODE -ne 0) { throw "V014_UI_PATCH_FAILED:$LASTEXITCODE" }
+            node scripts/apply-v014-evolution2.mjs
+            if ($LASTEXITCODE -ne 0) { throw "V014_EVOLUTION_PATCH_FAILED:$LASTEXITCODE" }
           }
       - name: Patch biçimini doğrula
         shell: pwsh
