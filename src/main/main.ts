@@ -79,7 +79,9 @@ function installSessionSecurity(): void {
   activeSession.setPermissionCheckHandler(() => false);
   activeSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   activeSession.webRequest.onHeadersReceived((details, callback) => {
-    if (details.url.startsWith("devbox-preview://")) return callback({ responseHeaders: details.responseHeaders });
+    if (details.url.startsWith("devbox-preview://")) {
+      return callback(details.responseHeaders ? { responseHeaders: details.responseHeaders } : {});
+    }
     callback({
       responseHeaders: {
         ...details.responseHeaders,
