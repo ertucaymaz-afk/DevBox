@@ -45,7 +45,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          node scripts/apply-v013-runtime.mjs
+          node scripts/apply-v013-runtime2.mjs
           if ($LASTEXITCODE -ne 0) { throw "V013_RUNTIME_PATCH_FAILED:$LASTEXITCODE" }
           node scripts/apply-v013-score-refactor.mjs
           if ($LASTEXITCODE -ne 0) { throw "V013_SCORE_PATCH_FAILED:$LASTEXITCODE" }
