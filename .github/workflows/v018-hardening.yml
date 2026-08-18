@@ -1,0 +1,66 @@
+name: DevBox v0.1.18 hardening
+
+on:
+  push:
+    branches:
+      - codex/v0.1.18-integrity-boundary-hardening
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: devbox-v018-hardening
+  cancel-in-progress: true
+
+jobs:
+  harden:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - name: Branch kaynağını al
+        uses: actions/checkout@v6
+        with:
+          ref: codex/v0.1.18-integrity-boundary-hardening
+          fetch-depth: 1
+          persist-credentials: true
+      - name: pnpm kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+      - name: Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Bağımlılıkları kur
+        run: pnpm install --frozen-lockfile
+      - name: v0.1.18 hardening uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --check scripts/apply-v018-hardening.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V018_PATCHER_SYNTAX_FAILED' }
+          node scripts/apply-v018-hardening.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V018_PATCH_FAILED' }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'V018_DIFF_CHECK_FAILED' }
+      - name: Tam ürün doğrulaması
+        run: pnpm verify
+      - name: Doğrulanmış kaynakları dala yaz
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $changes = git status --porcelain
+          if (-not $changes) { Write-Host 'V018_ALREADY_MATERIALIZED'; exit 0 }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- package.json .github/workflows/ci.yml scripts/verify-api-evolution-v10.mjs scripts/verify-api-evolution-v11.mjs scripts/verify-installer-runtime.ps1 src/main/services/project-service.ts src/main/services/project-service.test.ts src/main/services/package-lifecycle-service.ts src/main/services/package-lifecycle-service.test.ts
+          $staged = git diff --cached --name-only
+          if (-not $staged) { throw 'V018_NO_PRODUCT_CHANGES_STAGED' }
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'V018_STAGED_DIFF_CHECK_FAILED' }
+          git commit -m 'DevBox v0.1.18 integrity and boundary hardening'
+          git push origin HEAD:codex/v0.1.18-integrity-boundary-hardening
