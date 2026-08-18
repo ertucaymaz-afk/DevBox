@@ -82,7 +82,11 @@ function signature(entry: SnapshotEntry | undefined): string {
 function changeKind(before: SnapshotEntry | undefined, after: SnapshotEntry | undefined): ThreadWorkspaceChange["kind"] {
   if (!before && after) {
     if (!after.exists || /D/u.test(after.state)) return "deleted";
-    return "added";
+    // A clean tracked file is absent from the baseline dirty snapshot. If it becomes M/T/etc.
+    // during this turn it is a modification, not a newly-created file. Only Git add/untracked
+    // states (A/?) or generic non-Git discovery are classified as added.
+    if (after.state === "GENERIC" || /[A?]/u.test(after.state)) return "added";
+    return "modified";
   }
   if (before && !after) return "reverted";
   if (after && (!after.exists || /D/u.test(after.state))) return "deleted";
