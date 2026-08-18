@@ -24,6 +24,13 @@ import {
   ContextMenuInputSchema,
   EvolutionCampaignSchema,
   EvolutionDirectiveInputSchema,
+  EvolutionRoutingInputSchema,
+  EvolutionCancelInputSchema,
+  EvolutionActivityEventSchema,
+  EvolutionActivityHistoryInputSchema,
+  EvolutionActivityHistorySchema,
+  EvolutionModelCatalogInputSchema,
+  EvolutionModelCatalogSchema,
   EvolutionToggleInputSchema,
   FileCreateInputSchema,
   FileDuplicateInputSchema,
@@ -100,6 +107,7 @@ type IpcServices = {
   evolution: ApiEvolutionService;
   attachments: AttachmentService;
   projects: ProjectService;
+  selfDevelopmentProjectId: string | null;
   git: GitService;
   tasks: TaskService;
   settings: SettingsService;
@@ -221,6 +229,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
       },
       core: { state: "READY" as const, origin: services.coreApi.origin, apiVersion: "v1" as const },
       projects: services.projects.list(),
+      selfDevelopmentProjectId: services.selfDevelopmentProjectId,
       // Live provider probes can take seconds or wait on the network. They are
       // intentionally decoupled from the local shell bootstrap below.
       capabilities: []
@@ -396,7 +405,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     await enforcePermissionPolicy(event, services, { title: "NVIDIA ajan isteği", message: "Bu görev Hermes üzerinden NVIDIA NIM sağlayıcısına gönderilsin mi?", detail: "DevBox, son görev metnini ve sınırlandırılmış sohbet bağlamını gönderir; ortam gizli değerini renderer'a taşımaz.", risky: false });
     const started = services.database.beginMessage(input.threadId, input.content, input.attachmentIds);
     if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadSnapshot, ThreadDetailSchema.parse(started.detail));
-    const publishActivity = (activity: { kind: "provider" | "command" | "evidence" | "failure"; message: string; createdAt: string }): void => {
+    const publishActivity = (activity: { kind: "provider" | "command" | "evidence" | "failure" | "waiting"; message: string; createdAt: string }): void => {
       const payload = ThreadActivityEventSchema.parse({ threadId: input.threadId, ...activity });
       services.database.appendTurnActivity(input.threadId, started.turnId, payload.message, payload.createdAt);
       if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadActivity, payload);
@@ -607,11 +616,20 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     return EvolutionCampaignSchema.parse(services.evolution.get(input.projectId));
   });
 
-  registerHandler(IPC_CHANNELS.evolutionToggle, services.rendererWebContentsId, async (unknownInput, event) => {
+  registerHandler(IPC_CHANNELS.evolutionActivityHistory, services.rendererWebContentsId, async (unknownInput) => {
+    const input = EvolutionActivityHistoryInputSchema.parse(unknownInput);
+    return EvolutionActivityHistorySchema.parse(services.evolution.listActivity(input.projectId, input.limit));
+  });
+
+  registerHandler(IPC_CHANNELS.evolutionModelCatalog, services.rendererWebContentsId, async (unknownInput) => {
+    const input = EvolutionModelCatalogInputSchema.parse(unknownInput);
+    return EvolutionModelCatalogSchema.parse(await services.evolution.listModels(input.projectId, input.provider));
+  });
+
+  registerHandler(IPC_CHANNELS.evolutionToggle, services.rendererWebContentsId, async (unknownInput) => {
     const input = EvolutionToggleInputSchema.parse(unknownInput);
-    if (input.enabled) {
-      await enforcePermissionPolicy(event, services, { title: "DevBox API gelişim döngüsü", message: "Durdurulabilir ve kalıcı Codex gelişim kuyruğu etkinleştirilsin mi?", detail: "Yapay bir günlük kota uygulanmaz. Tek eşzamanlı görev, güvenli geri basınç ve iptal edilebilir dayanıklı işler kullanılır. Sonuçlar kanıt kimliğiyle yerel geçmişe kaydedilir; model ağırlıkları eğitilmez ve kod kullanıcı onayı olmadan değiştirilmez.", risky: true });
-    }
+    // Toggle/Şimdi çalıştır yüzeyleri kullanıcı tarafından doğrudan verilen açık onaydır.
+    // Sürekli döngü başladıktan sonra her atomik görev için ayrı modal sormak otomasyonu kilitler.
     return EvolutionCampaignSchema.parse(services.evolution.setEnabled(input.projectId, input.enabled));
   });
 
@@ -620,9 +638,20 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     return EvolutionCampaignSchema.parse(services.evolution.setDirective(input.projectId, input.directive));
   });
 
-  registerHandler(IPC_CHANNELS.evolutionRun, services.rendererWebContentsId, async (unknownInput, event) => {
+  registerHandler(IPC_CHANNELS.evolutionRouting, services.rendererWebContentsId, async (unknownInput) => {
+    const input = EvolutionRoutingInputSchema.parse(unknownInput);
+    return EvolutionCampaignSchema.parse(services.evolution.setRouting(input.projectId, input.routing));
+  });
+
+  registerHandler(IPC_CHANNELS.evolutionCancel, services.rendererWebContentsId, async (unknownInput) => {
+    const input = EvolutionCancelInputSchema.parse(unknownInput);
+    return EvolutionCampaignSchema.parse(services.evolution.cancel(input.projectId));
+  });
+
+  registerHandler(IPC_CHANNELS.evolutionRun, services.rendererWebContentsId, async (unknownInput) => {
     const input = ProjectIdInputSchema.parse(unknownInput);
-    await enforcePermissionPolicy(event, services, { title: "API gelişim çevrimi", message: "Sıradaki DevBox API gelişim görevi şimdi sağlık denetimli ajan sağlayıcısında çalıştırılsın mı?", detail: "Codex CLI sağlık ve oturum denetimi geçerse Codex, aksi durumda gerçek Hermes/NVIDIA fallback kullanılır. Sağlayıcı yanıtı ve durable-job kimliği oluşmadan seviye/kapsam ilerlemez.", risky: false });
+    // “Şimdi çalıştır” tıklaması sürekli self-development döngüsünü başlatan açık kullanıcı eylemidir.
+    // Döngü Durdurulana, gerçek harici engel çıkana veya görev grafiği bitene kadar otomatik ilerler.
     return EvolutionCampaignSchema.parse(await services.evolution.runNow(input.projectId));
   });
 
@@ -799,7 +828,14 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     return DurableJobSummarySchema.parse(services.remoteWorkers.cancelJob(input.jobId));
   });
 
+  const unsubscribeEvolution = services.evolution.subscribe((activity) => {
+    const target = BrowserWindow.getAllWindows().find((window) => window.webContents.id === services.rendererWebContentsId);
+    if (!target || target.isDestroyed()) return;
+    target.webContents.send(IPC_CHANNELS.evolutionActivity, EvolutionActivityEventSchema.parse(activity));
+  });
+
   return () => {
+    unsubscribeEvolution();
     for (const channel of channels) ipcMain.removeHandler(channel);
   };
 }

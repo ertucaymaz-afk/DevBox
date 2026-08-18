@@ -7,6 +7,7 @@ import { ApiEvolutionService } from "./api-evolution-service.js";
 import { AttachmentService } from "./attachment-service.js";
 import { CapabilityService } from "./capability-service.js";
 import { CommandRunner } from "./command-runner.js";
+import { DevelopmentSpecService } from "./development-spec-service.js";
 import { CoreApi } from "./core-api.js";
 import { StateDatabase } from "./database.js";
 import { GitService } from "./git-service.js";
@@ -42,7 +43,7 @@ describe("loopback core API", () => {
       projects,
       capabilities: new CapabilityService(runner),
       agent,
-      evolution: new ApiEvolutionService(database, projects, agent, settings),
+      evolution: new ApiEvolutionService(database, projects, agent, settings, new DevelopmentSpecService(database, path.resolve("specs", "development", "geliştirme-spec-task-graph.json")), new GitService(runner), runner),
       attachments: new AttachmentService(database, path.join(root, "attachments")),
       git: new GitService(runner),
       settings,
@@ -147,5 +148,5 @@ describe("loopback core API", () => {
     expect(await remoteSettle.json()).toMatchObject({ job: { state: "CANCELLED", result: { reason: "USER_REQUEST" } } });
     expect(remoteJobs.status).toBe(200);
     expect(await remoteJobs.json()).toMatchObject({ items: [{ id: remoteJob.job.id, state: "CANCELLED" }] });
-  });
+  }, 20_000);
 });

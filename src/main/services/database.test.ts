@@ -30,7 +30,7 @@ describe("state database", () => {
 
     database.upsertProject({ id: "project-12345678", name: "sample", rootPath: directory, isGitRepository: true, createdAt: now, updatedAt: now });
 
-    expect(database.integrityCheck()).toEqual({ ok: true, detail: "ok", schemaVersion: 5 });
+    expect(database.integrityCheck()).toEqual({ ok: true, detail: "ok", schemaVersion: 6 });
     expect(database.listProjects()).toHaveLength(1);
     expect(database.getProject("project-12345678")).toMatchObject({ name: "sample", rootPath: directory, isGitRepository: true });
     expect(database.listThreads()).toEqual([]);
@@ -117,4 +117,20 @@ describe("state database", () => {
     expect(database.listRemoteWorkers()[0]).toMatchObject({ id: worker.id, status: "ONLINE", capabilities: ["node"] });
     expect(database.revokeRemoteWorker(worker.id)).toMatchObject({ status: "REVOKED" });
   });
+  it("persists ordered activity events and can read newest records first", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "devbox-events-test-"));
+    temporaryDirectories.push(directory);
+    const database = new StateDatabase(path.join(directory, "state.sqlite"));
+    databases.push(database);
+
+    const first = database.appendEvent("api-evolution.activity", "project-12345678", { message: "first" }, true);
+    const second = database.appendEvent("api-evolution.activity", "project-12345678", { message: "second" }, true);
+    database.appendEvent("other", "project-12345678", { message: "ignored" }, false);
+
+    expect(database.listEvents({ type: "api-evolution.activity", aggregateId: "project-12345678", order: "asc" }).map((item) => item.sequence)).toEqual([first.sequence, second.sequence]);
+    expect(database.listEvents({ type: "api-evolution.activity", aggregateId: "project-12345678", order: "desc" }).map((item) => item.payload)).toEqual([{ message: "second" }, { message: "first" }]);
+    expect(database.listEvents({ afterSequence: first.sequence, order: "asc" }).every((item) => item.sequence > first.sequence)).toBe(true);
+    expect(database.integrityCheck()).toMatchObject({ ok: true, schemaVersion: 6 });
+  });
+
 });

@@ -12,6 +12,7 @@ import { CapabilityService } from "./services/capability-service.js";
 import { CommandRunner } from "./services/command-runner.js";
 import { CoreApi } from "./services/core-api.js";
 import { StateDatabase } from "./services/database.js";
+import { DevelopmentSpecService } from "./services/development-spec-service.js";
 import { GitService } from "./services/git-service.js";
 import { IntegrationService } from "./services/integration-service.js";
 import { LocalCatalogService } from "./services/local-catalog-service.js";
@@ -20,6 +21,7 @@ import { PackageLifecycleService } from "./services/package-lifecycle-service.js
 import { ProjectService } from "./services/project-service.js";
 import { RemoteWorkerService } from "./services/remote-worker-service.js";
 import { SettingsService } from "./services/settings-service.js";
+import { SelfDevelopmentService } from "./services/self-development-service.js";
 import { SshTrustService } from "./services/ssh-trust-service.js";
 import { TaskService } from "./services/task-service.js";
 import { TerminalService } from "./services/terminal-service.js";
@@ -136,14 +138,26 @@ async function start(): Promise<void> {
   const runner = new CommandRunner();
   commandRunner = runner;
   const capabilities = new CapabilityService(runner);
-  const agent = new AgentService(runner);
+  const agent = new AgentService(runner, app.getVersion());
   const attachments = new AttachmentService(database, path.join(app.getPath("userData"), "attachments"));
   const projects = new ProjectService(database);
+  const selfDevelopment = new SelfDevelopmentService(projects, runner, {
+    packaged: app.isPackaged,
+    appRoot: app.getAppPath(),
+    templateRoot: path.join(process.resourcesPath, "development", "source-template"),
+    workspaceRoot: path.join(app.getPath("userData"), "self-development"),
+    appVersion: app.getVersion()
+  });
+  const selfDevelopmentProject = await selfDevelopment.ensure();
   const git = new GitService(runner);
   const tasks = new TaskService(runner);
   const settings = new SettingsService(database);
   const remoteWorkers = new RemoteWorkerService(database);
-  evolution = new ApiEvolutionService(database, projects, agent, settings);
+  const developmentSpecPath = app.isPackaged
+    ? path.join(process.resourcesPath, "development", "geliştirme-spec-task-graph.json")
+    : path.join(app.getAppPath(), "specs", "development", "geliştirme-spec-task-graph.json");
+  const developmentSpec = new DevelopmentSpecService(database, developmentSpecPath);
+  evolution = new ApiEvolutionService(database, projects, agent, settings, developmentSpec, git, runner);
   const worktrees = new WorktreeService(runner, path.join(app.getPath("userData"), "worktrees"));
   const packages = new PackageLifecycleService(path.join(app.getPath("userData"), "signed-runtime"));
   const sshTrust = new SshTrustService(path.join(app.getPath("userData"), "ssh", "known-hosts"), runner);
@@ -151,7 +165,7 @@ async function start(): Promise<void> {
   const catalog = new LocalCatalogService(path.join(app.getPath("userData"), "catalog"), runner, {
     skillRoot: path.join(app.getPath("desktop"), "Yeni klasör", "12-Gelistirici-Araci-v1.2.0"),
     pluginRoot: path.join(app.getPath("desktop"), "Yeni klasör", "12-Portable-AI-Plugins-v2.3.0")
-  });
+  }, app.getVersion());
   localCatalog = catalog;
   const language = new LanguageService(projects);
   debugService = new DebugService(projects);
@@ -184,6 +198,7 @@ async function start(): Promise<void> {
     evolution,
     attachments,
     projects,
+    selfDevelopmentProjectId: selfDevelopmentProject.id,
     git,
     tasks,
     settings,

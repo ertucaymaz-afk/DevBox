@@ -38,8 +38,8 @@ describe("signed marketplace revocation list", () => {
     const list: SignedRevocationList = { ...unsigned, signature: sign(null, revocationListPayload(unsigned), privateKey).toString("base64") };
     await expect(service.apply(list, new Date("2026-08-14T01:00:00.000Z"))).resolves.toMatchObject({ sequence: 1 });
     await expect(service.apply(list, new Date("2026-08-14T01:00:00.000Z"))).rejects.toThrow("REVOCATION_SEQUENCE_ROLLBACK");
-    await expect(service.assertAllowed("dangerous.plugin", "2.0.0", "publisher.bad")).rejects.toThrow("PACKAGE_REVOKED:MALWARE");
-    await expect(service.assertAllowed("safe.plugin", "2.0.0", "publisher.good")).resolves.toBeUndefined();
+    await expect(service.assertAllowed("dangerous.plugin", "2.0.0", "publisher.bad", new Date("2026-08-14T02:00:00.000Z"))).rejects.toThrow("PACKAGE_REVOKED:MALWARE");
+    await expect(service.assertAllowed("safe.plugin", "2.0.0", "publisher.good", new Date("2026-08-14T02:00:00.000Z"))).resolves.toBeUndefined();
     await expect(service.status(new Date("2026-08-14T02:00:00.000Z"))).resolves.toMatchObject({ state: "CURRENT", sequence: 1, entries: 1, catalogAuthorities: 1 });
 
     const statePath = path.join(root, "revocations.json");

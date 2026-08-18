@@ -38,10 +38,12 @@ function errorMessage(value: unknown): string {
 export class McpHostService {
   readonly #registry: PluginRegistryService;
   readonly #sessions = new Map<string, McpSession>();
+  readonly #clientVersion: string;
   #requestId = 0;
 
-  public constructor(registry: PluginRegistryService) {
+  public constructor(registry: PluginRegistryService, clientVersion = process.env.npm_package_version?.trim() || "unknown") {
     this.#registry = registry;
+    this.#clientVersion = clientVersion.trim().slice(0, 80) || "unknown";
   }
 
   public isRunning(pluginId: string): boolean {
@@ -156,7 +158,7 @@ export class McpHostService {
       await this.#request(session, "initialize", {
         protocolVersion: "2025-06-18",
         capabilities: {},
-        clientInfo: { name: "DevBox", version: "0.1.4" }
+        clientInfo: { name: "DevBox", version: this.#clientVersion }
       });
       this.#send(session, { jsonrpc: "2.0", method: "notifications/initialized", params: {} });
       const listed = await this.#request(session, "tools/list", {}) as { tools?: unknown[] };

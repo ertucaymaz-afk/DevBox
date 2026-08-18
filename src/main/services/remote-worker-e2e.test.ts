@@ -8,6 +8,7 @@ import { ApiEvolutionService } from "./api-evolution-service.js";
 import { AttachmentService } from "./attachment-service.js";
 import { CapabilityService } from "./capability-service.js";
 import { CommandRunner } from "./command-runner.js";
+import { DevelopmentSpecService } from "./development-spec-service.js";
 import { CoreApi } from "./core-api.js";
 import { StateDatabase } from "./database.js";
 import { GitService } from "./git-service.js";
@@ -62,7 +63,7 @@ describe("real remote worker process", () => {
       projects,
       capabilities: new CapabilityService(runner),
       agent,
-      evolution: new ApiEvolutionService(database, projects, agent, settings),
+      evolution: new ApiEvolutionService(database, projects, agent, settings, new DevelopmentSpecService(database, path.resolve("specs", "development", "geliştirme-spec-task-graph.json")), new GitService(runner), runner),
       attachments: new AttachmentService(database, path.join(root, "attachments")),
       git: new GitService(runner),
       settings,

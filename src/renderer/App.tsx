@@ -491,6 +491,9 @@ export function App(): ReactNode {
   const [changeSummaryOpen, setChangeSummaryOpen] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const selfDevelopmentProject = bootstrap?.selfDevelopmentProjectId
+    ? bootstrap.projects.find((project) => project.id === bootstrap.selfDevelopmentProjectId) ?? null
+    : null;
   const terminalRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const diagnosticsVersion = useRef(0);
@@ -1209,7 +1212,7 @@ export function App(): ReactNode {
 
             {view === "terminal" && <TerminalWorkspace project={selectedProject} />}
             {view === "worktrees" && <WorktreeWorkspace project={selectedProject} />}
-            {view === "automations" && <AutomationWorkspace project={selectedProject} />}
+            {view === "automations" && <AutomationWorkspace project={selfDevelopmentProject ?? selectedProject} />}
             {view === "integrations" && <IntegrationWorkspace project={selectedProject} />}
             {view === "skills" && <CatalogWorkspace />}
             {view === "pullRequests" && <IntegrationWorkspace project={selectedProject} scope="github" />}

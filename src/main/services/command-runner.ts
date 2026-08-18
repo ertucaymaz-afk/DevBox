@@ -41,8 +41,12 @@ export type CommandRequest = {
   cwd: string;
   timeoutMs?: number;
   maxOutputBytes?: number;
-  cancellation?: AbortSignal;
+  cancellation?: AbortSignal | undefined;
   environment?: Readonly<Record<string, string>>;
+  onStdoutLine?: (line: string) => void;
+  onStderrLine?: (line: string) => void;
+  /** Optional bounded stdin payload. It is never included in commandDisplay or audit output. */
+  stdinText?: string;
 };
 
 type ActiveCommand = {
@@ -69,6 +73,32 @@ function displayArgument(argument: string): string {
   return /^[A-Za-z0-9_./:=@-]+$/.test(argument) ? argument : JSON.stringify(argument);
 }
 
+function terminateProcessTree(child: ReturnType<typeof spawn>): void {
+  if (!child.pid) {
+    child.kill();
+    return;
+  }
+  if (process.platform === "win32") {
+    // Node's child.kill() does not reliably terminate grandchildren on Windows. Codex/Hermes can
+    // spawn shells and tool processes, so Durdur/timeouts must tear down the complete process tree.
+    try {
+      const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], {
+        windowsHide: true,
+        shell: false,
+        stdio: "ignore"
+      });
+      killer.once("error", () => { try { child.kill(); } catch { /* process may already be gone */ } });
+      killer.unref();
+    } catch {
+      try { child.kill(); } catch { /* process may already be gone */ }
+    }
+    const fallback = setTimeout(() => { try { child.kill(); } catch { /* process may already be gone */ } }, 1_500);
+    fallback.unref();
+    return;
+  }
+  try { child.kill("SIGTERM"); } catch { /* process may already be gone */ }
+}
+
 export class CommandRunner {
   readonly #active = new Set<ActiveCommand>();
   #closed = false;
@@ -86,6 +116,8 @@ export class CommandRunner {
       let stdout: Buffer<ArrayBufferLike> = Buffer.alloc(0);
       let stderr: Buffer<ArrayBufferLike> = Buffer.alloc(0);
       let truncated = false;
+      let stdoutLineBuffer = "";
+      let stderrLineBuffer = "";
       let timedOut = false;
       let cancelled = false;
       let finished = false;
@@ -99,8 +131,14 @@ export class CommandRunner {
         env: sanitizedEnvironment(request.environment),
         shell: false,
         windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"]
+        stdio: [request.stdinText === undefined ? "ignore" : "pipe", "pipe", "pipe"]
       });
+
+      if (request.stdinText !== undefined && child.stdin) {
+        const payload = request.stdinText.slice(0, 1_048_576);
+        child.stdin.on("error", () => { /* Process exit/result remains authoritative; do not crash on EPIPE. */ });
+        child.stdin.end(payload, "utf8");
+      }
 
       const append = (current: Buffer<ArrayBufferLike>, chunk: Buffer<ArrayBufferLike>): Buffer<ArrayBufferLike> => {
         const remaining = maxOutputBytes - stdout.byteLength - stderr.byteLength;
@@ -115,17 +153,30 @@ export class CommandRunner {
         return Buffer.concat([current, chunk]);
       };
 
-      child.stdout.on("data", (chunk: Buffer<ArrayBufferLike>) => {
+      const streamLines = (current: string, chunk: Buffer<ArrayBufferLike>, listener: ((line: string) => void) | undefined): string => {
+        const combined = current + chunk.toString("utf8");
+        const parts = combined.split(/\r?\n/u);
+        const remainder = parts.pop() ?? "";
+        if (listener) {
+          for (const line of parts) {
+            const safe = redactText(line).slice(0, 8_192);
+            if (safe.trim()) listener(safe);
+          }
+        }
+        return remainder.slice(-16_384);
+      };
+
+      child.stdout?.on("data", (chunk: Buffer<ArrayBufferLike>) => {
         stdout = append(stdout, chunk);
+        stdoutLineBuffer = streamLines(stdoutLineBuffer, chunk, request.onStdoutLine);
       });
-      child.stderr.on("data", (chunk: Buffer<ArrayBufferLike>) => {
+      child.stderr?.on("data", (chunk: Buffer<ArrayBufferLike>) => {
         stderr = append(stderr, chunk);
+        stderrLineBuffer = streamLines(stderrLineBuffer, chunk, request.onStderrLine);
       });
 
       const stop = (): void => {
-        if (!child.killed) {
-          child.kill();
-        }
+        if (!child.killed) terminateProcessTree(child);
       };
       const active: ActiveCommand = {
         cancel: () => {
@@ -154,6 +205,8 @@ export class CommandRunner {
         request.cancellation?.removeEventListener("abort", onAbort);
         this.#active.delete(active);
         resolveClosed();
+        if (request.onStdoutLine && stdoutLineBuffer.trim()) request.onStdoutLine(redactText(stdoutLineBuffer).slice(0, 8_192));
+        if (request.onStderrLine && stderrLineBuffer.trim()) request.onStderrLine(redactText(stderrLineBuffer).slice(0, 8_192));
         const ended = new Date();
         resolve({
           runId,
