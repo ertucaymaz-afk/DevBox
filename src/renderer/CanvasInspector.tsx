@@ -4,6 +4,7 @@ import type { Capability, FileSnapshot, ProjectSummary, ThreadSummary, ThreadWor
 
 type CanvasTab = "preview" | "code" | "changes" | "console" | "evidence";
 type ConsoleEntry = { level: string; message: string; createdAt: string };
+type PreviewState = "idle" | "loading" | "ready" | "error";
 
 function previewUrl(projectId: string, relativePath: string, revision: number): string {
   const encoded = relativePath.replace(/\\/gu, "/").split("/").filter(Boolean).map(encodeURIComponent).join("/");
@@ -13,6 +14,13 @@ function previewUrl(projectId: string, relativePath: string, revision: number): 
 function humanState(value: string): string {
   const labels: Record<string, string> = { READY: "HAZIR", COMPLETED: "TAMAMLANDI", RUNNING: "ÇALIŞIYOR", FAILED: "BAŞARISIZ", RECOVERY_REQUIRED: "KURTARMA GEREKİYOR", IDLE: "BEKLİYOR" };
   return labels[value] ?? value;
+}
+
+function previewStateLabel(state: PreviewState): string {
+  if (state === "loading") return "önizleme yükleniyor";
+  if (state === "ready") return "önizleme hazır";
+  if (state === "error") return "önizleme hatası";
+  return "izole yerel önizleme";
 }
 
 export function CanvasInspector(props: {
@@ -32,6 +40,7 @@ export function CanvasInspector(props: {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [previewState, setPreviewState] = useState<PreviewState>("idle");
   const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const defaultTargetPath = result?.previewPath ?? result?.primaryFile ?? null;
@@ -51,7 +60,13 @@ export function CanvasInspector(props: {
     } finally { setBusy(false); }
   }, [project, targetPath]);
 
-  useEffect(() => { setSelectedPath(defaultTargetPath); }, [defaultTargetPath, result?.createdAt]);
+  useEffect(() => {
+    setSelectedPath(defaultTargetPath);
+    setRevision((value) => value + 1);
+    setConsoleEntries([]);
+    setNotice(null);
+    setPreviewState(result?.previewPath ? "loading" : "idle");
+  }, [defaultTargetPath, result?.createdAt, result?.previewPath]);
   useEffect(() => { void loadFile(); }, [loadFile, result?.createdAt]);
   useEffect(() => {
     if (result?.previewPath) setTab("preview");
@@ -63,6 +78,10 @@ export function CanvasInspector(props: {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const payload = event.data as { source?: unknown; type?: unknown; level?: unknown; message?: unknown; createdAt?: unknown } | null;
       if (!payload || payload.source !== "devbox-preview") return;
+      if (payload.type === "ready") {
+        setPreviewState("ready");
+        return;
+      }
       if (payload.type === "console" && typeof payload.message === "string") {
         const message = payload.message.slice(0, 12_000);
         const level = typeof payload.level === "string" ? payload.level : "log";
@@ -79,7 +98,7 @@ export function CanvasInspector(props: {
     setBusy(true); setNotice(null);
     try {
       const next = await window.devbox.writeFile(project.id, snapshot.relativePath, snapshot.sha256, code);
-      setSnapshot(next); setCode(next.content); setRevision((value) => value + 1);
+      setSnapshot(next); setCode(next.content); setRevision((value) => value + 1); setPreviewState(result?.previewPath ? "loading" : "idle");
       await onRefresh();
       setNotice("Dosya diske yazıldı ve SHA-256 geri okuma doğrulaması geçti.");
     } catch (error) { setNotice(error instanceof Error ? error.message : String(error)); }
@@ -101,7 +120,7 @@ export function CanvasInspector(props: {
         <button className={tab === "evidence" ? "active" : ""} onClick={() => setTab("evidence")}><ShieldCheck size={13} /> Kanıt</button>
       </nav>
       <div className="canvas-body">
-        {tab === "preview" && <section className="canvas-preview"><header><div><strong>{result?.previewPath ?? "HTML önizleme yok"}</strong><small>İzole yerel önizleme</small></div><button onClick={() => { setConsoleEntries([]); setRevision((value) => value + 1); }} disabled={!canPreview}><RefreshCw size={13} /> Yenile</button></header>{canPreview && result?.previewPath ? <iframe ref={iframeRef} title={`Önizleme: ${result.previewPath}`} sandbox="allow-scripts allow-same-origin" src={previewUrl(project.id, result.previewPath, revision)} /> : <div className="canvas-empty"><Eye size={24} /><strong>HTML çıktısı yok</strong><span>Bu tur doğrulanmış bir .html dosyası üretmedi.</span></div>}</section>}
+        {tab === "preview" && <section className="canvas-preview"><header><div><strong>{result?.previewPath ?? "HTML önizleme yok"}</strong><small>{previewStateLabel(previewState)}</small></div><button onClick={() => { setConsoleEntries([]); setPreviewState("loading"); setRevision((value) => value + 1); }} disabled={!canPreview}><RefreshCw size={13} /> Yenile</button></header>{canPreview && result?.previewPath ? <iframe ref={iframeRef} title={`Önizleme: ${result.previewPath}`} sandbox="allow-scripts allow-same-origin" src={previewUrl(project.id, result.previewPath, revision)} onError={() => setPreviewState("error")} /> : <div className="canvas-empty"><Eye size={24} /><strong>HTML çıktısı yok</strong><span>Bu tur doğrulanmış bir .html dosyası üretmedi.</span></div>}</section>}
         {tab === "code" && <section className="canvas-code"><header><div><strong>{targetPath ?? "Dosya yok"}</strong><small>{snapshot ? `${snapshot.language} · SHA ${snapshot.sha256.slice(0, 10)}` : "yüklenmedi"}</small></div><button className={dirty ? "primary" : ""} onClick={() => void save()} disabled={!dirty || busy}>{busy ? <LoaderCircle className="spin" size={13} /> : <Save size={13} />} Kaydet</button></header>{busy && !snapshot ? <div className="canvas-empty"><LoaderCircle className="spin" size={22} />Dosya okunuyor…</div> : snapshot ? <textarea spellCheck={false} value={code} onChange={(event) => setCode(event.target.value)} /> : <div className="canvas-empty"><FileCode2 size={22} />Metin önizlemesi kullanılamıyor.</div>}</section>}
         {tab === "changes" && <section className="canvas-changes"><header><div><strong>Bu görevdeki gerçek değişiklikler</strong><small>{result ? `${result.changedFiles.length} dosya · +${additions} -${deletions}${unknownStats ? " · bazı satır sayıları uygulanamaz" : ""}` : "Henüz turn-local kayıt yok"}</small></div></header>{result?.changedFiles.length ? <div>{result.changedFiles.map((item) => <article key={item.path}><span className={`canvas-change-kind ${item.kind}`}>{item.kind.toUpperCase()}</span><div><strong>{item.path}</strong><small>{item.verified ? "diskten doğrulandı" : "doğrulama eksik"}{item.binary ? " · binary" : ""}</small></div><button className="canvas-change-open" onClick={() => { setSelectedPath(item.path); setTab("code"); }} disabled={item.kind === "deleted" || item.binary || !item.afterSha256} title="Dosyayı Canvas kod düzenleyicisinde aç"><Code2 size={12} /> Aç</button><b className="additions">{item.additions === null ? "—" : `+${item.additions}`}</b><b className="deletions">{item.deletions === null ? "—" : `-${item.deletions}`}</b></article>)}</div> : <div className="canvas-empty"><FileCode2 size={22} /><strong>Bu turda doğrulanmış dosya mutasyonu yok</strong><span>Global kirli çalışma ağacı burada görev başarısı gibi gösterilmez.</span></div>}</section>}
         {tab === "console" && <section className="canvas-console"><header><strong>Önizleme konsolu</strong><button onClick={() => setConsoleEntries([])}>Temizle</button></header>{consoleEntries.length ? <div>{consoleEntries.map((item, index) => <p className={item.level} key={`${item.createdAt}:${index}`}><time>{new Date(item.createdAt).toLocaleTimeString("tr-TR")}</time><b>{item.level}</b><span>{item.message}</span></p>)}</div> : <div className="canvas-empty"><SquareTerminal size={22} />Henüz console/error olayı yok.</div>}</section>}
