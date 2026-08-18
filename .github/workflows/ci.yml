@@ -176,7 +176,7 @@ jobs:
           Write-Host 'DEVBOX_STAGE_READY projectRoot=.packaged-app package=ok main=ok node_modules=ok build=ok vendor=ok asar=false afterPack=fail-closed'
 
       - name: NSIS Windows kurucusunu üret
-        run: pnpm exec electron-builder --projectDir .packaged-app --config electron-builder.yml --win nsis
+        run: pnpm dlx electron-builder@26.15.3 --projectDir .packaged-app --config electron-builder.yml --win nsis
 
       - name: EXE yapısını ve özetini fail-closed doğrula
         shell: pwsh
