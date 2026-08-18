@@ -15,7 +15,7 @@ import { EvolutionActivityEventSchema, EvolutionCampaignSchema, EvolutionRouting
 import type { AgentProgressEvent, AgentService } from "./agent-service.js";
 import type { CommandRunner } from "./command-runner.js";
 import type { StateDatabase } from "./database.js";
-import type { DevelopmentSpecService, DevelopmentSpecTask } from "./development-spec-service.js";
+import type { DevelopmentSpecMarkDetails, DevelopmentSpecPersistedStateName, DevelopmentSpecService, DevelopmentSpecTask } from "./development-spec-service.js";
 import type { GitService } from "./git-service.js";
 import type { ProjectService } from "./project-service.js";
 import type { SettingsService } from "./settings-service.js";
@@ -48,7 +48,8 @@ const DEFAULT_DIRECTIVE = [
   "Her mutasyondan sonra uygun statik analiz, test, negatif/failure kontrolü ve git diff doğrulaması yap; test çalıştırılmadıysa geçti deme.",
   "Gizli değerleri isteme veya çıktıya yazma. Sağlayıcı, model, komut, bekleme ve fallback durumlarını gerçek kimliğiyle kaydet.",
   "Mevcut kullanıcı değişikliklerini silme; destructive işlem yapma. Çakışmada güvenli biçimde dur ve nedeni açıkla.",
-  "Bir görev başarısızsa kök nedeni düzelt, tekrar test et ve ancak kanıtlı sonuçtan sonra sonraki atomik göreve geç."
+  "Bir görev başarısızsa kök nedeni düzelt, tekrar test et ve ancak kanıtlı sonuçtan sonra sonraki atomik göreve geç.",
+  "3362 sabit çekirdek görev kanıtlı tamamlandıktan sonra durma; adaptif bakım modunda mevcut repo/runtime kanıtını yeniden incele, yeni somut darboğaz/regresyon/UX/güvenlik/performans fırsatı bul, gerçek kaynak değişikliği + regresyon testi + verify ile sürekli ilerle."
 ].join("\n");
 
 type RuntimeStage = EvolutionCampaign["runtime"]["stage"];
@@ -59,6 +60,71 @@ type VerificationResult = {
   evidence: string[];
   detail: string;
 };
+
+type AdaptiveMissionState = {
+  task: DevelopmentSpecTask;
+  state: DevelopmentSpecPersistedStateName;
+  attempts: number;
+  retryAfterAt: string | null;
+  lastError: string | null;
+  updatedAt: string;
+};
+type AdaptiveState = {
+  schemaVersion: 1;
+  sequence: number;
+  completed: number;
+  failed: number;
+  current: AdaptiveMissionState | null;
+  recent: Array<{ taskId: string; title: string; track: EvolutionTrack; state: string; completedAt: string }>;
+};
+
+const ADAPTIVE_FOCUS: ReadonlyArray<{ track: EvolutionTrack; title: string; objective: string }> = [
+  { track: "quality", title: "Regresyon avı", objective: "mevcut testler ve hata yollarında henüz kapsanmayan somut bir regresyon riski bul ve kalıcı düzelt" },
+  { track: "performance", title: "Kaynak ve gecikme bütçesi", objective: "RAM/CPU/disk polling/provider latency açısından ölçülebilir bir darboğaz bul, davranışı koruyarak azalt ve regresyon kapısı ekle" },
+  { track: "design", title: "Akış ve etkileşim", objective: "ChatGPT/Gemini/Claude sınıfı akıcı masaüstü UX açısından gerçek bir etkileşim sürtünmesi bul ve erişilebilir biçimde düzelt" },
+  { track: "security", title: "Fail-closed güvenlik", objective: "izin, path sınırı, secret, supply-chain veya provider doğrulamasında somut bir bypass/fail-open ihtimali bul ve negatif testle kapat" },
+  { track: "architecture", title: "Eşzamanlılık ve dayanıklılık", objective: "queue, crash/restart, durable job, worktree veya state geçişlerinde yarış/iyileşme kusuru bul ve deterministik olarak düzelt" },
+  { track: "api", title: "API sözleşmesi", objective: "Core API hata semantiği, idempotency, doğrulama veya kaynak modelinde gerçek bir eksik bul ve uyumluluk testiyle düzelt" },
+  { track: "accessibility", title: "Erişilebilirlik", objective: "klavye, focus, reduced-motion, aria veya okunabilirlikte gerçek bir sorun bul ve doğrulanabilir biçimde düzelt" },
+  { track: "integrations", title: "Araç entegrasyonu", objective: "mevcut açık kaynak/izinli araç zincirinde doğrulanabilir bir entegrasyon veya health-check eksikliği bul ve sahte READY üretmeden tamamla" },
+  { track: "supply-chain", title: "Bağımlılık güveni", objective: "kilit dosyası, kaynak kimliği, binary/tool doğrulaması veya güncelleme zincirinde somut bir güven açığı bul ve fail-closed kapat" },
+  { track: "documentation", title: "Gerçeklik ve işletilebilirlik", objective: "kullanıcıya yanlış güven verebilecek güncelliğini yitirmiş bir ürün sözleşmesi/diagnostic açıklaması bul ve gerçek runtime davranışıyla eşleştir" }
+];
+
+export function createAdaptiveEvolutionTask(sequence: number): DevelopmentSpecTask {
+  const safeSequence = Math.max(1, Math.trunc(sequence));
+  const focus = ADAPTIVE_FOCUS[(safeSequence - 1) % ADAPTIVE_FOCUS.length]!;
+  const taskId = `ADAPT-${String(safeSequence).padStart(6, "0") }`;
+  return {
+    taskId,
+    phaseId: "ADAPT",
+    family: "ADAPTIVE_CONTINUOUS_MAINTENANCE",
+    parentTaskId: null,
+    title: `${focus.title} · sürekli bakım ${safeSequence}`,
+    objective: [
+      `Adaptif odak: ${focus.objective}.`,
+      "Önce mevcut repo, son görev geçmişi, testler ve runtime kanıtlarını incele; daha önce çözülmüş işi sırf aktivite üretmek için tekrarlama.",
+      "Tek bir somut, yeniden üretilebilir eksik seç. Gerçek kaynak koduna en küçük güvenli değişikliği uygula ve ilgili regresyon/negatif testi ekle veya güçlendir.",
+      "Sadece yorum, backlog, demo, placeholder, sahte metrik veya no-op biçim değişikliği PASS değildir. Ölçülemeyen alanda uydurma benchmark yazma.",
+      "Projenin en güçlü verify/typecheck/test/build kapısını gerçekten çalıştır. Başarısızsa aynı görevi düzeltip tekrar test et; kanıtlı PASS olmadan yeni adaptif göreve geçme."
+    ].join(" "),
+    sourceLine: null,
+    sourceResearch: [],
+    requirementIds: [`REQ-${taskId}`],
+    dependencies: [],
+    plannedFiles: [],
+    touchedFiles: [],
+    commands: ["repo/runtime incele", "en güçlü doğrulama kapısını çalıştır"],
+    tests: ["değişiklik için gerçek pozitif regresyon testi"],
+    failureTests: ["kök nedene karşı gerçek negatif/failure testi"],
+    securityChecks: ["güvenlik etkisini gerçek değişikliğe göre değerlendir"],
+    performanceChecks: ["performans etkisini gerçek değişikliğe göre değerlendir"],
+    uxChecks: ["UX/erişilebilirlik etkisini gerçek değişikliğe göre değerlendir"],
+    evidence: ["git diff", "test/verify komut çıktısı", "kalıcı git commit"],
+    reviewer: "DEVBOX_ADAPTIVE_DETERMINISTIC_GATE_V1",
+    track: focus.track
+  };
+}
 
 function dayKey(date = new Date()): string { return date.toISOString().slice(0, 10); }
 function nextAt(intervalMinutes: number, from = new Date()): string { return new Date(from.getTime() + intervalMinutes * 60_000).toISOString(); }
@@ -125,6 +191,55 @@ export class ApiEvolutionService {
 
   public constructor(database: StateDatabase, projects: ProjectService, agent: AgentService, settings: SettingsService, spec: DevelopmentSpecService, git: GitService, runner: CommandRunner, worktrees: WorktreeService | null = null) {
     this.#database = database; this.#projects = projects; this.#agent = agent; this.#settings = settings; this.#spec = spec; this.#git = git; this.#runner = runner; this.#worktrees = worktrees;
+  }
+
+  #adaptiveKey(projectId: string): string { return `api-evolution:adaptive:${projectId}`; }
+  #adaptiveState(projectId: string): AdaptiveState {
+    const stored = this.#database.getSetting<AdaptiveState>(this.#adaptiveKey(projectId));
+    return stored?.schemaVersion === 1 ? stored : { schemaVersion: 1, sequence: 0, completed: 0, failed: 0, current: null, recent: [] };
+  }
+  #saveAdaptive(projectId: string, state: AdaptiveState): AdaptiveState { this.#database.setSetting(this.#adaptiveKey(projectId), state); return state; }
+  #isAdaptive(task: DevelopmentSpecTask): boolean { return task.taskId.startsWith("ADAPT-"); }
+  #nextAdaptiveTask(projectId: string): DevelopmentSpecTask {
+    const state = this.#adaptiveState(projectId);
+    if (state.current) return state.current.task;
+    const sequence = state.sequence + 1;
+    const task = createAdaptiveEvolutionTask(sequence);
+    this.#saveAdaptive(projectId, { ...state, sequence, current: { task, state: "FAILED", attempts: 0, retryAfterAt: null, lastError: null, updatedAt: new Date().toISOString() } });
+    return task;
+  }
+  #attemptsFor(projectId: string, task: DevelopmentSpecTask): number {
+    if (!this.#isAdaptive(task)) return this.#spec.getState(projectId, task.taskId)?.attempts ?? 1;
+    return Math.max(1, this.#adaptiveState(projectId).current?.attempts ?? 1);
+  }
+  #markSpecTask(projectId: string, task: DevelopmentSpecTask, stateName: DevelopmentSpecPersistedStateName, details: DevelopmentSpecMarkDetails = {}): void {
+    if (!this.#isAdaptive(task)) { this.#spec.mark(projectId, task.taskId, stateName, details); return; }
+    const adaptive = this.#adaptiveState(projectId);
+    if (stateName === "PASS") {
+      if (adaptive.recent.some((item) => item.taskId === task.taskId && item.state === "PASS")) return;
+      this.#saveAdaptive(projectId, {
+        ...adaptive,
+        completed: adaptive.completed + 1,
+        current: null,
+        recent: [{ taskId: task.taskId, title: task.title, track: task.track, state: "PASS", completedAt: new Date().toISOString() }, ...adaptive.recent].slice(0, 120)
+      });
+      return;
+    }
+    const current = adaptive.current?.task.taskId === task.taskId ? adaptive.current : { task, state: stateName, attempts: 0, retryAfterAt: null, lastError: null, updatedAt: new Date().toISOString() };
+    const attempts = current.attempts + (stateName === "RUNNING" ? 1 : 0);
+    this.#saveAdaptive(projectId, {
+      ...adaptive,
+      failed: adaptive.failed + (stateName === "FAILED" ? 1 : 0),
+      current: {
+        ...current,
+        task,
+        state: stateName,
+        attempts,
+        retryAfterAt: details.retryAfterAt ?? null,
+        lastError: details.lastError ?? current.lastError,
+        updatedAt: new Date().toISOString()
+      }
+    });
   }
 
   public start(): void {
@@ -287,10 +402,11 @@ export class ApiEvolutionService {
     const evolutionWorktree = this.#worktrees ? await this.#worktrees.ensureEvolution(project.rootPath, projectId) : null;
     const executionRoot = evolutionWorktree?.path ?? project.rootPath;
     const isolatedEvolutionRoot = Boolean(evolutionWorktree && path.resolve(executionRoot).toLocaleLowerCase("en-US") !== path.resolve(project.rootPath).toLocaleLowerCase("en-US"));
-    const specTask = this.#spec.next(projectId, { ignoreRetryAfter: manual, allowBlockedExternalRetry: manual, allowRecoveryRetry: manual });
+    const coreSummary = this.#spec.summary(projectId);
+    const specTask = this.#spec.next(projectId, { ignoreRetryAfter: manual, allowBlockedExternalRetry: manual, allowRecoveryRetry: manual })
+      ?? (coreSummary.remainingCount === 0 ? this.#nextAdaptiveTask(projectId) : null);
     if (!specTask) {
       const summary = this.#spec.summary(projectId);
-      if (summary.remainingCount === 0) throw new Error("EVOLUTION_SPEC_QUEUE_COMPLETE");
       if (summary.currentGateState === "BLOCKED_EXTERNAL") throw new Error("EVOLUTION_PHASE_BLOCKED_EXTERNAL");
       if (summary.currentGateState === "RECOVERY_REQUIRED") throw new Error("EVOLUTION_PHASE_RECOVERY_REQUIRED");
       throw new Error("EVOLUTION_SPEC_TASK_NOT_RUNNABLE_YET");
@@ -299,8 +415,8 @@ export class ApiEvolutionService {
     const workerId = `evolution-${process.pid}`;
     const durable = this.#database.enqueueDurableJob("api-evolution", { projectId, taskId: task.id, specTaskId: specTask.taskId, phaseId: specTask.phaseId }, projectId);
     this.#database.leaseDurableJob(durable.id, workerId, JOB_LEASE_MS); this.#database.startDurableJob(durable.id, workerId, JOB_LEASE_MS);
-    this.#spec.mark(projectId, specTask.taskId, "RUNNING", { lastError: null, blockReason: null, retryAfterAt: null });
-    const persistedAttempt = this.#spec.getState(projectId, specTask.taskId)?.attempts ?? 1;
+    this.#markSpecTask(projectId, specTask, "RUNNING", { lastError: null, blockReason: null, retryAfterAt: null });
+    const persistedAttempt = this.#attemptsFor(projectId, specTask);
     const startedAt = new Date().toISOString();
     task.state = "PREPARING"; task.durableJobId = durable.id; task.startedAt = startedAt; task.attempts = persistedAttempt;
     campaign = this.#save({ ...campaign, isRunning: true, lastError: null, tasks: [...campaign.tasks, task].slice(-MAX_EXECUTION_HISTORY), spec: this.#spec.summary(projectId), runtime: { stage: "PREPARING", detail: `Görev hazırlanıyor: ${specTask.taskId} · deneme ${persistedAttempt}`, waitingReason: null, activeTaskId: task.id, activeSpecTaskId: specTask.taskId, activePhaseId: specTask.phaseId, durableJobId: durable.id, provider: null, model: null, worktreePath: executionRoot, startedAt, updatedAt: startedAt }, updatedAt: startedAt });
@@ -315,6 +431,7 @@ export class ApiEvolutionService {
       "DEVBOX GELİŞTİRME.MD GERÇEK UYGULAMA DÖNGÜSÜ",
       `Execution ID: ${task.id}`, `Spec task: ${specTask.taskId}`, `Faz: ${specTask.phaseId}`, `Kaynak satır: ${specTask.sourceLine ?? "bilinmiyor"}`,
       `Proje: ${project.name}`, `Yazılabilir kök: ${executionRoot}`,
+      this.#isAdaptive(specTask) ? "ADAPTİF SÜREKLİ BAKIM GÖREVİ: sabit 3362 çekirdek plan tamamlandı; mevcut ürün kanıtından yeni somut iyileştirme seçildi." : "ÇEKİRDEK ATOMİK GÖREV:",
       "BU ATOMİK GÖREV:", specTask.objective,
       "KALICI ANA YÖNERGE:", campaign.directive,
       "ZORUNLU UYGULAMA KURALI:",
@@ -356,7 +473,7 @@ export class ApiEvolutionService {
         const rollbackEvidence = baselineWasClean && baselineHead && baselineManaged ? await this.#restoreManagedWorkspace(executionRoot, baselineHead) : [];
         const evidence = [durable.id, response.sessionId, ...response.evidence, ...rollbackEvidence].slice(0, 40);
         this.#database.settleDurableJob(durable.id, workerId, "FAILED", { status: "BLOCKED_EXTERNAL", specTaskId: specTask.taskId, provider: response.provider, model: response.model, blockReason: reason, evidence });
-        this.#spec.mark(projectId, specTask.taskId, "BLOCKED_EXTERNAL", { blockReason: reason, evidence });
+        this.#markSpecTask(projectId, specTask, "BLOCKED_EXTERNAL", { blockReason: reason, evidence });
         const phaseEvidence: string[] = [];
         const current = this.get(projectId);
         this.#save({ ...current, isRunning: false, lastProvider: response.provider, lastModel: response.model, lastCycleAt: blockedAt, lastCycleDurationMs: response.durationMs, lastError: null, nextCycleAt: null,
@@ -377,22 +494,22 @@ export class ApiEvolutionService {
       this.#database.appendMessage(thread.thread.id, systemPrompt, response.content);
       const completedAt = new Date().toISOString(); const evidence = [durable.id, response.sessionId, ...response.evidence, ...verification.evidence, ...commitEvidence].slice(0, 40);
       this.#database.settleDurableJob(durable.id, workerId, "SUCCEEDED", { specTaskId: specTask.taskId, threadId: thread.thread.id, provider: response.provider, model: response.model, evidence });
-      this.#spec.mark(projectId, specTask.taskId, "PASS", { evidence, lastError: null, blockReason: null, acceptance: response.acceptance, deterministicReviewer: "DEVBOX_DETERMINISTIC_GATE_V1" });
-      const phaseEvidence = this.#spec.writePhaseEvidence(projectId, executionRoot, specTask.phaseId);
-      const phaseEvidenceCommit = await this.#commitEvidenceSnapshot(executionRoot, specTask, controller.signal);
+      this.#markSpecTask(projectId, specTask, "PASS", { evidence, lastError: null, blockReason: null, acceptance: response.acceptance, deterministicReviewer: this.#isAdaptive(specTask) ? "DEVBOX_ADAPTIVE_DETERMINISTIC_GATE_V1" : "DEVBOX_DETERMINISTIC_GATE_V1" });
+      const phaseEvidence = this.#isAdaptive(specTask) ? ["adaptive-mission:verified-source-commit"] : this.#spec.writePhaseEvidence(projectId, executionRoot, specTask.phaseId);
+      const phaseEvidenceCommit = this.#isAdaptive(specTask) ? [] : await this.#commitEvidenceSnapshot(executionRoot, specTask, controller.signal);
       const finalEvidence = [...evidence, ...phaseEvidence, ...phaseEvidenceCommit].slice(0, 40);
-      this.#spec.mark(projectId, specTask.taskId, "PASS", { evidence: finalEvidence, lastError: null, blockReason: null, acceptance: response.acceptance, deterministicReviewer: "DEVBOX_DETERMINISTIC_GATE_V1" });
+      this.#markSpecTask(projectId, specTask, "PASS", { evidence: finalEvidence, lastError: null, blockReason: null, acceptance: response.acceptance, deterministicReviewer: this.#isAdaptive(specTask) ? "DEVBOX_ADAPTIVE_DETERMINISTIC_GATE_V1" : "DEVBOX_DETERMINISTIC_GATE_V1" });
       const learning: EvolutionLearning = { id: randomUUID(), track: specTask.track, title: `${specTask.taskId} · ${specTask.title}`, summary: conciseLearning(response.content), evidence: finalEvidence, learnedAt: completedAt };
       const updated = this.get(projectId); const specSummary = this.#spec.summary(projectId); const score = specSummary.totalTaskCount ? Math.round((specSummary.passCount / specSummary.totalTaskCount) * 100) : 0;
       this.#save({
         ...updated, isRunning: false, score, lastProvider: response.provider, lastModel: response.model, completedCycles: updated.completedCycles + 1, cyclesToday: updated.cyclesToday + 1,
-        lastCycleAt: completedAt, lastCycleDurationMs: response.durationMs, lastError: null, nextCycleAt: updated.enabled && specSummary.remainingCount > 0 && specSummary.currentGateState !== "BLOCKED_EXTERNAL" && specSummary.currentGateState !== "RECOVERY_REQUIRED" ? new Date(Date.now() + 500).toISOString() : null,
+        lastCycleAt: completedAt, lastCycleDurationMs: response.durationMs, lastError: null, nextCycleAt: updated.enabled && (specSummary.remainingCount === 0 || (specSummary.currentGateState !== "BLOCKED_EXTERNAL" && specSummary.currentGateState !== "RECOVERY_REQUIRED")) ? new Date(Date.now() + 500).toISOString() : null,
         domainScores: { ...updated.domainScores, [specTask.track]: Math.max(updated.domainScores[specTask.track], score) },
         tasks: updated.tasks.map((item) => item.id === task.id ? { ...item, state: "SUCCEEDED" as const, provider: response.provider, model: response.model, threadId: thread.thread.id, evidence: finalEvidence, error: null, blockReason: null, retryAfterAt: null, completedAt } : item),
         learnings: [learning, ...updated.learnings].slice(0, MAX_LEARNINGS), spec: specSummary,
         runtime: { ...updated.runtime, stage: "COMPLETED", detail: `${specTask.taskId} doğrulandı ve tamamlandı.`, waitingReason: null, provider: response.provider, model: response.model, updatedAt: completedAt }, updatedAt: completedAt
       });
-      this.#publish(projectId, { stage: "COMPLETED", kind: "evidence", message: `${specTask.taskId} PASS · gerçek değişiklik doğrulandı, kalıcı Git commit oluşturuldu ve faz evidence kayıtları yazıldı.`, provider: response.provider, model: response.model });
+      this.#publish(projectId, { stage: "COMPLETED", kind: "evidence", message: this.#isAdaptive(specTask) ? `${specTask.taskId} PASS · adaptif gerçek değişiklik doğrulandı ve kalıcı Git commit oluşturuldu; sıradaki bakım görevi üretilecek.` : `${specTask.taskId} PASS · gerçek değişiklik doğrulandı, kalıcı Git commit oluşturuldu ve faz evidence kayıtları yazıldı.`, provider: response.provider, model: response.model });
       return this.get(projectId);
     } catch (error) {
       const failedAt = new Date().toISOString(); const raw = error instanceof Error ? error.message : String(error); let message = raw.slice(0, 1_000); const cancelled = message.includes("EVOLUTION_CANCELLED") || controller.signal.aborted;
@@ -407,13 +524,13 @@ export class ApiEvolutionService {
         }
       }
       const blocker = !cancelled && !rollbackFailed && this.#isExternalBlocker(message);
-      const attempts = this.#spec.getState(projectId, specTask.taskId)?.attempts ?? persistedAttempt;
+      const attempts = this.#attemptsFor(projectId, specTask);
       const recovery = !cancelled && (rollbackFailed || (!isolatedEvolutionRoot && (message.includes("EVOLUTION_WORKSPACE_DIRTY_BASELINE") || message.includes("EVOLUTION_BASELINE_HEAD_INVALID"))));
       const retryDelay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * Math.pow(2, Math.max(0, attempts - 1))) + Math.floor(Math.random() * 1_000);
       const retryAfterAt = !cancelled && !blocker && !recovery ? new Date(Date.now() + retryDelay).toISOString() : null;
       const specState = cancelled ? "CANCELLED" as const : blocker ? "BLOCKED_EXTERNAL" as const : recovery ? "RECOVERY_REQUIRED" as const : "FAILED" as const;
       try { this.#database.settleDurableJob(durable.id, workerId, cancelled ? "CANCELLED" : "FAILED", { specTaskId: specTask.taskId, status: specState, error: message, attempt: attempts, retryAfterAt }); } catch { /* lease recovery is durable fallback */ }
-      this.#spec.mark(projectId, specTask.taskId, specState, { blockReason: blocker ? message : null, lastError: cancelled ? "Kullanıcı tarafından durduruldu." : message, evidence: [durable.id, ...rollbackEvidence], retryAfterAt });
+      this.#markSpecTask(projectId, specTask, specState, { blockReason: blocker ? message : null, lastError: cancelled ? "Kullanıcı tarafından durduruldu." : message, evidence: [durable.id, ...rollbackEvidence], retryAfterAt });
       const phaseEvidence: string[] = [];
       const current = this.get(projectId);
       const stage: RuntimeStage = cancelled ? "CANCELLED" : blocker ? "BLOCKED_EXTERNAL" : recovery ? "RECOVERY_REQUIRED" : "BACKOFF";

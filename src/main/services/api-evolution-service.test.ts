@@ -6,7 +6,7 @@ import type { AgentService } from "./agent-service.js";
 import type { CommandRunner } from "./command-runner.js";
 import { DevelopmentSpecService } from "./development-spec-service.js";
 import type { GitService } from "./git-service.js";
-import { ApiEvolutionService } from "./api-evolution-service.js";
+import { ApiEvolutionService, createAdaptiveEvolutionTask } from "./api-evolution-service.js";
 import { StateDatabase } from "./database.js";
 import { ProjectService } from "./project-service.js";
 import { SettingsService } from "./settings-service.js";
@@ -27,6 +27,19 @@ function createService(database: StateDatabase): ApiEvolutionService {
   const spec = new DevelopmentSpecService(database, path.resolve("specs", "development", "geliştirme-spec-task-graph.json"));
   return new ApiEvolutionService(database, projects, {} as AgentService, settings, spec, {} as GitService, {} as CommandRunner);
 }
+
+describe("adaptive API evolution tasks", () => {
+  it("rotates real maintenance domains after the fixed core graph", () => {
+    const first = createAdaptiveEvolutionTask(1);
+    const second = createAdaptiveEvolutionTask(2);
+    const eleventh = createAdaptiveEvolutionTask(11);
+    expect(first.taskId).toBe("ADAPT-000001");
+    expect(second.track).not.toBe(first.track);
+    expect(eleventh.track).toBe(first.track);
+    expect(first.objective).toMatch(/gerçek kaynak|regresyon|verify/iu);
+    expect(first.objective).toMatch(/demo|placeholder|no-op/iu);
+  });
+});
 
 describe("API evolution persistence", () => {
   it("survives a real SQLite close/reopen and expands legacy four-cycle campaigns", async () => {

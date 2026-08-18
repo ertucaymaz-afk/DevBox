@@ -91,6 +91,7 @@ import type { CoreApi } from "./services/core-api.js";
 import type { GitService } from "./services/git-service.js";
 import type { IntegrationService } from "./services/integration-service.js";
 import type { LocalCatalogService } from "./services/local-catalog-service.js";
+import type { MemoryService } from "./services/memory-service.js";
 import type { DebugService, LanguageService } from "./services/language-debug-service.js";
 import type { PackageLifecycleService } from "./services/package-lifecycle-service.js";
 import type { ProjectService } from "./services/project-service.js";
@@ -100,6 +101,7 @@ import type { SettingsService } from "./services/settings-service.js";
 import type { SshTrustService } from "./services/ssh-trust-service.js";
 import type { TaskService } from "./services/task-service.js";
 import type { TerminalService } from "./services/terminal-service.js";
+import type { ThreadTurnCoordinator } from "./services/thread-turn-coordinator.js";
 import type { WorktreeService } from "./services/worktree-service.js";
 import type { WorkspaceTurnService } from "./services/workspace-turn-service.js";
 
@@ -107,6 +109,8 @@ type IpcServices = {
   coreApi: CoreApi;
   capabilities: CapabilityService;
   agent: AgentService;
+  memory: MemoryService;
+  turnCoordinator: ThreadTurnCoordinator;
   evolution: ApiEvolutionService;
   attachments: AttachmentService;
   projects: ProjectService;
@@ -406,9 +410,12 @@ export function registerIpcHandlers(services: IpcServices): () => void {
 
   registerHandler(IPC_CHANNELS.threadMessage, services.rendererWebContentsId, async (unknownInput, event) => {
     const input = ThreadMessageInputSchema.parse(unknownInput);
+    return await services.turnCoordinator.run(input.threadId, async () => {
     const current = services.database.getThread(input.threadId);
     const project = services.projects.get(current.thread.projectId);
-    const workspaceIntent = isWorkspaceMutationRequest(input.content);
+    const workspaceIntent = isWorkspaceMutationRequest(input.content, current.items);
+    services.memory.captureUserSignal(project.id, input.threadId, input.content);
+    const memoryContext = services.memory.buildContext(project.id, input.threadId, input.content);
     await enforcePermissionPolicy(event, services, {
       title: workspaceIntent ? "Çalışma alanı değişikliği" : "NVIDIA ajan isteği",
       message: workspaceIntent ? "Bu görev seçili proje dosyalarını gerçekten değiştirebilir. Devam edilsin mi?" : "Bu görev Hermes üzerinden NVIDIA NIM sağlayıcısına gönderilsin mi?",
@@ -426,7 +433,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     try {
       const attachmentContext = await services.attachments.buildAgentContext(input.threadId, input.attachmentIds, false);
       const agentPrompt = `${input.content || "Ekli dosyaları incele."}${attachmentContext}`;
-      assistantContent = await services.agent.respond(agentPrompt, project.rootPath, current.items, publishActivity)
+      assistantContent = await services.agent.respond(agentPrompt, project.rootPath, current.items, publishActivity, undefined, undefined, memoryContext)
         .then((response) => response.content);
     } catch (error: unknown) {
         const code = error instanceof Error ? error.message : "AGENT_UNKNOWN_FAILURE";
@@ -481,6 +488,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
       if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.threadWorkspaceResult, workspaceResult);
     }
     return ThreadDetailSchema.parse(services.database.completeMessage(input.threadId, started.turnId, assistantContent));
+    });
   });
 
   registerHandler(IPC_CHANNELS.threadMessageUpdate, services.rendererWebContentsId, async (unknownInput) => {
@@ -490,6 +498,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
 
   registerHandler(IPC_CHANNELS.threadMessageRegenerate, services.rendererWebContentsId, async (unknownInput, event) => {
     const input = ThreadItemInputSchema.parse(unknownInput);
+    return await services.turnCoordinator.run(input.threadId, async () => {
     const current = services.database.getThread(input.threadId);
     await enforcePermissionPolicy(event, services, { title: "NVIDIA yanıtını yenile", message: "Seçili yanıt NVIDIA NIM üzerinden yeniden üretilsin mi?", detail: "Bu işlem yeni bir dış sağlayıcı isteği oluşturur.", risky: false });
     const targetIndex = current.items.findIndex((item) => item.id === input.itemId && item.role === "assistant");
@@ -502,6 +511,7 @@ export function registerIpcHandlers(services: IpcServices): () => void {
     const replacement = await services.agent.respond(prompt, services.projects.get(current.thread.projectId).rootPath, current.items.slice(0, targetIndex))
       .then((response) => response.content);
     return ThreadDetailSchema.parse(services.database.replaceAssistantMessage(input.threadId, input.itemId, replacement));
+    });
   });
 
   registerHandler(IPC_CHANNELS.threadRename, services.rendererWebContentsId, async (unknownInput) => {

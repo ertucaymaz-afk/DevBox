@@ -16,6 +16,7 @@ import { DevelopmentSpecService } from "./services/development-spec-service.js";
 import { GitService } from "./services/git-service.js";
 import { IntegrationService } from "./services/integration-service.js";
 import { LocalCatalogService } from "./services/local-catalog-service.js";
+import { MemoryService } from "./services/memory-service.js";
 import { DebugService, LanguageService } from "./services/language-debug-service.js";
 import { PackageLifecycleService } from "./services/package-lifecycle-service.js";
 import { ProjectService } from "./services/project-service.js";
@@ -27,6 +28,7 @@ import { SelfDevelopmentService } from "./services/self-development-service.js";
 import { SshTrustService } from "./services/ssh-trust-service.js";
 import { TaskService } from "./services/task-service.js";
 import { TerminalService } from "./services/terminal-service.js";
+import { ThreadTurnCoordinator } from "./services/thread-turn-coordinator.js";
 import { WorktreeService } from "./services/worktree-service.js";
 import { WorkspaceTurnService } from "./services/workspace-turn-service.js";
 import { IPC_CHANNELS, TerminalEventSchema } from "../shared/contracts.js";
@@ -151,6 +153,8 @@ async function start(): Promise<void> {
   commandRunner = runner;
   const capabilities = new CapabilityService(runner);
   const agent = new AgentService(runner, app.getVersion());
+  const memory = new MemoryService(database);
+  const turnCoordinator = new ThreadTurnCoordinator();
   const attachments = new AttachmentService(database, path.join(app.getPath("userData"), "attachments"));
   const projects = new ProjectService(database);
   await protocol.handle("devbox-preview", createPreviewProtocolHandler(projects));
@@ -190,6 +194,8 @@ async function start(): Promise<void> {
     projects,
     capabilities,
     agent,
+    memory,
+    turnCoordinator,
     attachments,
     git,
     workspaceTurns,
@@ -211,6 +217,8 @@ async function start(): Promise<void> {
     coreApi,
     capabilities,
     agent,
+    memory,
+    turnCoordinator,
     evolution,
     attachments,
     projects,

@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import type { CommandResult } from "../../shared/contracts.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AgentService, evolutionRoutePlan, parseCodexModelCatalog, parseEvolutionProviderOutcome, parseNvidiaModelCatalog, resolveCodexExecutable } from "./agent-service.js";
+import { AgentService, evolutionRoutePlan, isWorkspaceMutationRequest, parseCodexModelCatalog, parseEvolutionProviderOutcome, parseNvidiaModelCatalog, resolveCodexExecutable } from "./agent-service.js";
 import type { CommandRunner } from "./command-runner.js";
 
 function result(runId: string, stdout: string): CommandResult {
@@ -126,7 +126,7 @@ describe("AgentService", () => {
       })}\n`));
     const service = new AgentService({ run } as unknown as CommandRunner);
 
-    const response = await service.respond("Bir görev", "C:\\project", []);
+    const response = await service.respond("index.html dosyasını düzelt", "C:\\project", []);
 
     expect(response.content).toBe("Güvenli son yanıt");
     expect(JSON.stringify(response)).not.toContain("chain of thought");
@@ -136,12 +136,31 @@ describe("AgentService", () => {
     expect(chatEnvironment.NVIDIA_API_KEY).toBe("test-secret-never-returned");
   });
 
+  it("uses Hermes pure one-shot for ordinary chat without the export subprocess", async () => {
+    process.env.NVIDIA_API_KEY = "test-secret";
+    const run = vi.fn().mockResolvedValue(result("oneshot-run", "Merhaba, hazırım.\n"));
+    const service = new AgentService({ run } as unknown as CommandRunner);
+
+    const response = await service.respond("Merhaba", "C:\\project", []);
+
+    expect(response.content).toBe("Merhaba, hazırım.");
+    expect(response.evidence).toContain("hermes-one-shot:direct-final-output");
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0]?.[0]?.args?.[0]).toBe("-z");
+  });
+
+  it("recognizes referential workspace follow-ups from recent thread history", () => {
+    const history = [{ role: "user", content: "index.html kodla" }, { role: "assistant", content: "index.html oluşturuldu" }] as never;
+    expect(isWorkspaceMutationRequest("Beğenmedim, bunu mobilde düzelt ve animasyonu geliştir", history)).toBe(true);
+    expect(isWorkspaceMutationRequest("Merhaba", history)).toBe(false);
+  });
+
   it("fails closed when Hermes does not return a session id", async () => {
     process.env.NVIDIA_API_KEY = "test-secret";
     const run = vi.fn().mockResolvedValue(result("chat-run", "untrusted raw output"));
     const service = new AgentService({ run } as unknown as CommandRunner);
 
-    await expect(service.respond("Bir görev", "C:\\project", [])).rejects.toThrow("HERMES_SESSION_ID_MISSING");
+    await expect(service.respond("index.html oluştur", "C:\\project", [])).rejects.toThrow("HERMES_SESSION_ID_MISSING");
     expect(run).toHaveBeenCalledTimes(1);
   });
 

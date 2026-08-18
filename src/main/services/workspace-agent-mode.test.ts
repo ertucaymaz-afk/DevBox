@@ -66,18 +66,18 @@ describe("workspace mutation routing", () => {
     expect(args[queryIndex + 1]).toContain("aynı dosyayı tekrar oku");
   });
 
-  it("keeps ordinary conversation in the restricted one-turn safe mode", async () => {
+  it("uses the pure one-shot fast path for ordinary conversation", async () => {
     process.env.NVIDIA_API_KEY = "workspace-test-key";
-    const run = vi.fn()
-      .mockResolvedValueOnce(result("chat-run", "session_id: session_87654321\n"))
-      .mockResolvedValueOnce(exported("Normal sohbet yanıtı"));
+    const run = vi.fn().mockResolvedValueOnce(result("oneshot-run", "Normal sohbet yanıtı"));
     const service = new AgentService({ run } as unknown as CommandRunner);
 
-    await service.respond("Bu kodun ne yaptığını açıklar mısın?", "C:\\project", []);
+    const response = await service.respond("Bu kodun ne yaptığını açıklar mısın?", "C:\\project", []);
 
+    expect(response.content).toBe("Normal sohbet yanıtı");
+    expect(run).toHaveBeenCalledTimes(1);
     const args = run.mock.calls[0]?.[0]?.args as string[];
-    expect(args).toContain("--safe-mode");
-    expect(args).toContain("1");
+    expect(args[0]).toBe("-z");
+    expect(args).not.toContain("--safe-mode");
     expect(args).not.toContain("--yolo");
     expect(args).not.toContain("file,terminal");
   });
