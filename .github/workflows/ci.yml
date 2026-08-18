@@ -51,6 +51,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
           git apply --ignore-space-change $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
+          & '.devbox-build/apply-v017-type-hotfix.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'TYPE_HOTFIX_FAILED' }
           Remove-Item -Recurse -Force '.devbox-build'
           if ((Get-Content package.json -Raw) -notmatch '"version":\s*"0\.1\.7"') { throw 'VERSION_PATCH_NOT_APPLIED' }
           Write-Host "DEVBOX_PATCH_VERIFIED gzip=$actualGzipSha256 patch=$actualPatchSha256"
@@ -114,6 +116,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
           git apply --ignore-space-change $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
+          & '.devbox-build/apply-v017-type-hotfix.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'TYPE_HOTFIX_FAILED' }
           Remove-Item -Recurse -Force '.devbox-build'
           if ((Get-Content package.json -Raw) -notmatch '"version":\s*"0\.1\.7"') { throw 'VERSION_PATCH_NOT_APPLIED' }
           Write-Host "DEVBOX_PATCH_VERIFIED gzip=$actualGzipSha256 patch=$actualPatchSha256"
