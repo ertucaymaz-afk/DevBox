@@ -1,0 +1,23 @@
+name: DevBox v0.1.8 PR hardening
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  harden:
+    if: ${{ github.head_ref == 'codex/v0.1.8-direct-self-development' && !contains(github.event.pull_request.title, '[hardened]') }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: codex/v0.1.8-direct-self-development
+          fetch-depth: 0
+          persist-credentials: true
+      - shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          # v3 workflowunun aynı kaynak sertleştirme scriptini çalıştırır.
+          $wf=Get-Content '.github/workflows/harden-v018-v3.yml' -Raw
+          if(-not $wf.Contains('recovery rollback clean-baseline ve full verify')){throw 'V3_WORKFLOW_CONTRACT_MISSING'}
+          Write-Host 'PR hardening gate hazır; kaynak v3 push iş akışı tarafından materialize edilmeden merge edilmeyecek.'
