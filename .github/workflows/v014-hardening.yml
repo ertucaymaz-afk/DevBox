@@ -1,0 +1,90 @@
+name: DevBox v0.1.14 concurrency memory adaptive hardening
+
+on:
+  push:
+    branches:
+      - codex/v0.1.14-concurrency-memory-adaptive-evolution
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v014-hardening-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize-and-verify:
+    runs-on: windows-latest
+    timeout-minutes: 55
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Node.js 24 kullan
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Bağımlılıkları kilitten kur
+        run: pnpm install --frozen-lockfile
+
+      - name: v0.1.14 ürün değişikliklerini exact-anchor ile uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pkg = Get-Content package.json -Raw
+          if ($pkg -match '"version"\s*:\s*"0\.1\.14"') {
+            Write-Host 'DEVBOX_V014_ALREADY_MATERIALIZED'
+          } else {
+            node scripts/apply-v014-core.mjs
+            if ($LASTEXITCODE -ne 0) { throw "V014_CORE_PATCH_FAILED:$LASTEXITCODE" }
+            node scripts/apply-v014-ui-evolution.mjs
+            if ($LASTEXITCODE -ne 0) { throw "V014_UI_EVOLUTION_PATCH_FAILED:$LASTEXITCODE" }
+          }
+
+      - name: Patch biçimini doğrula
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'GIT_DIFF_CHECK_FAILED' }
+
+      - name: TypeScript kapısı
+        run: pnpm typecheck
+
+      - name: Regresyon testleri
+        run: pnpm test
+
+      - name: Üretim build ve truth audit
+        run: pnpm build
+
+      - name: Doğrulanmış ürün kaynaklarını dala yaz
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json src/main src/renderer
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'STAGED_DIFF_CHECK_FAILED' }
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host 'DEVBOX_V014_PRODUCT_ALREADY_COMMITTED'
+            exit 0
+          }
+          git commit -m 'v0.1.14: concurrent chat, local memory and adaptive evolution'
+          git push origin HEAD:codex/v0.1.14-concurrency-memory-adaptive-evolution
+          Write-Host 'DEVBOX_V014_PRODUCT_COMMITTED'
