@@ -36,6 +36,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           node scripts/apply-v0110-canvas-workspace.mjs
           if ($LASTEXITCODE -ne 0) { throw "V0110_MATERIALIZER_FAILED:$LASTEXITCODE" }
+          node scripts/apply-v0110-followup.mjs
+          if ($LASTEXITCODE -ne 0) { throw "V0110_FOLLOWUP_FAILED:$LASTEXITCODE" }
           git diff --check
           if ($LASTEXITCODE -ne 0) { throw "V0110_DIFF_CHECK_FAILED:$LASTEXITCODE" }
 
@@ -47,6 +49,6 @@ jobs:
           if (-not $changes) { Write-Host 'V0110_ALREADY_MATERIALIZED'; exit 0 }
           git config user.name 'DevBox CI'
           git config user.email 'actions@users.noreply.github.com'
-          git add package.json src/shared/contracts.ts src/shared/bridge.ts src/preload/preload.cts src/main/services/agent-service.ts src/main/ipc.ts src/main/main.ts src/renderer/App.tsx src/renderer/AdvancedViews.tsx src/renderer/styles.css
+          git add package.json src/shared/contracts.ts src/shared/bridge.ts src/preload/preload.cts src/main/services/agent-service.ts src/main/services/workspace-turn-service.ts src/main/ipc.ts src/main/main.ts src/renderer/App.tsx src/renderer/AdvancedViews.tsx src/renderer/CanvasInspector.tsx src/renderer/styles.css
           git commit -m 'v0.1.10 Canvas workspace runtime materialize [skip ci]'
           git push origin HEAD:codex/v0.1.10-canvas-workspace-agent
