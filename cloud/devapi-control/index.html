@@ -17,12 +17,13 @@
 
   <main>
     <section class="hero panel">
-      <div><span class="eyebrow">DURABLE CONTROL PLANE</span><h1>DevAPI masaüstünden bağımsız yaşasın.</h1><p>Seviye, gerçek öğrenimler, domain puanları, evolution görevleri, findings ve release gate kayıtları cloud state üzerinden izlenir. Bulut yapılandırılmamışsa bu ekran READY taklidi yapmaz.</p></div>
+      <div><span class="eyebrow">DURABLE CONTROL PLANE</span><h1>DevAPI masaüstünden bağımsız yaşasın.</h1><p>Seviye, gerçek öğrenimler, domain puanları, evolution görevleri, findings, release gate ve komut ACK kayıtları cloud state üzerinden izlenir. Bulut yapılandırılmamışsa bu ekran READY taklidi yapmaz.</p></div>
       <div class="auth-box">
-        <label>Project ID<input id="projectId" autocomplete="off" placeholder="DevBox proje kimliği" /></label>
         <label>Admin token<input id="adminToken" type="password" autocomplete="current-password" placeholder="DEVBOX_CONTROL_ADMIN_TOKEN" /></label>
+        <div class="project-discovery"><button id="discover">Cloud projelerini getir</button><select id="projectPicker" aria-label="Cloud projesi seç"><option value="">Önce proje envanterini doğrula</option></select></div>
+        <label>Project ID<input id="projectId" autocomplete="off" placeholder="DevBox proje kimliği" /></label>
         <div><button id="connect" class="primary">Bağlan ve durumu doğrula</button><button id="refresh">Yenile</button></div>
-        <small>Admin token kod içine gömülmez; yalnız bu tarayıcı oturumunun sessionStorage alanında tutulur.</small>
+        <small>Admin token kod içine gömülmez; yalnız bu tarayıcı sekmesinin sessionStorage alanında tutulur. Project ID elle yazılabilir veya doğrulanmış cloud envanterinden seçilebilir.</small>
       </div>
     </section>
 
@@ -51,10 +52,12 @@
       <article class="panel"><header><div><span class="eyebrow">LEARNING LOG</span><h2>DevAPI ne öğrendi?</h2></div></header><div id="learnings" class="learnings"><div class="empty">Öğrenim kaydı yok.</div></div></article>
     </section>
 
+    <section class="panel"><header class="section-head"><div><span class="eyebrow">COMMAND AUDIT</span><h2>Cloud komut kuyruğu ve desktop ACK</h2></div><span class="audit-legend">PENDING → RETRYING → APPLIED / FAILED</span></header><div id="commands" class="commands"><div class="empty">Cloud komut geçmişi yok.</div></div></section>
+
     <section class="panel"><header><div><span class="eyebrow">CLOUD HISTORY</span><h2>Kalıcı seviye ve sağlık izi</h2></div></header><div id="history" class="history"></div></section>
   </main>
 
-  <footer><span>DevBox DevAPI Control</span><span>Gerçek state yoksa READY yok.</span></footer>
+  <footer><span>DevBox DevAPI Control · v0.1.15</span><span>Gerçek state ve ACK yoksa READY yok.</span></footer>
   <script type="module" src="/app.js"></script>
 </body>
 </html>
