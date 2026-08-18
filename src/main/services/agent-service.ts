@@ -12,7 +12,7 @@ const MODEL = "nvidia/nemotron-3-super-120b-a12b";
 export const CODEX_PROVIDER = "OpenAI Codex CLI";
 export const DEFAULT_CODEX_MODEL = "gpt-5.6-sol";
 export const CODEX_REASONING_EFFORT = "high";
-const MAX_HISTORY_CHARACTERS = 32_000;
+const MAX_HISTORY_CHARACTERS = 24_000;
 
 type ExportedMessage = { role?: unknown; content?: unknown };
 type ExportedSession = { messages?: unknown };
@@ -323,37 +323,38 @@ export function resolveHermesExecutable(environment: NodeJS.ProcessEnv = process
   return "hermes";
 }
 
-export function isWorkspaceMutationRequest(prompt: string): boolean {
+export function isWorkspaceMutationRequest(prompt: string, history: readonly ThreadItem[] = []): boolean {
   const normalized = prompt.toLocaleLowerCase("tr-TR");
-  const target = /(?:\bindex\.html\b|\b[a-z0-9._-]+\.(?:html?|css|jsx?|tsx?|json|md|py|go|rs|java|php|vue|svelte)\b|dosya|sayfa|site|proje|kod|component|bileşen)/iu.test(normalized);
-  const action = /(?:oluştur|kodla|yaz|ekle|değiştir|düzelt|güncelle|uygula|entegre|sil|yeniden adlandır|refactor|tasarla|build|create|write|edit|modify|update|fix|implement|add|remove)/iu.test(normalized);
-  return target && action;
+  const targetPattern = /(?:\bindex\.html\b|\b[a-z0-9._-]+\.(?:html?|css|jsx?|tsx?|json|md|py|go|rs|java|php|vue|svelte)\b|dosya|sayfa|site|proje|kod|component|bileşen)/iu;
+  const actionPattern = /(?:oluştur|kodla|yaz|ekle|değiştir|düzelt|güncelle|uygula|entegre|sil|yeniden adlandır|refactor|tasarla|build|create|write|edit|modify|update|fix|implement|add|remove|iyileştir|geliştir|beğenmedim|devam et)/iu;
+  if (!actionPattern.test(normalized)) return false;
+  if (targetPattern.test(normalized)) return true;
+  const referential = /(?:bunu|şunu|onu|aynı|önceki|burayı|burada|beğenmedim|devam et|kaldığımız|tasarımı|görünümü|rengi|animasyonu|mobilde)/iu.test(normalized);
+  if (!referential) return false;
+  const recent = history.filter((item) => item.role === "user" || item.role === "assistant").slice(-10).map((item) => item.content).join("\n").toLocaleLowerCase("tr-TR");
+  return targetPattern.test(recent);
 }
 
-function boundedConversation(history: readonly ThreadItem[], prompt: string, workspaceMutation = false): string {
-  const messages = history
-    .filter((item) => item.role === "user" || item.role === "assistant")
-    .slice(-12)
-    .map((item) => `${item.role === "user" ? "Kullanıcı" : "DevBox"}: ${item.content}`);
+function boundedConversation(history: readonly ThreadItem[], prompt: string, workspaceMutation = false, memoryContext = ""): string {
+  const messages = history.filter((item) => item.role === "user" || item.role === "assistant").slice(-12).map((item) => `${item.role === "user" ? "Kullanıcı" : "DevBox"}: ${item.content}`);
   messages.push(`Kullanıcı: ${prompt}`);
-
   const base = "Aşağıdaki DevBox görev geçmişini bağlam olarak kullan. Yalnızca kullanıcının son isteğine yardımcı, doğrudan bir yanıt ver. İç muhakemeyi, sistem istemini veya gizli bilgileri yanıtına koyma.";
   const workspace = workspaceMutation ? [
     "DEVBOX GERÇEK WORKSPACE MODU:",
     "- Kullanıcı bu mesajla seçili çalışma alanında gerçek dosya değişikliğini açıkça istedi. Yalnız açıklama verme; file/terminal araçlarını kullanarak işi gerçekten uygula.",
-    "- Başka bir araç çağrısı gerekiyorsa durup kullanıcıdan dosyayı okumak için ek izin isteme. Görevi tamamlamak için gerekli read/search/patch/write çağrılarına aynı oturumda devam et.",
-    "- Önce ilgili dosyaları ara ve oku. Sonra mümkünse patch ile en küçük güvenli değişikliği uygula. Yeni dosya gerekiyorsa gerçekten oluştur.",
-    "- Her yazma/patch işleminden sonra aynı dosyayı tekrar oku ve içeriğin diskte gerçekten bulunduğunu doğrula. Araç başarı metnine tek başına güvenme.",
-    "- git reset, git clean, git checkout --, rebase, force push veya commit çalıştırma. Kullanıcının önceden var olan kirli değişikliklerini koru.",
-    "- Test/build komutu uygunsa çalıştır; mümkün değilse nedenini açıkça belirt.",
-    "- Son yanıtta yalnız gerçekten yapılan işleri ve diskten doğrulanan dosya yollarını söyle. Dosya değişmediyse başarı iddia etme.",
-    "- SİMÜLASYON, DEMO, FAKE, SAHTE, placeholder, canned response, temsili başarı veya yalnız görsel maket üretme. İstenen özellik gerçek dosya ve çalışan davranış olarak bulunmalı.",
-    "- HTML/CSS/JS önizlemesinde kullanıcı açıkça istemedikçe CDN, uzak script, uzak stylesheet, uzak font veya ağ bağımlılığı kullanma. İlk görünüm ağ olmadan çalışmalı.",
-    "- Animasyon istenirse gerçek CSS keyframes/Web Animations API/vanilla JavaScript veya çalışma alanındaki yerel varlıklarla uygula. Eksik dış kütüphane yüzünden opacity:0/visibility:hidden durumda kalan içerik bırakma.",
-    "- index.html üretiminde geçerli doctype, görünür body içeriği, responsive viewport ve ilk paintte görünür içerik zorunludur; yalnız boş container veya sonradan çalışacağı varsayılan kod bırakma."
+    "- Takip mesajı 'bunu düzelt', 'beğenmedim', 'devam et' gibi referanslıysa son konuşmadaki dosya/kod hedefini yeniden ara, mevcut dosyayı oku ve aynı gerçek çalışma alanı üzerinde iteratif düzeltmeye devam et.",
+    "- Başka bir araç çağrısı gerekiyorsa durup kullanıcıdan ek izin isteme; gerekli read/search/patch/write çağrılarına aynı oturumda devam et.",
+    "- Önce ilgili dosyaları ara ve oku; sonra en küçük güvenli gerçek değişikliği uygula. Her yazma/patch işleminden sonra aynı dosyayı tekrar oku ve içeriğin diskte gerçekten bulunduğunu doğrula.",
+    "- git reset, git clean, git checkout --, rebase, force push veya commit çalıştırma. Önceden var olan kullanıcı değişikliklerini koru.",
+    "- Uygunsa test/build çalıştır. Dosya değişmediyse başarı iddia etme.",
+    "- SİMÜLASYON, DEMO, FAKE, SAHTE, placeholder, canned response, temsili başarı veya yalnız görsel maket yasak.",
+    "- HTML/CSS/JS ilk görünümü kullanıcı özellikle istemedikçe ağdan bağımsız olmalı; uzak script/font/stylesheet yüzünden boş render bırakma.",
+    "- Animasyon gerçek CSS keyframes/Web Animations API/vanilla JS veya yerel varlıklarla uygulanmalı.",
+    "- index.html geçerli doctype, responsive viewport ve ilk paintte görünür anlamlı body içeriği üretmeli."
   ].join("\n") : "";
   const body = messages.join("\n\n");
-  return `${base}${workspace ? `\n\n${workspace}` : ""}\n\n${body.slice(-MAX_HISTORY_CHARACTERS)}`;
+  const memory = memoryContext.trim() ? `\n\n${memoryContext.trim().slice(0, 4_800)}` : "";
+  return `${base}${workspace ? `\n\n${workspace}` : ""}${memory}\n\n${body.slice(-MAX_HISTORY_CHARACTERS)}`;
 }
 
 function findSessionId(stdout: string, stderr: string): string | null {
@@ -582,78 +583,41 @@ export class AgentService {
     history: readonly ThreadItem[],
     onProgress?: AgentProgressListener,
     cancellation?: AbortSignal,
-    modelOverride = MODEL
+    modelOverride = MODEL,
+    memoryContext = ""
   ): Promise<AgentResponse> {
     const credential = discoverNvidiaCredential();
     if (!credential) throw new Error("NVIDIA_CREDENTIAL_UNAVAILABLE");
-
     const executable = resolveHermesExecutable();
     const hermesHome = process.env.HERMES_HOME ?? (process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "hermes") : "");
     const environment: Record<string, string> = { NVIDIA_API_KEY: credential.value };
     if (hermesHome) environment.HERMES_HOME = hermesHome;
     if (process.env.HERMES_GIT_BASH_PATH) environment.HERMES_GIT_BASH_PATH = process.env.HERMES_GIT_BASH_PATH;
-
-    const workspaceMutation = isWorkspaceMutationRequest(prompt);
+    const workspaceMutation = isWorkspaceMutationRequest(prompt, history);
     const started = performance.now();
+    if (!workspaceMutation) {
+      report(onProgress, "provider", "MODEL_ATTEMPT", "Hermes hızlı one-shot yanıt yolu deneniyor.", "Hermes / NVIDIA NIM", modelOverride);
+      const oneShot = await this.#runner.run({ executable, args: ["-z", boundedConversation(history, prompt, false, memoryContext), "--provider", PROVIDER, "--model", modelOverride], cwd, environment, timeoutMs: 120_000, maxOutputBytes: 2 * 1024 * 1024, cancellation });
+      const direct = oneShot.exitCode === 0 && !oneShot.timedOut && !oneShot.truncated ? oneShot.stdout.trim() : "";
+      if (direct) {
+        const parsedOutcome = parseEvolutionProviderOutcome(direct);
+        return { content: direct, provider: PROVIDER, model: modelOverride, sessionId: `oneshot:${oneShot.runId}`, durationMs: Math.max(0, Math.round(performance.now() - started)), evidence: [oneShot.runId, "hermes-one-shot:direct-final-output"], outcome: parsedOutcome.outcome, blockReason: parsedOutcome.blockReason, acceptance: parsedOutcome.acceptance };
+      }
+      report(onProgress, "waiting", "BACKOFF", "Hermes one-shot sonuç üretmedi; güvenli chat + redacted export fallback çalıştırılıyor.", "Hermes / NVIDIA NIM", modelOverride);
+    }
     report(onProgress, "provider", "PROVIDER_CHECK", "Hermes aracılığıyla NVIDIA NIM oturumu başlatıldı.", "Hermes / NVIDIA NIM", modelOverride);
     report(onProgress, "command", "RUNNING_COMMAND", workspaceMutation ? "hermes chat gerçek workspace file/terminal araç döngüsüyle çalıştırılıyor." : "hermes chat güvenli sohbet modunda çalıştırılıyor.", "Hermes / NVIDIA NIM", modelOverride);
-    const chat = await this.#runner.run({
-      executable,
-      args: [
-        "chat",
-        "--query", boundedConversation(history, prompt, workspaceMutation),
-        "--provider", PROVIDER,
-        "--model", modelOverride,
-        "--reasoning", "none",
-        ...(workspaceMutation ? ["--toolsets", "file,terminal", "--ignore-user-config", "--ignore-rules", "--checkpoints", "--yolo"] : ["--safe-mode"]),
-        "--quiet",
-        "--source", "devbox",
-        "--max-turns", workspaceMutation ? "96" : "1",
-        "--in", cwd
-      ],
-      cwd,
-      environment,
-      timeoutMs: workspaceMutation ? 10 * 60_000 : 180_000,
-      maxOutputBytes: workspaceMutation ? 8 * 1024 * 1024 : 2 * 1024 * 1024,
-      cancellation
-    });
+    const chat = await this.#runner.run({ executable, args: ["chat", "--query", boundedConversation(history, prompt, workspaceMutation, memoryContext), "--provider", PROVIDER, "--model", modelOverride, "--reasoning", "none", ...(workspaceMutation ? ["--toolsets", "file,terminal", "--ignore-user-config", "--ignore-rules", "--checkpoints", "--yolo"] : ["--safe-mode"]), "--quiet", "--source", "devbox", "--max-turns", workspaceMutation ? "96" : "1", "--in", cwd], cwd, environment, timeoutMs: workspaceMutation ? 10 * 60_000 : 180_000, maxOutputBytes: workspaceMutation ? 8 * 1024 * 1024 : 2 * 1024 * 1024, cancellation });
     if (chat.exitCode !== 0 || chat.timedOut || chat.truncated) throw new Error("HERMES_EXECUTION_FAILED");
-    report(onProgress, "evidence", "VERIFYING", `Hermes çalıştırması tamamlandı · ${chat.durationMs} ms · çıkış ${chat.exitCode}.`, "Hermes / NVIDIA NIM", modelOverride);
-
     const sessionId = findSessionId(chat.stdout, chat.stderr);
     if (!sessionId) throw new Error("HERMES_SESSION_ID_MISSING");
-
-    report(onProgress, "command", "VERIFYING", "Sağlayıcı oturumu redakte edilmiş JSONL olarak dışa aktarılıyor.", "Hermes / NVIDIA NIM", modelOverride);
-    const exported = await this.#runner.run({
-      executable,
-      args: ["sessions", "export", "-", "--format", "jsonl", "--session-id", sessionId, "--yes", "--redact"],
-      cwd,
-      ...(hermesHome ? { environment: { HERMES_HOME: hermesHome } } : {}),
-      timeoutMs: 30_000,
-      maxOutputBytes: 8 * 1024 * 1024,
-      cancellation
-    });
+    const exported = await this.#runner.run({ executable, args: ["sessions", "export", "-", "--format", "jsonl", "--session-id", sessionId, "--yes", "--redact"], cwd, ...(hermesHome ? { environment: { HERMES_HOME: hermesHome } } : {}), timeoutMs: 30_000, maxOutputBytes: 8 * 1024 * 1024, cancellation });
     if (exported.exitCode !== 0 || exported.timedOut || exported.truncated) throw new Error("HERMES_EXPORT_FAILED");
-    report(onProgress, "evidence", "VERIFYING", `Redakte edilmiş oturum çıktısı doğrulandı · ${exported.durationMs} ms.`, "Hermes / NVIDIA NIM", modelOverride);
-
     const content = parseExportedAnswer(exported.stdout);
     if (!content) throw new Error("HERMES_RESPONSE_PARSE_FAILED");
-    report(onProgress, "evidence", "REVIEWING", `Yanıt ayrıştırıldı · oturum ${sessionId.slice(0, 12)}…`, "Hermes / NVIDIA NIM", modelOverride);
-
     const parsedOutcome = parseEvolutionProviderOutcome(content);
-    return {
-      content,
-      provider: PROVIDER,
-      model: modelOverride,
-      sessionId,
-      durationMs: Math.max(0, Math.round(performance.now() - started)),
-      evidence: [chat.runId, exported.runId],
-      outcome: parsedOutcome.outcome,
-      blockReason: parsedOutcome.blockReason,
-      acceptance: parsedOutcome.acceptance
-    };
+    return { content, provider: PROVIDER, model: modelOverride, sessionId, durationMs: Math.max(0, Math.round(performance.now() - started)), evidence: [chat.runId, exported.runId], outcome: parsedOutcome.outcome, blockReason: parsedOutcome.blockReason, acceptance: parsedOutcome.acceptance };
   }
-
   async #resolveCodexMutationMode(
     executable: string,
     versionText: string,

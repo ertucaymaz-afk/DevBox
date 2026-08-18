@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Attachment, Automation, ProjectSummary, ThreadDetail, ThreadItem, ThreadSummary } from "../../shared/contracts.js";
 
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 const GENERIC_THREAD_TITLES = new Set(["Yeni görev", "Yeni sohbet"]);
 
 export function deriveThreadTitle(content: string, hasAttachments = false): string {
@@ -147,6 +147,35 @@ type RemoteWorkerRow = {
   last_seen_at: string;
   paired_at: string;
   revoked_at: string | null;
+};
+
+export type MemoryEntryRecord = {
+  id: string;
+  projectId: string;
+  threadId: string | null;
+  kind: "constraint" | "preference" | "decision" | "context";
+  content: string;
+  normalized: string;
+  importance: number;
+  useCount: number;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string;
+};
+
+type MemoryRow = {
+  id: string;
+  project_id: string;
+  thread_id: string | null;
+  scope_key: string;
+  kind: MemoryEntryRecord["kind"];
+  content: string;
+  normalized: string;
+  importance: number;
+  use_count: number;
+  created_at: string;
+  updated_at: string;
+  last_used_at: string;
 };
 
 export type StoredAttachment = Attachment & { storedPath: string };
@@ -376,8 +405,61 @@ export class StateDatabase {
       }
     }
 
+    if (version < 7) {
+      this.#database.exec("BEGIN IMMEDIATE;");
+      try {
+        this.#database.exec(`
+          CREATE TABLE memory_entries (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            thread_id TEXT REFERENCES threads(id) ON DELETE CASCADE,
+            scope_key TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('constraint', 'preference', 'decision', 'context')),
+            content TEXT NOT NULL,
+            normalized TEXT NOT NULL,
+            importance REAL NOT NULL CHECK (importance >= 0 AND importance <= 1),
+            use_count INTEGER NOT NULL DEFAULT 0 CHECK (use_count >= 0),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_used_at TEXT NOT NULL,
+            UNIQUE(scope_key, normalized)
+          );
+          CREATE INDEX idx_memory_project_importance ON memory_entries(project_id, importance DESC, last_used_at DESC);
+          CREATE INDEX idx_memory_thread_updated ON memory_entries(thread_id, updated_at DESC);
+          UPDATE schema_meta SET version = 7;
+        `);
+        this.#database.exec("COMMIT;");
+        version = 7;
+      } catch (error) {
+        this.#database.exec("ROLLBACK;");
+        throw error;
+      }
+    }
+
     if (version !== CURRENT_SCHEMA_VERSION) {
       throw new Error(`Unsupported state schema version: ${version}`);
+    }
+    this.#ensureMemoryFts();
+  }
+
+  #ensureMemoryFts(): void {
+    try {
+      this.#database.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(id UNINDEXED, content, normalized, tokenize='unicode61 remove_diacritics 2');
+        CREATE TRIGGER IF NOT EXISTS memory_ai AFTER INSERT ON memory_entries BEGIN
+          INSERT INTO memory_fts(rowid, id, content, normalized) VALUES (new.rowid, new.id, new.content, new.normalized);
+        END;
+        CREATE TRIGGER IF NOT EXISTS memory_ad AFTER DELETE ON memory_entries BEGIN
+          DELETE FROM memory_fts WHERE rowid = old.rowid;
+        END;
+        CREATE TRIGGER IF NOT EXISTS memory_au AFTER UPDATE OF content, normalized ON memory_entries BEGIN
+          DELETE FROM memory_fts WHERE rowid = old.rowid;
+          INSERT INTO memory_fts(rowid, id, content, normalized) VALUES (new.rowid, new.id, new.content, new.normalized);
+        END;
+        INSERT OR REPLACE INTO memory_fts(rowid, id, content, normalized) SELECT rowid, id, content, normalized FROM memory_entries;
+      `);
+    } catch {
+      // FTS5 yalnız hızlandırma katmanıdır; sıralı recent-memory fallback çalışmaya devam eder.
     }
   }
 
@@ -423,6 +505,99 @@ export class StateDatabase {
     const order = input.order === "desc" ? "DESC" : "ASC";
     const rows = this.#database.prepare(`SELECT * FROM events WHERE ${clauses.join(" AND ")} ORDER BY sequence ${order} LIMIT ?`).all(...params) as unknown as EventRow[];
     return rows.map((row) => this.#mapEvent(row));
+  }
+
+  public upsertMemoryEntry(input: {
+    projectId: string;
+    threadId: string | null;
+    kind: MemoryEntryRecord["kind"];
+    content: string;
+    normalized: string;
+    importance: number;
+  }): MemoryEntryRecord {
+    if (!this.getProject(input.projectId)) throw new Error("PROJECT_NOT_FOUND");
+    if (input.threadId && !this.#database.prepare("SELECT id FROM threads WHERE id = ? AND project_id = ?").get(input.threadId, input.projectId)) throw new Error("THREAD_NOT_FOUND");
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const scopeKey = input.threadId ? `thread:${input.threadId}` : `project:${input.projectId}`;
+    this.#database.prepare(`
+      INSERT INTO memory_entries(id, project_id, thread_id, scope_key, kind, content, normalized, importance, use_count, created_at, updated_at, last_used_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+      ON CONFLICT(scope_key, normalized) DO UPDATE SET
+        content = excluded.content,
+        kind = excluded.kind,
+        importance = MAX(memory_entries.importance, excluded.importance),
+        updated_at = excluded.updated_at,
+        last_used_at = excluded.last_used_at
+    `).run(id, input.projectId, input.threadId, scopeKey, input.kind, input.content.slice(0, 1_500), input.normalized.slice(0, 1_500), Math.max(0, Math.min(1, input.importance)), now, now, now);
+    const row = this.#database.prepare("SELECT * FROM memory_entries WHERE scope_key = ? AND normalized = ?").get(scopeKey, input.normalized.slice(0, 1_500)) as MemoryRow;
+    return this.#mapMemory(row);
+  }
+
+  public searchMemoryEntries(input: { projectId: string; threadId: string; query: string; limit?: number }): MemoryEntryRecord[] {
+    const limit = Math.max(1, Math.min(20, Math.trunc(input.limit ?? 8)));
+    let rows: MemoryRow[] = [];
+    const ftsEnabled = Boolean(this.#database.prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'memory_fts'").get());
+    if (ftsEnabled && input.query.trim()) {
+      try {
+        rows = this.#database.prepare(`
+          SELECT m.* FROM memory_fts
+          INNER JOIN memory_entries m ON m.rowid = memory_fts.rowid
+          WHERE memory_fts MATCH ? AND m.project_id = ? AND (m.thread_id IS NULL OR m.thread_id = ?)
+          ORDER BY bm25(memory_fts) ASC, m.importance DESC, m.last_used_at DESC
+          LIMIT ?
+        `).all(input.query, input.projectId, input.threadId, limit) as unknown as MemoryRow[];
+      } catch {
+        rows = [];
+      }
+    }
+    if (rows.length === 0) {
+      rows = this.#database.prepare(`
+        SELECT * FROM memory_entries
+        WHERE project_id = ? AND (thread_id IS NULL OR thread_id = ?)
+        ORDER BY importance DESC, last_used_at DESC
+        LIMIT ?
+      `).all(input.projectId, input.threadId, limit) as unknown as MemoryRow[];
+    }
+    const now = new Date().toISOString();
+    const touch = this.#database.prepare("UPDATE memory_entries SET use_count = use_count + 1, last_used_at = ? WHERE id = ?");
+    for (const row of rows) touch.run(now, row.id);
+    return rows.map((row) => this.#mapMemory({ ...row, use_count: row.use_count + 1, last_used_at: now }));
+  }
+
+  public listRecentMemory(projectId: string, limit = 40): MemoryEntryRecord[] {
+    const bounded = Math.max(1, Math.min(200, Math.trunc(limit)));
+    const rows = this.#database.prepare("SELECT * FROM memory_entries WHERE project_id = ? ORDER BY importance DESC, updated_at DESC LIMIT ?").all(projectId, bounded) as unknown as MemoryRow[];
+    return rows.map((row) => this.#mapMemory(row));
+  }
+
+  public pruneProjectMemory(projectId: string, maxEntries: number): number {
+    const max = Math.max(100, Math.min(10_000, Math.trunc(maxEntries)));
+    const count = Number((this.#database.prepare("SELECT COUNT(*) AS count FROM memory_entries WHERE project_id = ?").get(projectId) as { count: number }).count);
+    const excess = Math.max(0, count - max);
+    if (!excess) return 0;
+    const result = this.#database.prepare(`
+      DELETE FROM memory_entries WHERE id IN (
+        SELECT id FROM memory_entries WHERE project_id = ?
+        ORDER BY importance ASC, use_count ASC, last_used_at ASC LIMIT ?
+      )
+    `).run(projectId, excess);
+    return Number(result.changes);
+  }
+
+  public clearProjectMemory(projectId: string): number {
+    return Number(this.#database.prepare("DELETE FROM memory_entries WHERE project_id = ?").run(projectId).changes);
+  }
+
+  public memoryStats(projectId: string): { total: number; projectScoped: number; threadScoped: number; ftsEnabled: boolean } {
+    const row = this.#database.prepare(`
+      SELECT COUNT(*) AS total,
+        SUM(CASE WHEN thread_id IS NULL THEN 1 ELSE 0 END) AS project_scoped,
+        SUM(CASE WHEN thread_id IS NOT NULL THEN 1 ELSE 0 END) AS thread_scoped
+      FROM memory_entries WHERE project_id = ?
+    `).get(projectId) as { total: number; project_scoped: number | null; thread_scoped: number | null };
+    const ftsEnabled = Boolean(this.#database.prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'memory_fts'").get());
+    return { total: Number(row.total), projectScoped: Number(row.project_scoped ?? 0), threadScoped: Number(row.thread_scoped ?? 0), ftsEnabled };
   }
 
   public listAutomations(projectId?: string): Automation[] {
@@ -987,6 +1162,22 @@ export class StateDatabase {
       sha256: row.sha256,
       canPreview: row.can_preview === 1,
       createdAt: row.created_at
+    };
+  }
+
+  #mapMemory(row: MemoryRow): MemoryEntryRecord {
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      threadId: row.thread_id,
+      kind: row.kind,
+      content: row.content,
+      normalized: row.normalized,
+      importance: row.importance,
+      useCount: row.use_count,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lastUsedAt: row.last_used_at
     };
   }
 

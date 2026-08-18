@@ -16,6 +16,8 @@ import { SettingsService } from "./settings-service.js";
 import type { WorkspaceTurnService } from "./workspace-turn-service.js";
 import { RemoteWorkerService } from "./remote-worker-service.js";
 import { LocalCatalogService } from "./local-catalog-service.js";
+import { MemoryService } from "./memory-service.js";
+import { ThreadTurnCoordinator } from "./thread-turn-coordinator.js";
 
 const temporaryDirectories: string[] = [];
 const databases: StateDatabase[] = [];
@@ -37,6 +39,8 @@ describe("loopback core API", () => {
     const projects = new ProjectService(database);
     const project = await projects.open(root);
     const settings = new SettingsService(database);
+    const memory = new MemoryService(database);
+    const turnCoordinator = new ThreadTurnCoordinator();
     const agent = { respond: vi.fn().mockResolvedValue({ content: "Gerçek servis sözleşmesi için izole test yanıtı." }) } as unknown as AgentService;
     const workspaceTurns = {
       capture: vi.fn(async (projectId: string) => ({ projectId, rootPath: root, gitAvailable: true, gitHead: "1111111111111111111111111111111111111111", dirtyCount: 0, entries: new Map() })),
@@ -52,6 +56,8 @@ describe("loopback core API", () => {
       projects,
       capabilities: new CapabilityService(runner),
       agent,
+      memory,
+      turnCoordinator,
       evolution: new ApiEvolutionService(database, projects, agent, settings, new DevelopmentSpecService(database, path.resolve("specs", "development", "geliştirme-spec-task-graph.json")), new GitService(runner), runner),
       attachments: new AttachmentService(database, path.join(root, "attachments")),
       git: new GitService(runner),

@@ -14,6 +14,8 @@ import type { WorkspaceTurnService } from "./workspace-turn-service.js";
 import type { SettingsService } from "./settings-service.js";
 import type { RemoteWorkerService } from "./remote-worker-service.js";
 import type { LocalCatalogService } from "./local-catalog-service.js";
+import type { MemoryService } from "./memory-service.js";
+import type { ThreadTurnCoordinator } from "./thread-turn-coordinator.js";
 import { CatalogToolCallInputSchema, EvolutionRoutingSchema, type ThreadItem, type ThreadWorkspaceResult } from "../../shared/contracts.js";
 
 type CoreApiOptions = {
@@ -22,6 +24,8 @@ type CoreApiOptions = {
   projects: ProjectService;
   capabilities: CapabilityService;
   agent: AgentService;
+  memory: MemoryService;
+  turnCoordinator: ThreadTurnCoordinator;
   evolution: ApiEvolutionService;
   attachments: AttachmentService;
   git: GitService;
@@ -76,7 +80,8 @@ async function executeVerifiedAgentTurn(options: CoreApiOptions, input: {
   prompt: string;
   history: readonly ThreadItem[];
 }): Promise<VerifiedAgentTurn> {
-  const workspaceIntent = isWorkspaceMutationRequest(input.prompt);
+  const workspaceIntent = isWorkspaceMutationRequest(input.prompt, input.history);
+  const memoryContext = options.memory.buildContext(input.projectId, input.threadId, input.prompt);
   if (workspaceIntent && !options.workspaceTurns) throw new Error("WORKSPACE_VERIFIER_UNAVAILABLE");
   const project = options.projects.get(input.projectId);
   const before = workspaceIntent ? await options.workspaceTurns!.capture(input.projectId) : null;
@@ -84,7 +89,7 @@ async function executeVerifiedAgentTurn(options: CoreApiOptions, input: {
   let response: Awaited<ReturnType<AgentService["respond"]>>;
 
   try {
-    response = await options.agent.respond(input.prompt, project.rootPath, input.history);
+    response = await options.agent.respond(input.prompt, project.rootPath, input.history, undefined, undefined, undefined, memoryContext);
   } catch (error) {
     if (before && options.workspaceTurns) {
       try {
@@ -198,7 +203,7 @@ export class CoreApi {
       protocol: "HTTP/JSON",
       transport: "loopback",
       authentication: "Bearer DEVBOX_API_KEY",
-      resources: ["runtime", "capabilities", "providers", "models", "projects", "threads", "evolution", "approvals", "git", "toolkits", "skills", "plugins", "mcp", "vercel", "github", "diagnostics"]
+      resources: ["runtime", "capabilities", "providers", "models", "projects", "threads", "memory", "evolution", "approvals", "git", "toolkits", "skills", "plugins", "mcp", "vercel", "github", "diagnostics"]
     }));
     this.#server.get("/v1/runtime", async () => ({
       product: "DevBox",
@@ -235,6 +240,16 @@ export class CoreApi {
     this.#server.get("/v1/projects/:id/git/status", async (request) => {
       const params = IdParamsSchema.parse(request.params);
       return { item: await this.#options.git.status(this.#options.projects.get(params.id).rootPath) };
+    });
+    this.#server.get("/v1/projects/:id/memory", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      this.#options.projects.get(params.id);
+      return { stats: this.#options.memory.stats(params.id), items: this.#options.memory.recent(params.id, 50) };
+    });
+    this.#server.delete("/v1/projects/:id/memory", async (request) => {
+      const params = IdParamsSchema.parse(request.params);
+      this.#options.projects.get(params.id);
+      return { deleted: this.#options.memory.clear(params.id) };
     });
     this.#server.get("/v1/projects/:id/evolution", async (request) => {
       const params = IdParamsSchema.parse(request.params);
@@ -279,7 +294,9 @@ export class CoreApi {
     this.#server.post("/v1/threads/:id/messages", async (request, reply) => {
       const params = IdParamsSchema.parse(request.params);
       const body = ThreadMessageBodySchema.parse(request.body);
+      return await this.#options.turnCoordinator.run(params.id, async () => {
       const current = this.#options.database.getThread(params.id);
+      this.#options.memory.captureUserSignal(current.thread.projectId, params.id, body.content);
       const policy = this.#options.settings.get();
       if (!policy.networkAccess || policy.approvalPolicy === "always") throw new Error("API_INTERACTIVE_APPROVAL_REQUIRED");
       const attachmentContext = await this.#options.attachments.buildAgentContext(params.id, body.attachmentIds);
@@ -292,6 +309,7 @@ export class CoreApi {
       });
       const detail = this.#options.database.appendMessage(params.id, body.content, execution.content, body.attachmentIds);
       return await reply.code(201).send(execution.workspaceResult ? { ...detail, workspaceResult: execution.workspaceResult } : detail);
+      });
     });
     this.#server.patch("/v1/threads/:id/items/:itemId", async (request) => {
       const params = ItemParamsSchema.parse(request.params);
@@ -300,6 +318,7 @@ export class CoreApi {
     });
     this.#server.post("/v1/threads/:id/items/:itemId/regenerate", async (request) => {
       const params = ItemParamsSchema.parse(request.params);
+      return await this.#options.turnCoordinator.run(params.id, async () => {
       const current = this.#options.database.getThread(params.id);
       const policy = this.#options.settings.get();
       if (!policy.networkAccess || policy.approvalPolicy === "always") throw new Error("API_INTERACTIVE_APPROVAL_REQUIRED");
@@ -318,6 +337,7 @@ export class CoreApi {
       });
       const detail = this.#options.database.replaceAssistantMessage(params.id, params.itemId, execution.content);
       return execution.workspaceResult ? { ...detail, workspaceResult: execution.workspaceResult } : detail;
+      });
     });
     this.#server.delete("/v1/threads/:id", async (request, reply) => {
       const params = IdParamsSchema.parse(request.params);

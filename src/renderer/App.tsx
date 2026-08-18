@@ -144,6 +144,10 @@ function inferWorkspaceTargetPath(content: string): string | null {
   return normalized.includes("..") || normalized.startsWith("/") ? null : normalized;
 }
 
+function isWorkspaceFollowupIntent(content: string): boolean {
+  return /(?:düzelt|değiştir|güncelle|iyileştir|geliştir|ekle|sil|beğenmedim|devam et|bunu|şunu|onu|aynı|önceki|rengi|tasarımı|görünümü|animasyonu|mobilde)/iu.test(content);
+}
+
 function formatThreadTime(value: string): string {
   const date = new Date(value);
   const now = new Date();
@@ -498,6 +502,7 @@ export function App(): ReactNode {
   const [introVisible, setIntroVisible] = useState(false);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
   const [liveActivities, setLiveActivities] = useState<ThreadActivityEvent[]>([]);
+  const [pendingTurns, setPendingTurns] = useState<Record<string, number>>({});
   const [workspaceResult, setWorkspaceResult] = useState<ThreadWorkspaceResult | null>(null);
   const [liveWorkspacePath, setLiveWorkspacePath] = useState<string | null>(null);
   const [liveWorkspaceActive, setLiveWorkspaceActive] = useState(false);
@@ -512,6 +517,8 @@ export function App(): ReactNode {
   const diagnosticsVersion = useRef(0);
   const conversationRef = useRef<HTMLDivElement>(null);
   const introStartedAt = useRef(0);
+  const openThreadIdRef = useRef<string | null>(null);
+  useEffect(() => { openThreadIdRef.current = thread?.thread.id ?? null; }, [thread?.thread.id]);
 
   const updateThreads = useCallback(async (): Promise<ThreadSummary[]> => {
     const next = await window.devbox.listThreads();
@@ -539,6 +546,8 @@ export function App(): ReactNode {
   }, []);
 
   const openThread = useCallback(async (threadId: string, pushHistory = true): Promise<void> => {
+    const previousThreadId = openThreadIdRef.current;
+    openThreadIdRef.current = threadId;
     setBusy("thread");
     try {
       const detail = await window.devbox.getThread(threadId);
@@ -563,6 +572,7 @@ export function App(): ReactNode {
         if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
       });
     } catch (error) {
+      openThreadIdRef.current = previousThreadId;
       setNotice(errorMessage(error));
     } finally {
       setBusy(null);
@@ -602,6 +612,7 @@ export function App(): ReactNode {
         if (initialThread) {
           const detail = await window.devbox.getThread(initialThread.id);
           if (active) {
+            openThreadIdRef.current = detail.thread.id;
             setThread(detail);
             setDraftAttachments(await window.devbox.listDraftAttachments(detail.thread.id));
             setHistory([detail.thread.id]);
@@ -668,6 +679,7 @@ export function App(): ReactNode {
     setBusy("new-thread");
     try {
       const detail = await window.devbox.createThread(project.id, "Yeni görev");
+      openThreadIdRef.current = detail.thread.id;
       setThread(detail);
       setDraftAttachments([]);
       await updateThreads();
@@ -689,6 +701,7 @@ export function App(): ReactNode {
       requestAnimationFrame(() => composerRef.current?.focus());
       return;
     }
+    openThreadIdRef.current = null;
     setThread(null);
     setComposer("");
     setDraftAttachments([]);
@@ -705,35 +718,50 @@ export function App(): ReactNode {
     if (!content && draftAttachments.length === 0) return;
     const activeThread = thread ?? await createThread();
     if (!activeThread) return;
-    const liveTarget = inferWorkspaceTargetPath(content);
+    const threadId = activeThread.thread.id;
+    const attachmentIds = draftAttachments.map((attachment) => attachment.id);
+    const explicitTarget = inferWorkspaceTargetPath(content);
+    const previousTarget = workspaceResult?.threadId === threadId ? workspaceResult.primaryFile ?? workspaceResult.previewPath : null;
+    const liveTarget = explicitTarget ?? (isWorkspaceFollowupIntent(content) ? previousTarget ?? null : null);
+
     setComposer("");
-    setWorkspaceResult(null);
-    setLiveWorkspacePath(liveTarget);
-    setLiveWorkspaceActive(Boolean(liveTarget));
-    if (liveTarget) setInspectorVisible(true);
-    setChangeSummaryOpen(false);
-    setLiveActivities((current) => current.filter((activity) => activity.threadId !== activeThread.thread.id));
-    setBusy("message");
-    try {
-      const detail = await window.devbox.sendMessage(activeThread.thread.id, content, draftAttachments.map((attachment) => attachment.id));
-      setThread(detail);
-      setDraftAttachments([]);
-      await updateThreads();
-      if (selectedProject) await loadProject(selectedProject);
-      requestAnimationFrame(() => {
-        if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
-      });
-    } catch (error) {
-      setComposer(content);
-      setNotice(errorMessage(error));
-    } finally {
-      setLiveActivities((current) => current.filter((activity) => activity.threadId !== activeThread.thread.id));
-      setLiveWorkspaceActive(false);
-      setBusy(null);
+    setDraftAttachments([]);
+    if (liveTarget) {
+      setLiveWorkspacePath(liveTarget);
+      setLiveWorkspaceActive(true);
+      setInspectorVisible(true);
     }
-  }, [composer, createThread, draftAttachments, loadProject, selectedProject, thread, updateThreads]);
+    setChangeSummaryOpen(false);
+    setLiveActivities((current) => current.filter((activity) => activity.threadId !== threadId));
+    setPendingTurns((current) => ({ ...current, [threadId]: (current[threadId] ?? 0) + 1 }));
+
+    try {
+      const detail = await window.devbox.sendMessage(threadId, content, attachmentIds);
+      setThread((current) => current?.thread.id === detail.thread.id ? detail : current);
+      await updateThreads();
+      if (openThreadIdRef.current === threadId && selectedProject?.id === activeThread.thread.projectId && liveTarget) await loadProject(selectedProject);
+      if (openThreadIdRef.current === threadId) {
+        requestAnimationFrame(() => {
+          if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+        });
+      }
+    } catch (error) {
+      setNotice(errorMessage(error));
+      if (openThreadIdRef.current === threadId) setComposer((current) => current.trim() ? current : content);
+    } finally {
+      setPendingTurns((current) => {
+        const nextCount = Math.max(0, (current[threadId] ?? 1) - 1);
+        const next = { ...current };
+        if (nextCount === 0) delete next[threadId]; else next[threadId] = nextCount;
+        return next;
+      });
+      setLiveActivities((current) => current.filter((activity) => activity.threadId !== threadId));
+      if (openThreadIdRef.current === threadId) setLiveWorkspaceActive(false);
+    }
+  }, [composer, createThread, draftAttachments, loadProject, selectedProject, thread, updateThreads, workspaceResult]);
 
   useEffect(() => window.devbox.onThreadActivity((activity) => {
+    if (openThreadIdRef.current !== activity.threadId) return;
     setLiveActivities((current) => [...current, activity].slice(-80));
     requestAnimationFrame(() => {
       if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
@@ -741,18 +769,20 @@ export function App(): ReactNode {
   }), []);
 
   useEffect(() => window.devbox.onThreadSnapshot((detail) => {
+    const isOpen = openThreadIdRef.current === detail.thread.id;
     setThread((current) => current?.thread.id === detail.thread.id ? detail : current);
     setThreads((current) => {
       const index = current.findIndex((item) => item.id === detail.thread.id);
       if (index < 0) return [detail.thread, ...current];
       return current.map((item) => item.id === detail.thread.id ? detail.thread : item);
     });
-    requestAnimationFrame(() => {
+    if (isOpen) requestAnimationFrame(() => {
       if (conversationRef.current) conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
     });
   }), []);
 
   useEffect(() => window.devbox.onThreadWorkspaceResult((result) => {
+    if (openThreadIdRef.current !== result.threadId) return;
     setWorkspaceResult(result);
     setLiveWorkspaceActive(false);
     setLiveWorkspacePath(result.previewPath ?? result.primaryFile ?? null);
@@ -764,14 +794,23 @@ export function App(): ReactNode {
     if (!selectedProject?.isGitRepository) return;
     let active = true;
     const refresh = (): void => {
+      if (document.hidden) return;
       void window.devbox.getGitStatus(selectedProject.id).then((status) => {
         if (active) setGitStatus(status);
       }).catch(() => {
-        // The explicit Git view exposes command errors; passive polling stays unobtrusive.
+        // Explicit Git view exposes errors; passive refresh remains quiet.
       });
     };
-    const timer = window.setInterval(refresh, 5_000);
-    return () => { active = false; window.clearInterval(timer); };
+    const onVisibility = (): void => { if (!document.hidden) refresh(); };
+    const timer = window.setInterval(refresh, 15_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [selectedProject]);
 
   const applyAttachmentResult = useCallback((result: Awaited<ReturnType<typeof window.devbox.selectAttachments>>): void => {
@@ -849,7 +888,9 @@ export function App(): ReactNode {
     if (!thread || !content.trim()) return false;
     setBusy(`message:${itemId}`);
     try {
-      setThread(await window.devbox.updateMessage(thread.thread.id, itemId, content.trim()));
+      const threadId = thread.thread.id;
+      const detail = await window.devbox.updateMessage(threadId, itemId, content.trim());
+      setThread((current) => current?.thread.id === threadId ? detail : current);
       await updateThreads();
       return true;
     } catch (error) {
@@ -864,7 +905,9 @@ export function App(): ReactNode {
     if (!thread) return;
     setBusy(`message:${itemId}`);
     try {
-      setThread(await window.devbox.regenerateMessage(thread.thread.id, itemId));
+      const threadId = thread.thread.id;
+      const detail = await window.devbox.regenerateMessage(threadId, itemId);
+      setThread((current) => current?.thread.id === threadId ? detail : current);
       await updateThreads();
     } catch (error) {
       setNotice(errorMessage(error));
@@ -1117,6 +1160,7 @@ export function App(): ReactNode {
     };
   }, []);
 
+  const activePendingTurns = thread ? pendingTurns[thread.thread.id] ?? 0 : 0;
   const capabilities = bootstrap?.capabilities ?? [];
   const readyCount = useMemo(() => capabilities.filter((item) => item.state === "READY").length, [capabilities]);
   const agentReady = capabilities.some((item) => item.id === "hermes-nvidia-agent" && item.state === "READY");
@@ -1218,14 +1262,14 @@ export function App(): ReactNode {
                   {thread ? <>
                     {thread.items.length === 0 && <ThreadEmptyState project={selectedProject} />}
                     {thread.items.map((item) => <Message key={item.id} item={item} busy={busy?.startsWith("message") ?? false} onEdit={updateMessage} onRegenerate={regenerateMessage} onCopy={copyMessage} onQuote={quoteMessage} />)}
-                    {busy === "message" && <div className="activity-line running compact"><LoaderCircle className="spin" size={14} /><span>{liveWorkspaceActive ? "Gerçek dosya değişiklikleri diske yazılıyor ve Canvas kod görünümü canlı okunuyor…" : "DevBox yanıt hazırlıyor…"}</span></div>}
+                    {activePendingTurns > 0 && <div className="activity-line running compact"><LoaderCircle className="spin" size={14} /><span>{liveWorkspaceActive ? "Gerçek dosya değişiklikleri diske yazılıyor ve Canvas kod görünümü canlı okunuyor…" : activePendingTurns > 1 ? "DevBox yanıt üretiyor · " + (activePendingTurns - 1) + " ek istek aynı sohbet kuyruğunda" : "DevBox yanıt hazırlıyor…"}</span></div>}
                   </> : <ThreadEmptyState project={selectedProject} />}
                 </div>
               </div>
-              <div className="composer-wrap">{workspaceResult && workspaceResult.threadId === thread?.thread.id && <div className={`change-summary-wrap ${changeSummaryOpen ? "open" : ""}`}><button className={`change-summary-button ${workspaceResult.verified ? "" : "unverified"}`} aria-haspopup="dialog" aria-expanded={changeSummaryOpen} onClick={() => setChangeSummaryOpen((value) => !value)} title="Yalnız bu görevde başlangıç snapshot'ına göre gerçekten değişen dosyalar"><span className="change-state-dot" /><span>{workspaceResult.changedFiles.length} dosya bu görevde değişti</span><b className="additions">+{workspaceResult.changedFiles.reduce((sum, item) => sum + (item.additions ?? 0), 0)}</b><b className="deletions">-{workspaceResult.changedFiles.reduce((sum, item) => sum + (item.deletions ?? 0), 0)}</b><ChevronDown size={13} /></button>{changeSummaryOpen && <div className="change-summary-popover" role="dialog" aria-label="Bu görevde değiştirilen dosyalar"><header><strong>{workspaceResult.verified ? "Diskten doğrulandı" : "Doğrulama başarısız"}</strong><button onClick={() => setInspectorVisible(true)}><PanelRight size={13} /> Canvas</button></header><div>{workspaceResult.changedFiles.map((item) => <div className="change-stat-row" key={item.path}><span>{item.path}</span><b className="additions">{item.additions === null ? "—" : `+${item.additions}`}</b><b className="deletions">{item.deletions === null ? "—" : `-${item.deletions}`}</b></div>)}</div><footer>Önce / sonra global kirli çalışma ağacı: {workspaceResult.baselineDirtyCount} / {workspaceResult.finalDirtyCount}. Bu sayılar görev değişikliği olarak sayılmaz.</footer></div>}</div>}<button className="composer-project" onClick={() => void chooseProject()} title={selectedProject?.rootPath ?? "Yerel proje klasörü seçin"}><FolderOpen size={14} /><span>{selectedProject?.name ?? "Proje seç"}</span></button><div className={`composer ${busy === "message" ? "busy" : ""}`}>
+              <div className="composer-wrap">{workspaceResult && workspaceResult.threadId === thread?.thread.id && <div className={`change-summary-wrap ${changeSummaryOpen ? "open" : ""}`}><button className={`change-summary-button ${workspaceResult.verified ? "" : "unverified"}`} aria-haspopup="dialog" aria-expanded={changeSummaryOpen} onClick={() => setChangeSummaryOpen((value) => !value)} title="Yalnız bu görevde başlangıç snapshot'ına göre gerçekten değişen dosyalar"><span className="change-state-dot" /><span>{workspaceResult.changedFiles.length} dosya bu görevde değişti</span><b className="additions">+{workspaceResult.changedFiles.reduce((sum, item) => sum + (item.additions ?? 0), 0)}</b><b className="deletions">-{workspaceResult.changedFiles.reduce((sum, item) => sum + (item.deletions ?? 0), 0)}</b><ChevronDown size={13} /></button>{changeSummaryOpen && <div className="change-summary-popover" role="dialog" aria-label="Bu görevde değiştirilen dosyalar"><header><strong>{workspaceResult.verified ? "Diskten doğrulandı" : "Doğrulama başarısız"}</strong><button onClick={() => setInspectorVisible(true)}><PanelRight size={13} /> Canvas</button></header><div>{workspaceResult.changedFiles.map((item) => <div className="change-stat-row" key={item.path}><span>{item.path}</span><b className="additions">{item.additions === null ? "—" : `+${item.additions}`}</b><b className="deletions">{item.deletions === null ? "—" : `-${item.deletions}`}</b></div>)}</div><footer>Önce / sonra global kirli çalışma ağacı: {workspaceResult.baselineDirtyCount} / {workspaceResult.finalDirtyCount}. Bu sayılar görev değişikliği olarak sayılmaz.</footer></div>}</div>}<button className="composer-project" onClick={() => void chooseProject()} title={selectedProject?.rootPath ?? "Yerel proje klasörü seçin"}><FolderOpen size={14} /><span>{selectedProject?.name ?? "Proje seç"}</span></button><div className={`composer ${activePendingTurns > 0 ? "busy" : ""}`}>
                 {draftAttachments.length > 0 && <div className="composer-attachments" aria-label="Gönderilecek dosyalar">{draftAttachments.map((attachment) => <span key={attachment.id}><AttachmentGlyph attachment={attachment} /><span><strong>{attachment.name}</strong><small>{formatBytes(attachment.size)} · {attachment.extension || attachment.kind}</small></span><button onClick={() => void removeAttachment(attachment)} aria-label={`${attachment.name} ekini kaldır`} title="Eki kaldır"><X size={13} /></button></span>)}</div>}
-                <textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} placeholder="DevBox'a bir görev verin" disabled={busy === "message"} rows={1} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void sendMessage(); } }} onContextMenu={(event) => { event.preventDefault(); const target = event.currentTarget; void window.devbox.showContextMenu("editable", target.selectionStart !== target.selectionEnd, true); }} />
-                <div className="composer-toolbar"><div><button onClick={() => void selectAttachments()} disabled={busy === "attachment"} title="Dosya ekle — tüm uzantılar, en fazla 300 MB"><Plus size={18} /></button><div className="permission-control"><button className={`permission-button ${permission === "Tam erişim" ? "full" : ""}`} onClick={() => setPermissionMenuOpen((value) => !value)} aria-haspopup="menu" aria-expanded={permissionMenuOpen} disabled={busy === "permission"}><ShieldCheck size={14} /><span>{permissionLabel(permission)}</span><ChevronDown size={12} /></button>{permissionMenuOpen && <div className="permission-menu" role="menu" aria-label="İzin profili">{PERMISSION_OPTIONS.map((option) => <button key={option.value} className={`${permission === option.value ? "selected" : ""} ${option.value === "Tam erişim" ? "full" : ""}`} role="menuitemradio" aria-checked={permission === option.value} onClick={() => void applyPermission(option.value)}><span className="permission-menu-icon"><ShieldCheck size={15} /></span><span><strong>{option.label}</strong><small>{option.detail}</small></span>{permission === option.value && <Check size={15} />}</button>)}</div>}</div></div><div><button className="model-button" onClick={() => setView("capabilities")} title={capabilitiesLoading ? "Gerçek sağlayıcılar denetleniyor" : agentReady ? "Hermes + NVIDIA canlı doğrulandı — kanıtları aç" : "Ajan sağlayıcısı doğrulanmadı — tanılamayı aç"}><span>{capabilitiesLoading ? "Denetleniyor" : agentReady ? "Hermes · NVIDIA" : "Sağlayıcı yok"}</span><small>{capabilitiesLoading ? "CANLI KONTROL" : agentReady ? "HAZIR" : "DOĞRULANMADI"}</small><ChevronDown size={13} /></button><button className="send-button" onClick={() => void sendMessage()} disabled={(!composer.trim() && draftAttachments.length === 0) || busy === "message"} aria-label="Gönder"><Send size={17} /></button></div></div>
+                <textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} placeholder={activePendingTurns > 0 ? "Yeni mesaj yazabilirsiniz; aynı sohbet içinde sıraya alınır" : "DevBox'a bir görev verin"} rows={1} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void sendMessage(); } }} onContextMenu={(event) => { event.preventDefault(); const target = event.currentTarget; void window.devbox.showContextMenu("editable", target.selectionStart !== target.selectionEnd, true); }} />
+                <div className="composer-toolbar"><div><button onClick={() => void selectAttachments()} disabled={busy === "attachment"} title="Dosya ekle — tüm uzantılar, en fazla 300 MB"><Plus size={18} /></button><div className="permission-control"><button className={`permission-button ${permission === "Tam erişim" ? "full" : ""}`} onClick={() => setPermissionMenuOpen((value) => !value)} aria-haspopup="menu" aria-expanded={permissionMenuOpen} disabled={busy === "permission"}><ShieldCheck size={14} /><span>{permissionLabel(permission)}</span><ChevronDown size={12} /></button>{permissionMenuOpen && <div className="permission-menu" role="menu" aria-label="İzin profili">{PERMISSION_OPTIONS.map((option) => <button key={option.value} className={`${permission === option.value ? "selected" : ""} ${option.value === "Tam erişim" ? "full" : ""}`} role="menuitemradio" aria-checked={permission === option.value} onClick={() => void applyPermission(option.value)}><span className="permission-menu-icon"><ShieldCheck size={15} /></span><span><strong>{option.label}</strong><small>{option.detail}</small></span>{permission === option.value && <Check size={15} />}</button>)}</div>}</div></div><div><button className="model-button" onClick={() => setView("capabilities")} title={capabilitiesLoading ? "Gerçek sağlayıcılar denetleniyor" : agentReady ? "Hermes + NVIDIA canlı doğrulandı — kanıtları aç" : "Ajan sağlayıcısı doğrulanmadı — tanılamayı aç"}><span>{capabilitiesLoading ? "Denetleniyor" : agentReady ? "Hermes · NVIDIA" : "Sağlayıcı yok"}</span><small>{capabilitiesLoading ? "CANLI KONTROL" : agentReady ? "HAZIR" : "DOĞRULANMADI"}</small><ChevronDown size={13} /></button><button className="send-button" onClick={() => void sendMessage()} disabled={!composer.trim() && draftAttachments.length === 0} aria-label="Gönder"><Send size={17} /></button></div></div>
               </div><div className="composer-hint"><kbd>Enter</kbd> gönderir · <kbd>Shift+Enter</kbd> yeni satır · Sağ tık: Kes / Kopyala / Yapıştır · <kbd>Ctrl+V</kbd> yapıştır · Dosya başına 300 MB</div></div>
             </section>}
 
