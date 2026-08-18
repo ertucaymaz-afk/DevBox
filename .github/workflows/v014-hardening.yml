@@ -37,25 +37,15 @@ jobs:
           cache: pnpm
       - name: Bağımlılıkları kilitten kur
         run: pnpm install --frozen-lockfile
-      - name: v0.1.14 ürün değişikliklerini fail-closed uygula
+      - name: v0.1.14 ürün kaynağının materialize olduğunu doğrula
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $pkg = Get-Content package.json -Raw
-          if ($pkg -match '"version"\s*:\s*"0\.1\.14"') {
-            Write-Host 'DEVBOX_V014_ALREADY_MATERIALIZED'
-          } else {
-            node scripts/apply-v014-core14.mjs
-            if ($LASTEXITCODE -ne 0) { throw "V014_CORE_PATCH_FAILED:$LASTEXITCODE" }
-            node scripts/apply-v014-ui3.mjs
-            if ($LASTEXITCODE -ne 0) { throw "V014_UI_PATCH_FAILED:$LASTEXITCODE" }
-            node scripts/apply-v014-evolution2.mjs
-            if ($LASTEXITCODE -ne 0) { throw "V014_EVOLUTION_PATCH_FAILED:$LASTEXITCODE" }
-            node scripts/apply-v014-regression-fix1.mjs
-            if ($LASTEXITCODE -ne 0) { throw "V014_REGRESSION_FIX_FAILED:$LASTEXITCODE" }
-          }
-          node scripts/apply-v014-final-fixes.mjs
-          if ($LASTEXITCODE -ne 0) { throw "V014_FINAL_FIXES_FAILED:$LASTEXITCODE" }
+          if ($pkg -notmatch '"version"\s*:\s*"0\.1\.14"') { throw 'DEVBOX_V014_PRODUCT_NOT_MATERIALIZED' }
+          if (-not (Test-Path 'src/main/services/memory-service.ts')) { throw 'DEVBOX_V014_MEMORY_SOURCE_MISSING' }
+          if (-not (Test-Path 'src/main/services/thread-turn-coordinator.ts')) { throw 'DEVBOX_V014_TURN_COORDINATOR_MISSING' }
+          Write-Host 'DEVBOX_V014_MATERIALIZED_SOURCE_PRESENT'
       - name: Patch biçimini doğrula
         shell: pwsh
         run: |
@@ -67,21 +57,3 @@ jobs:
         run: pnpm test
       - name: Üretim build ve truth audit
         run: pnpm build
-      - name: Doğrulanmış ürün kaynaklarını dala yaz
-        if: github.event_name != 'pull_request'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package.json src/main src/renderer
-          git diff --cached --check
-          if ($LASTEXITCODE -ne 0) { throw 'STAGED_DIFF_CHECK_FAILED' }
-          git diff --cached --quiet
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host 'DEVBOX_V014_PRODUCT_ALREADY_COMMITTED'
-            exit 0
-          }
-          git commit -m 'v0.1.14: close cross-thread races and continuous adaptive loop'
-          git push origin HEAD:codex/v0.1.14-concurrency-memory-adaptive-evolution
-          Write-Host 'DEVBOX_V014_FINAL_PRODUCT_COMMITTED'
