@@ -34,7 +34,7 @@ jobs:
           run_install: false
 
       - name: Node.js 24 kullan
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -69,7 +69,7 @@ jobs:
           run_install: false
 
       - name: Node.js 24 kullan
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
