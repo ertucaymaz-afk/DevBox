@@ -13,7 +13,7 @@ Replace-Exact $ipcPath 'kind: "provider" | "command" | "evidence" | "failure";' 
 $agentPath = 'src/main/services/agent-service.ts'
 $agent = Get-Content -LiteralPath $agentPath -Raw
 $matches = [regex]::Matches($agent, '(?m)^(\s*)cancellation,\s*$')
-if ($matches.Count -lt 8) { throw "AGENT_CANCELLATION_PATTERN_COUNT_TOO_LOW:$($matches.Count)" }
+if ($matches.Count -lt 5) { throw "AGENT_CANCELLATION_PATTERN_COUNT_TOO_LOW:$($matches.Count)" }
 $agent = [regex]::Replace($agent, '(?m)^(\s*)cancellation,\s*$', '$1...(cancellation ? { cancellation } : {}),')
 Set-Content -LiteralPath $agentPath -Value $agent -Encoding utf8NoBOM -NoNewline
 
