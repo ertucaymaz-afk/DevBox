@@ -13,6 +13,7 @@ import { StateDatabase } from "./database.js";
 import { GitService } from "./git-service.js";
 import { ProjectService } from "./project-service.js";
 import { SettingsService } from "./settings-service.js";
+import type { WorkspaceTurnService } from "./workspace-turn-service.js";
 import { RemoteWorkerService } from "./remote-worker-service.js";
 import { LocalCatalogService } from "./local-catalog-service.js";
 
@@ -37,6 +38,14 @@ describe("loopback core API", () => {
     const project = await projects.open(root);
     const settings = new SettingsService(database);
     const agent = { respond: vi.fn().mockResolvedValue({ content: "Gerçek servis sözleşmesi için izole test yanıtı." }) } as unknown as AgentService;
+    const workspaceTurns = {
+      capture: vi.fn(async (projectId: string) => ({ projectId, rootPath: root, gitAvailable: true, gitHead: "1111111111111111111111111111111111111111", dirtyCount: 0, entries: new Map() })),
+      finalize: vi.fn(async (input: { projectId: string; threadId: string; turnId: string; intent: "WORKSPACE_MUTATION" }) => ({
+        threadId: input.threadId, turnId: input.turnId, projectId: input.projectId, intent: input.intent, mutated: true, verified: true, gitHeadChanged: false,
+        baselineDirtyCount: 0, finalDirtyCount: 1, changedFiles: [{ path: "index.html", kind: "added", beforeSha256: null, afterSha256: "a".repeat(64), additions: 1, deletions: 0, binary: false, verified: true }],
+        primaryFile: "index.html", previewPath: "index.html", evidence: ["turn-change:added:index.html"], createdAt: new Date().toISOString()
+      }))
+    } as unknown as WorkspaceTurnService;
     const api = new CoreApi({
       apiKey: "test-only-api-key",
       database,
@@ -46,6 +55,7 @@ describe("loopback core API", () => {
       evolution: new ApiEvolutionService(database, projects, agent, settings, new DevelopmentSpecService(database, path.resolve("specs", "development", "geliştirme-spec-task-graph.json")), new GitService(runner), runner),
       attachments: new AttachmentService(database, path.join(root, "attachments")),
       git: new GitService(runner),
+      workspaceTurns,
       settings,
       remoteWorkers: new RemoteWorkerService(database),
       catalog: new LocalCatalogService(path.join(root, "catalog"), runner),
@@ -71,6 +81,12 @@ describe("loopback core API", () => {
       headers: { authorization: "Bearer test-only-api-key", "content-type": "application/json" },
       body: JSON.stringify({ content: "API mesajı" })
     });
+    const workspaceMessage = await fetch(`${origin}/v1/threads/${created.thread.id}/messages`, {
+      method: "POST",
+      headers: { authorization: "Bearer test-only-api-key", "content-type": "application/json" },
+      body: JSON.stringify({ content: "index.html oluştur" })
+    });
+    const workspacePayload = await workspaceMessage.json() as { workspaceResult?: { verified: boolean; previewPath: string | null; changedFiles: Array<{ path: string; kind: string }> } };
     const pairingResponse = await fetch(`${origin}/v1/workers/pairings`, {
       method: "POST", headers: { authorization: "Bearer test-only-api-key" }
     });
@@ -131,6 +147,10 @@ describe("loopback core API", () => {
         { role: "assistant", content: "Gerçek servis sözleşmesi için izole test yanıtı." }
       ]
     });
+    expect(workspaceMessage.status).toBe(201);
+    expect(workspacePayload.workspaceResult).toMatchObject({ verified: true, previewPath: "index.html", changedFiles: [{ path: "index.html", kind: "added" }] });
+    expect(workspaceTurns.capture).toHaveBeenCalledTimes(1);
+    expect(workspaceTurns.finalize).toHaveBeenCalledTimes(1);
     expect(pairingResponse.status).toBe(201);
     expect(workerResponse.status).toBe(201);
     expect(reusedPairing.status).toBe(409);

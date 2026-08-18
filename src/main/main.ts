@@ -185,6 +185,7 @@ async function start(): Promise<void> {
     agent,
     attachments,
     git,
+    workspaceTurns,
     evolution,
     settings,
     remoteWorkers,

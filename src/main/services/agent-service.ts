@@ -604,13 +604,13 @@ export class AgentService {
         ...(workspaceMutation ? ["--toolsets", "file,terminal", "--ignore-user-config", "--ignore-rules", "--checkpoints", "--yolo"] : ["--safe-mode"]),
         "--quiet",
         "--source", "devbox",
-        "--max-turns", workspaceMutation ? "48" : "1",
+        "--max-turns", workspaceMutation ? "96" : "1",
         "--in", cwd
       ],
       cwd,
       environment,
-      timeoutMs: 180_000,
-      maxOutputBytes: 2 * 1024 * 1024,
+      timeoutMs: workspaceMutation ? 10 * 60_000 : 180_000,
+      maxOutputBytes: workspaceMutation ? 8 * 1024 * 1024 : 2 * 1024 * 1024,
       cancellation
     });
     if (chat.exitCode !== 0 || chat.timedOut || chat.truncated) throw new Error("HERMES_EXECUTION_FAILED");

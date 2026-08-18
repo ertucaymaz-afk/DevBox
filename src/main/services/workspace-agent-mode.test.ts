@@ -58,7 +58,7 @@ describe("workspace mutation routing", () => {
     expect(args).toContain("file,terminal");
     expect(args).toContain("--checkpoints");
     expect(args).toContain("--yolo");
-    expect(args).toContain("48");
+    expect(args).toContain("96");
     expect(args).not.toContain("--safe-mode");
     const queryIndex = args.indexOf("--query");
     expect(queryIndex).toBeGreaterThanOrEqual(0);

@@ -3,17 +3,18 @@ import type { AddressInfo } from "node:net";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { AgentService } from "./agent-service.js";
+import { isWorkspaceMutationRequest, type AgentService } from "./agent-service.js";
 import type { ApiEvolutionService } from "./api-evolution-service.js";
 import type { AttachmentService } from "./attachment-service.js";
 import type { CapabilityService } from "./capability-service.js";
 import type { StateDatabase } from "./database.js";
 import type { GitService } from "./git-service.js";
 import type { ProjectService } from "./project-service.js";
+import type { WorkspaceTurnService } from "./workspace-turn-service.js";
 import type { SettingsService } from "./settings-service.js";
 import type { RemoteWorkerService } from "./remote-worker-service.js";
 import type { LocalCatalogService } from "./local-catalog-service.js";
-import { CatalogToolCallInputSchema, EvolutionRoutingSchema } from "../../shared/contracts.js";
+import { CatalogToolCallInputSchema, EvolutionRoutingSchema, type ThreadItem, type ThreadWorkspaceResult } from "../../shared/contracts.js";
 
 type CoreApiOptions = {
   apiKey: string;
@@ -24,6 +25,7 @@ type CoreApiOptions = {
   evolution: ApiEvolutionService;
   attachments: AttachmentService;
   git: GitService;
+  workspaceTurns?: WorkspaceTurnService;
   settings: SettingsService;
   remoteWorkers: RemoteWorkerService;
   catalog: LocalCatalogService;
@@ -65,6 +67,64 @@ const WorkerSettleBodySchema = z.object({
 }).strict();
 const RemoteJobBodySchema = z.object({ kind: z.string().trim().min(1).max(80), payload: z.unknown() }).strict();
 const McpToolParamsSchema = z.object({ pluginId: z.string().min(2).max(160), toolName: z.string().min(1).max(160) }).strict();
+
+type VerifiedAgentTurn = { content: string; workspaceResult: ThreadWorkspaceResult | null };
+
+async function executeVerifiedAgentTurn(options: CoreApiOptions, input: {
+  threadId: string;
+  projectId: string;
+  prompt: string;
+  history: readonly ThreadItem[];
+}): Promise<VerifiedAgentTurn> {
+  const workspaceIntent = isWorkspaceMutationRequest(input.prompt);
+  if (workspaceIntent && !options.workspaceTurns) throw new Error("WORKSPACE_VERIFIER_UNAVAILABLE");
+  const project = options.projects.get(input.projectId);
+  const before = workspaceIntent ? await options.workspaceTurns!.capture(input.projectId) : null;
+  const verificationTurnId = randomUUID();
+  let response: Awaited<ReturnType<AgentService["respond"]>>;
+
+  try {
+    response = await options.agent.respond(input.prompt, project.rootPath, input.history);
+  } catch (error) {
+    if (before && options.workspaceTurns) {
+      try {
+        const workspaceResult = await options.workspaceTurns.finalize({
+          projectId: input.projectId,
+          threadId: input.threadId,
+          turnId: verificationTurnId,
+          intent: "WORKSPACE_MUTATION",
+          before
+        });
+        try { options.database.appendEvent("thread.workspace-result", input.threadId, workspaceResult, true); } catch { /* observability must not mask the provider failure */ }
+        if (workspaceResult.mutated) throw new Error("AGENT_FAILED_AFTER_WORKSPACE_MUTATION");
+      } catch (verificationError) {
+        if (verificationError instanceof Error && verificationError.message === "AGENT_FAILED_AFTER_WORKSPACE_MUTATION") throw verificationError;
+        throw new Error("WORKSPACE_VERIFICATION_FAILED");
+      }
+    }
+    const code = error instanceof Error && /^[A-Z][A-Z0-9_]+$/u.test(error.message) ? error.message : "AGENT_EXECUTION_FAILED";
+    throw new Error(code);
+  }
+
+  if (!before || !options.workspaceTurns) return { content: response.content, workspaceResult: null };
+
+  let workspaceResult: ThreadWorkspaceResult;
+  try {
+    workspaceResult = await options.workspaceTurns.finalize({
+      projectId: input.projectId,
+      threadId: input.threadId,
+      turnId: verificationTurnId,
+      intent: "WORKSPACE_MUTATION",
+      before
+    });
+  } catch {
+    throw new Error("WORKSPACE_VERIFICATION_FAILED");
+  }
+  try { options.database.appendEvent("thread.workspace-result", input.threadId, workspaceResult, !workspaceResult.verified); } catch { /* response correctness does not depend on event persistence */ }
+  if (workspaceResult.gitHeadChanged) throw new Error("WORKSPACE_GIT_HEAD_CHANGED");
+  if (!workspaceResult.mutated || !workspaceResult.verified) throw new Error("WORKSPACE_MUTATION_NOT_VERIFIED");
+  return { content: response.content, workspaceResult };
+}
 
 export class CoreApi {
   readonly #options: CoreApiOptions;
@@ -224,13 +284,14 @@ export class CoreApi {
       if (!policy.networkAccess || policy.approvalPolicy === "always") throw new Error("API_INTERACTIVE_APPROVAL_REQUIRED");
       const attachmentContext = await this.#options.attachments.buildAgentContext(params.id, body.attachmentIds);
       const prompt = `${body.content || "Ekli dosyaları incele."}${attachmentContext}`;
-      const assistantContent = await this.#options.agent.respond(prompt, this.#options.projects.get(current.thread.projectId).rootPath, current.items)
-        .then((response) => response.content)
-        .catch((error: unknown) => {
-          const code = error instanceof Error && /^[A-Z][A-Z0-9_]+$/u.test(error.message) ? error.message : "AGENT_EXECUTION_FAILED";
-          return `Ajan yanıtı üretilemedi (**${code}**). Sağlayıcı ve Hermes durumunu /v1/capabilities üzerinden denetleyin.`;
-        });
-      return await reply.code(201).send(this.#options.database.appendMessage(params.id, body.content, assistantContent, body.attachmentIds));
+      const execution = await executeVerifiedAgentTurn(this.#options, {
+        threadId: params.id,
+        projectId: current.thread.projectId,
+        prompt,
+        history: current.items
+      });
+      const detail = this.#options.database.appendMessage(params.id, body.content, execution.content, body.attachmentIds);
+      return await reply.code(201).send(execution.workspaceResult ? { ...detail, workspaceResult: execution.workspaceResult } : detail);
     });
     this.#server.patch("/v1/threads/:id/items/:itemId", async (request) => {
       const params = ItemParamsSchema.parse(request.params);
@@ -249,8 +310,14 @@ export class CoreApi {
       if (!userItem) throw new Error("SOURCE_USER_MESSAGE_NOT_FOUND");
       const attachmentContext = await this.#options.attachments.buildAgentContext(params.id, userItem.attachments.map((item) => item.id), false);
       const prompt = `${userItem.content || "Ekli dosyaları incele."}${attachmentContext}`;
-      const replacement = await this.#options.agent.respond(prompt, this.#options.projects.get(current.thread.projectId).rootPath, current.items.slice(0, targetIndex)).then((response) => response.content);
-      return this.#options.database.replaceAssistantMessage(params.id, params.itemId, replacement);
+      const execution = await executeVerifiedAgentTurn(this.#options, {
+        threadId: params.id,
+        projectId: current.thread.projectId,
+        prompt,
+        history: current.items.slice(0, targetIndex)
+      });
+      const detail = this.#options.database.replaceAssistantMessage(params.id, params.itemId, execution.content);
+      return execution.workspaceResult ? { ...detail, workspaceResult: execution.workspaceResult } : detail;
     });
     this.#server.delete("/v1/threads/:id", async (request, reply) => {
       const params = IdParamsSchema.parse(request.params);

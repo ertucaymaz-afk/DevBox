@@ -83,6 +83,23 @@ describe("WorkspaceTurnService", () => {
     expect(result.evidence.some((line) => line.startsWith("turn-change:added:index.html:"))).toBe(true);
   });
 
+  it("classifies a clean tracked file changed during the turn as modified instead of added", async () => {
+    const rootPath = await root();
+    await writeFile(path.join(rootPath, "index.html"), "<html>before</html>\n", "utf8");
+    const clean = gitStatus(rootPath, []);
+    const modifiedChanges: GitStatus["changes"] = [{ indexStatus: ".", worktreeStatus: "M", path: "index.html", originalPath: null }];
+    const modified = gitStatus(rootPath, modifiedChanges, [{ path: "index.html", additions: 1, deletions: 1, binary: false }]);
+    const service = new WorkspaceTurnService(projectService(rootPath), gitService([clean, modified, modified]));
+
+    const before = await service.capture("project-12345678");
+    await writeFile(path.join(rootPath, "index.html"), "<html>after</html>\n", "utf8");
+    const result = await service.finalize({ projectId: "project-12345678", threadId: "thread-12345678", turnId: "turn-12345678", intent: "WORKSPACE_MUTATION", before });
+
+    expect(result.verified).toBe(true);
+    expect(result.changedFiles).toHaveLength(1);
+    expect(result.changedFiles[0]).toMatchObject({ path: "index.html", kind: "modified", verified: true });
+  });
+
   it("fails verification if the provider changes Git HEAD during the task", async () => {
     const rootPath = await root();
     const beforeStatus = gitStatus(rootPath, []);
