@@ -151,11 +151,30 @@ jobs:
           Copy-Item -LiteralPath 'build' -Destination '.packaged-app/build' -Recurse -Force
           Copy-Item -LiteralPath 'vendor' -Destination '.packaged-app/vendor' -Recurse -Force
           Copy-Item -LiteralPath 'config/electron-builder.yml' -Destination '.packaged-app/electron-builder.yml' -Force
+          $hookLines = @(
+            'const fs = require("node:fs");',
+            'const path = require("node:path");',
+            'module.exports = async function afterPack(context) {',
+            '  const appDir = context.packager.appDir;',
+            '  const resourcesApp = path.join(context.appOutDir, "resources", "app");',
+            '  const sourcePackage = path.join(appDir, "package.json");',
+            '  const targetPackage = path.join(resourcesApp, "package.json");',
+            '  fs.mkdirSync(resourcesApp, { recursive: true });',
+            '  fs.copyFileSync(sourcePackage, targetPackage);',
+            '  const manifest = JSON.parse(fs.readFileSync(sourcePackage, "utf8"));',
+            '  const mainEntry = path.join(resourcesApp, String(manifest.main || ""));',
+            '  if (!manifest.main || !fs.existsSync(mainEntry)) throw new Error(`PACKAGED_MAIN_ENTRY_MISSING:${mainEntry}`);',
+            '  process.stdout.write(`DEVBOX_AFTER_PACK_VERIFIED package=${targetPackage} main=${mainEntry}\n`);',
+            '};'
+          )
+          Set-Content '.packaged-app/after-pack.cjs' -Value ($hookLines -join "`n") -Encoding utf8NoBOM -NoNewline
           $cfg = Get-Content '.packaged-app/electron-builder.yml' -Raw
           $cfg = [regex]::Replace($cfg, '(?m)^\s*output:\s*release\s*$', '  output: ../release', 1)
+          $cfg = [regex]::Replace($cfg, '(?m)^asar:\s*true\s*$', "asar: false`nafterPack: after-pack.cjs", 1)
+          $cfg = [regex]::Replace($cfg, '(?ms)^asarUnpack:\s*\r?\n\s+- node_modules/node-pty/\*\*/\*\r?\n', '')
           Set-Content '.packaged-app/electron-builder.yml' -Value $cfg -Encoding utf8NoBOM -NoNewline
           if (-not (Test-Path '.packaged-app/build/icon.ico' -PathType Leaf)) { throw 'STAGE_ICON_MISSING' }
-          Write-Host 'DEVBOX_STAGE_READY projectRoot=.packaged-app package=ok main=ok node_modules=ok build=ok vendor=ok'
+          Write-Host 'DEVBOX_STAGE_READY projectRoot=.packaged-app package=ok main=ok node_modules=ok build=ok vendor=ok asar=false afterPack=fail-closed'
 
       - name: NSIS Windows kurucusunu üret
         run: pnpm dlx electron-builder@26.15.7 --projectDir .packaged-app --config electron-builder.yml --win nsis
