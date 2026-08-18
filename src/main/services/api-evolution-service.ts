@@ -482,7 +482,7 @@ export class ApiEvolutionService {
           const corepack = process.platform === "win32" ? "corepack.cmd" : "corepack";
           const pinned = pkg.packageManager?.startsWith("pnpm@") ? pkg.packageManager : "pnpm@11.19.0";
           const expectedPnpmVersion = pinned.slice("pnpm@".length).trim();
-          this.#publishByRoot(rootPath, { stage: "VERIFYING", kind: "command", message: `${pinned} doğrudan Corepack meta-command ile doğrulanıyor; global pnpm shim, corepack enable ve Program Files yazımı kullanılmıyor.`, provider: null, model: null });
+          this.#publishByRoot(rootPath, { stage: "VERIFYING", kind: "command", message: `${pinned} doğrudan Corepack meta-command ile doğrulanıyor; global pnpm shim veya Program Files yazımı kullanılmıyor.`, provider: null, model: null });
           const managerProbe = await this.#runner.run({ executable: corepack, args: ["pnpm", "--version"], cwd: rootPath, cancellation, timeoutMs: 2 * 60_000, maxOutputBytes: 2 * 1024 * 1024 });
           evidence.push(managerProbe.runId);
           if (managerProbe.exitCode !== 0 || managerProbe.timedOut || managerProbe.truncated) return { ok: false, evidence, detail: `COREPACK_PNPM_PROBE_FAILED:${managerProbe.stderr.slice(0, 500)}` };
