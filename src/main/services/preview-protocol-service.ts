@@ -6,6 +6,7 @@ import type { ProjectService } from "./project-service.js";
 const MAX_PREVIEW_BYTES = 20 * 1024 * 1024;
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
+  ".cjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".gif": "image/gif",
   ".html": "text/html; charset=utf-8",
@@ -15,13 +16,21 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   ".jpg": "image/jpeg",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".map": "application/json; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
+  ".mp3": "audio/mpeg",
+  ".mp4": "video/mp4",
+  ".ogg": "audio/ogg",
   ".png": "image/png",
   ".svg": "image/svg+xml; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
+  ".wasm": "application/wasm",
+  ".webm": "video/webm",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".webp": "image/webp",
   ".woff": "font/woff",
-  ".woff2": "font/woff2"
+  ".woff2": "font/woff2",
+  ".xml": "application/xml; charset=utf-8"
 };
 
 const PREVIEW_BRIDGE = `<script data-devbox-preview-bridge>(function(){
@@ -29,6 +38,7 @@ const PREVIEW_BRIDGE = `<script data-devbox-preview-bridge>(function(){
   for(const level of ['log','info','warn','error']){const original=console[level]?.bind(console);console[level]=(...args)=>{send(level,args);original?.(...args)}}
   addEventListener('error',(event)=>send('error',[event.message,event.filename,event.lineno+':'+event.colno]));
   addEventListener('unhandledrejection',(event)=>send('error',['Unhandled promise rejection',String(event.reason)]));
+  addEventListener('securitypolicyviolation',(event)=>send('warn',['CSP',event.violatedDirective,event.blockedURI||'blocked']));
   addEventListener('DOMContentLoaded',()=>{try{parent.postMessage({source:'devbox-preview',type:'ready',title:document.title,createdAt:new Date().toISOString()},'*')}catch{}});
 })();</script>`;
 
@@ -47,7 +57,8 @@ function responseHeaders(contentType: string): Record<string, string> {
     "content-type": contentType,
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
-    "content-security-policy": "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' data: blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'"
+    "referrer-policy": "no-referrer",
+    "content-security-policy": "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' data: blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'"
   };
 }
 

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { GitStatus } from "../../shared/contracts.js";
@@ -98,6 +98,46 @@ describe("WorkspaceTurnService", () => {
     expect(result.verified).toBe(true);
     expect(result.changedFiles).toHaveLength(1);
     expect(result.changedFiles[0]).toMatchObject({ path: "index.html", kind: "modified", verified: true });
+  });
+
+  it("verifies a tracked dirty file that the task restores to the clean Git state", async () => {
+    const rootPath = await root();
+    const filePath = path.join(rootPath, "index.html");
+    await writeFile(filePath, "<html>dirty</html>\n", "utf8");
+    const dirtyChanges: GitStatus["changes"] = [{ indexStatus: ".", worktreeStatus: "M", path: "index.html", originalPath: null }];
+    const dirty = gitStatus(rootPath, dirtyChanges, [{ path: "index.html", additions: 1, deletions: 1, binary: false }]);
+    const clean = gitStatus(rootPath, []);
+    const service = new WorkspaceTurnService(projectService(rootPath), gitService([dirty, clean, clean]));
+
+    const before = await service.capture("project-12345678");
+    await writeFile(filePath, "<html>clean</html>\n", "utf8");
+    const result = await service.finalize({ projectId: "project-12345678", threadId: "thread-12345678", turnId: "turn-12345678", intent: "WORKSPACE_MUTATION", before });
+
+    expect(result.mutated).toBe(true);
+    expect(result.verified).toBe(true);
+    expect(result.previewPath).toBe("index.html");
+    expect(result.changedFiles).toHaveLength(1);
+    expect(result.changedFiles[0]).toMatchObject({ path: "index.html", kind: "reverted", verified: true });
+    expect(result.changedFiles[0]?.afterSha256).toMatch(/^[a-f0-9]{64}$/u);
+  });
+
+  it("classifies an untracked baseline file removed by the task as deleted", async () => {
+    const rootPath = await root();
+    const filePath = path.join(rootPath, "scratch.txt");
+    await writeFile(filePath, "temporary\n", "utf8");
+    const untrackedChanges: GitStatus["changes"] = [{ indexStatus: "?", worktreeStatus: "?", path: "scratch.txt", originalPath: null }];
+    const untracked = gitStatus(rootPath, untrackedChanges, [{ path: "scratch.txt", additions: 1, deletions: 0, binary: false }]);
+    const clean = gitStatus(rootPath, []);
+    const service = new WorkspaceTurnService(projectService(rootPath), gitService([untracked, clean, clean]));
+
+    const before = await service.capture("project-12345678");
+    await unlink(filePath);
+    const result = await service.finalize({ projectId: "project-12345678", threadId: "thread-12345678", turnId: "turn-12345678", intent: "WORKSPACE_MUTATION", before });
+
+    expect(result.mutated).toBe(true);
+    expect(result.verified).toBe(true);
+    expect(result.changedFiles).toHaveLength(1);
+    expect(result.changedFiles[0]).toMatchObject({ path: "scratch.txt", kind: "deleted", afterSha256: null, verified: true });
   });
 
   it("fails verification if the provider changes Git HEAD during the task", async () => {
