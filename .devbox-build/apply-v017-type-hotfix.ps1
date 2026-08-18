@@ -22,4 +22,25 @@ Replace-Exact $runnerPath 'cancellation?: AbortSignal;' 'cancellation?: AbortSig
 Replace-Exact $runnerPath 'child.stdout.on("data",' 'child.stdout?.on("data",' 'COMMAND_STDOUT_PATTERN_MISSING'
 Replace-Exact $runnerPath 'child.stderr.on("data",' 'child.stderr?.on("data",' 'COMMAND_STDERR_PATTERN_MISSING'
 
-Write-Host "DEVBOX_V017_TYPE_HOTFIX_APPLIED cancellationSites=$($matches.Count)"
+$advancedPath = 'src/renderer/AdvancedViews.tsx'
+$dapAnchor = '} from "../shared/contracts";'
+$dapPrelude = @'
+} from "../shared/contracts";
+
+type DapThreadView = { id: number; name: string };
+type DapStackFrameView = { id: number; name: string; line: number | null; column: number | null; sourceName: string | null; sourcePath: string | null };
+type DapScopeView = { name: string; variablesReference: number; expensive: boolean };
+type DapVariableView = { name: string; value: string; type: string | null; variablesReference: number };
+
+function debugBody(response: DebugResponse): Record<string, unknown> {
+  const body = response.body;
+  return body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
+}
+'@
+Replace-Exact $advancedPath $dapAnchor $dapPrelude 'ADVANCED_DAP_PRELUDE_ANCHOR_MISSING'
+Replace-Exact $advancedPath 'flatMap((candidate): DapThreadView[] =>' 'flatMap((candidate: unknown): DapThreadView[] =>' 'DAP_THREAD_CALLBACK_PATTERN_MISSING'
+Replace-Exact $advancedPath 'flatMap((candidate): DapStackFrameView[] =>' 'flatMap((candidate: unknown): DapStackFrameView[] =>' 'DAP_STACK_CALLBACK_PATTERN_MISSING'
+Replace-Exact $advancedPath 'flatMap((candidate): DapScopeView[] =>' 'flatMap((candidate: unknown): DapScopeView[] =>' 'DAP_SCOPE_CALLBACK_PATTERN_MISSING'
+Replace-Exact $advancedPath 'flatMap((candidate): DapVariableView[] =>' 'flatMap((candidate: unknown): DapVariableView[] =>' 'DAP_VARIABLE_CALLBACK_PATTERN_MISSING'
+
+Write-Host "DEVBOX_V017_TYPE_HOTFIX_APPLIED cancellationSites=$($matches.Count) dapTypes=4"
