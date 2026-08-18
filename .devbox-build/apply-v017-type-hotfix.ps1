@@ -66,28 +66,22 @@ $specTestPath = 'src/main/services/development-spec-service.test.ts'
 Replace-Exact $specTestPath '    const service = new DevelopmentSpecService(database, path.resolve("specs", "development", "geliştirme-spec-task-graph.json"), path.resolve("specs", "development", "geliştirme.md"));' '    const service = new DevelopmentSpecService(database, path.resolve("specs", "development", "geliştirme-spec-task-graph.json"));' 'SPEC_TEST_RAW_SOURCE_PATTERN_MISSING'
 
 $mainPath = 'src/main/main.ts'
-$mainSourceBlock = @'
-  const developmentSpecSourcePath = app.isPackaged
-    ? path.join(process.resourcesPath, "development", "geliştirme.md")
-    : path.join(app.getAppPath(), "specs", "development", "geliştirme.md");
-  const developmentSpec = new DevelopmentSpecService(database, developmentSpecPath, developmentSpecSourcePath);
-'@
-$mainSourceReplacement = @'
-  const developmentSpec = new DevelopmentSpecService(database, developmentSpecPath);
-'@
-Replace-Exact $mainPath $mainSourceBlock $mainSourceReplacement 'MAIN_SPEC_SOURCE_BLOCK_MISSING'
+$mainText = Get-Content -LiteralPath $mainPath -Raw
+if ($mainText.Contains('developmentSpecSourcePath')) {
+  $mainUpdated = [regex]::Replace($mainText, '(?ms)^\s*const developmentSpecSourcePath = app\.isPackaged\r?\n.*?^\s*const developmentSpec = new DevelopmentSpecService\(database, developmentSpecPath, developmentSpecSourcePath\);\r?\n', "  const developmentSpec = new DevelopmentSpecService(database, developmentSpecPath);`n", 1)
+  if ($mainUpdated -eq $mainText) { throw 'MAIN_SPEC_SOURCE_REGEX_MISSING' }
+  Set-Content -LiteralPath $mainPath -Value $mainUpdated -Encoding utf8NoBOM -NoNewline
+}
 
 $builderPath = 'config/electron-builder.yml'
 $builderText = Get-Content -LiteralPath $builderPath -Raw
 $builderUpdated = [regex]::Replace($builderText, '(?m)^\s*- from: specs/development/geliştirme\.md\r?\n\s*to: development/geliştirme\.md\r?\n?', '')
-if ($builderUpdated -eq $builderText) { throw 'BUILDER_RAW_SPEC_RESOURCE_PATTERN_MISSING' }
-Set-Content -LiteralPath $builderPath -Value $builderUpdated -Encoding utf8NoBOM -NoNewline
+if ($builderUpdated -ne $builderText) { Set-Content -LiteralPath $builderPath -Value $builderUpdated -Encoding utf8NoBOM -NoNewline }
 
 $signedBuilderPath = 'config/electron-builder.signed.cjs'
 $signedBuilderText = Get-Content -LiteralPath $signedBuilderPath -Raw
 $signedBuilderUpdated = [regex]::Replace($signedBuilderText, '(?m)^\s*\{ from: "specs/development/geliştirme\.md", to: "development/geliştirme\.md" \},?\r?\n?', '')
-if ($signedBuilderUpdated -eq $signedBuilderText) { throw 'SIGNED_BUILDER_RAW_SPEC_RESOURCE_PATTERN_MISSING' }
-Set-Content -LiteralPath $signedBuilderPath -Value $signedBuilderUpdated -Encoding utf8NoBOM -NoNewline
+if ($signedBuilderUpdated -ne $signedBuilderText) { Set-Content -LiteralPath $signedBuilderPath -Value $signedBuilderUpdated -Encoding utf8NoBOM -NoNewline }
 
 $revocationPath = 'src/main/services/revocation-list-service.ts'
 Replace-Exact $revocationPath '  public async assertAllowed(packageId: string, version: string, publisherKeyId: string): Promise<void> {' '  public async assertAllowed(packageId: string, version: string, publisherKeyId: string, now = new Date()): Promise<void> {' 'REVOCATION_SIGNATURE_PATTERN_MISSING'
