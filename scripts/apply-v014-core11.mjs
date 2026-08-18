@@ -1,0 +1,34 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
+import path from "node:path";
+
+let source = await readFile("scripts/apply-v014-core9.mjs", "utf8");
+const before = 'database = replaceExact(database, dbBefore, dbAfter, "database-schema7");';
+const after = `{
+  const migrationStart = database.indexOf("  #migrate(): void {");
+  const integrityStart = database.indexOf("\\n  public integrityCheck():", migrationStart);
+  if (migrationStart < 0 || integrityStart < 0 || integrityStart <= migrationStart) throw new Error("V014_CORE11_DATABASE_SCOPE_INVALID");
+  let migration = database.slice(migrationStart, integrityStart);
+  const guard = "    if (version !== CURRENT_SCHEMA_VERSION) {";
+  const guardAt = migration.lastIndexOf(guard);
+  if (guardAt < 0 || migration.indexOf(guard) !== guardAt) throw new Error("V014_CORE11_DATABASE_FINAL_GUARD_INVALID");
+  const v7End = dbAfter.indexOf(guard);
+  if (v7End < 0) throw new Error("V014_CORE11_V7_TEMPLATE_INVALID");
+  const v7Block = dbAfter.slice(0, v7End);
+  const finalTail = \`    if (version !== CURRENT_SCHEMA_VERSION) {\\n      throw new Error(\\\`Unsupported state schema version: \\\${version}\\\`);\\n    }\\n    this.#ensureMemoryFts();\\n  }\\n\`;
+  migration = migration.slice(0, guardAt) + v7Block + finalTail;
+  database = database.slice(0, migrationStart) + migration + database.slice(integrityStart);
+  const methodStart = dbAfter.indexOf("\\n  #ensureMemoryFts(): void {");
+  const methodEnd = dbAfter.lastIndexOf("\\n  public integrityCheck():");
+  if (methodStart < 0 || methodEnd < 0 || methodEnd <= methodStart) throw new Error("V014_CORE11_FTS_METHOD_TEMPLATE_INVALID");
+  const ftsMethod = dbAfter.slice(methodStart, methodEnd);
+  const newIntegrityStart = database.indexOf("\\n  public integrityCheck():", migrationStart);
+  if (newIntegrityStart < 0 || database.indexOf("#ensureMemoryFts(): void") >= 0) throw new Error("V014_CORE11_FTS_INSERTION_INVALID");
+  database = database.slice(0, newIntegrityStart) + ftsMethod + database.slice(newIntegrityStart);
+}`;
+const at = source.indexOf(before);
+if (at < 0 || at !== source.lastIndexOf(before)) throw new Error("V014_CORE11_WRAPPER_ANCHOR_INVALID");
+source = source.slice(0, at) + after + source.slice(at + before.length);
+const temporary = path.resolve("scripts/.apply-v014-core11-runtime.mjs");
+await writeFile(temporary, source, "utf8");
+await import(`${pathToFileURL(temporary).href}?run=${Date.now()}`);
