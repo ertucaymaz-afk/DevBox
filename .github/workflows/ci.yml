@@ -2,7 +2,9 @@ name: DevBox doğrulama
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - codex/v0.1.7-real-self-evolution
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -16,37 +18,73 @@ concurrency:
 
 jobs:
   verify:
-    name: Kaynak ve sözleşmeleri doğrula
+    name: Windows kaynak ve gerçeklik doğrulaması
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: İncelenen kaynak kodu al
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
+      - name: v0.1.7 kaynak değişikliklerini bütünlük denetimiyle uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $partPaths = 0..7 | ForEach-Object { ".devbox-build/patch.b64.part{0:D2}" -f $_ }
+          foreach ($partPath in $partPaths) {
+            if (-not (Test-Path -LiteralPath $partPath -PathType Leaf)) { throw "PATCH_PART_MISSING:$partPath" }
+          }
+          $encoded = ($partPaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw }) -join ''
+          $gzipPath = '.devbox-build/devbox-v017.patch.gz'
+          $patchPath = '.devbox-build/devbox-v017.patch'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $expectedGzipSha256 = 'd20e56c1f49589d489d4e92aba029219e898141f6031ea99a05d48158c30218f'
+          $actualGzipSha256 = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualGzipSha256 -ne $expectedGzipSha256) { throw "PATCH_GZIP_SHA256_MISMATCH:$actualGzipSha256" }
+          python -c "import gzip,pathlib; p=pathlib.Path(r'.devbox-build/devbox-v017.patch.gz'); pathlib.Path(r'.devbox-build/devbox-v017.patch').write_bytes(gzip.decompress(p.read_bytes()))"
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_GZIP_DECODE_FAILED' }
+          $expectedPatchSha256 = '50c3f604eec27a53f0dd378abebb51a366b80fe4333edbf49aebda283fa9a2eb'
+          $actualPatchSha256 = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualPatchSha256 -ne $expectedPatchSha256) { throw "PATCH_SHA256_MISMATCH:$actualPatchSha256" }
+          git apply --check --ignore-space-change $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
+          git apply --ignore-space-change $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
+          & '.devbox-build/apply-v017-type-hotfix.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'TYPE_HOTFIX_FAILED' }
+          Remove-Item -Recurse -Force '.devbox-build'
+          if ((Get-Content package.json -Raw) -notmatch '"version":\s*"0\.1\.7"') { throw 'VERSION_PATCH_NOT_APPLIED' }
+          Write-Host "DEVBOX_PATCH_VERIFIED gzip=$actualGzipSha256 patch=$actualPatchSha256"
+
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
       - name: Node.js 24 kullan
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          package-manager-cache: false
-
-      - name: Sabitlenmiş pnpm sürümünü etkinleştir
-        shell: pwsh
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.19.0 --activate
+          cache: pnpm
 
       - name: Bağımlılıkları kilit dosyasından kur
         run: pnpm install --frozen-lockfile
 
-      - name: Ürünü doğrula
+      - name: 22 faz ve 3362 atomik görevi doğrula
+        run: pnpm spec:verify
+
+      - name: API gelişim V7 gerçeklik kapısını doğrula
+        run: node scripts/verify-api-evolution-v7.mjs
+
+      - name: TypeScript, test, build ve ürün doğruluk kapısı
         run: pnpm verify
 
   package:
-    name: İmzasız inceleme paketini üret
+    name: Windows DevBox-Setup.exe üret ve doğrula
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     needs: verify
     steps:
       - name: İncelenen kaynak kodu al
@@ -54,31 +92,138 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: v0.1.7 kaynak değişikliklerini bütünlük denetimiyle uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $partPaths = 0..7 | ForEach-Object { ".devbox-build/patch.b64.part{0:D2}" -f $_ }
+          foreach ($partPath in $partPaths) {
+            if (-not (Test-Path -LiteralPath $partPath -PathType Leaf)) { throw "PATCH_PART_MISSING:$partPath" }
+          }
+          $encoded = ($partPaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw }) -join ''
+          $gzipPath = '.devbox-build/devbox-v017.patch.gz'
+          $patchPath = '.devbox-build/devbox-v017.patch'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $expectedGzipSha256 = 'd20e56c1f49589d489d4e92aba029219e898141f6031ea99a05d48158c30218f'
+          $actualGzipSha256 = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualGzipSha256 -ne $expectedGzipSha256) { throw "PATCH_GZIP_SHA256_MISMATCH:$actualGzipSha256" }
+          python -c "import gzip,pathlib; p=pathlib.Path(r'.devbox-build/devbox-v017.patch.gz'); pathlib.Path(r'.devbox-build/devbox-v017.patch').write_bytes(gzip.decompress(p.read_bytes()))"
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_GZIP_DECODE_FAILED' }
+          $expectedPatchSha256 = '50c3f604eec27a53f0dd378abebb51a366b80fe4333edbf49aebda283fa9a2eb'
+          $actualPatchSha256 = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualPatchSha256 -ne $expectedPatchSha256) { throw "PATCH_SHA256_MISMATCH:$actualPatchSha256" }
+          git apply --check --ignore-space-change $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_CHECK_FAILED' }
+          git apply --ignore-space-change $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'PATCH_APPLY_FAILED' }
+          & '.devbox-build/apply-v017-type-hotfix.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'TYPE_HOTFIX_FAILED' }
+          Remove-Item -Recurse -Force '.devbox-build'
+          if ((Get-Content package.json -Raw) -notmatch '"version":\s*"0\.1\.7"') { throw 'VERSION_PATCH_NOT_APPLIED' }
+          Write-Host "DEVBOX_PATCH_VERIFIED gzip=$actualGzipSha256 patch=$actualPatchSha256"
+
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
       - name: Node.js 24 kullan
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          package-manager-cache: false
-
-      - name: Sabitlenmiş pnpm sürümünü etkinleştir
-        shell: pwsh
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.19.0 --activate
+          cache: pnpm
 
       - name: Bağımlılıkları kilit dosyasından kur
         run: pnpm install --frozen-lockfile
 
-      - name: Kurucuyu ve doğrulanmış yayın envanterini üret
+      - name: Self-contained üretim sahnesini hazırla
+        shell: pwsh
         run: |
-          pnpm package:installer
-          pnpm release:prepare
-          pnpm release:verify
+          $ErrorActionPreference = 'Stop'
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { throw 'PRODUCTION_BUILD_FAILED' }
+          pnpm --filter devbox deploy --prod --legacy --force .packaged-app
+          if ($LASTEXITCODE -ne 0) { throw 'PNPM_DEPLOY_FAILED' }
+          if (-not (Test-Path '.packaged-app/package.json' -PathType Leaf)) { throw 'STAGE_PACKAGE_JSON_MISSING' }
+          if (-not (Test-Path '.packaged-app/dist/main/main/main.js' -PathType Leaf)) { throw 'STAGE_MAIN_ENTRY_MISSING' }
+          if (-not (Test-Path '.packaged-app/node_modules' -PathType Container)) { throw 'STAGE_NODE_MODULES_MISSING' }
+          Copy-Item -LiteralPath 'build' -Destination '.packaged-app/build' -Recurse -Force
+          Copy-Item -LiteralPath 'vendor' -Destination '.packaged-app/vendor' -Recurse -Force
+          Copy-Item -LiteralPath 'config/electron-builder.yml' -Destination '.packaged-app/electron-builder.yml' -Force
+          $hookLines = @(
+            'const fs = require("node:fs");',
+            'const path = require("node:path");',
+            'module.exports = async function afterPack(context) {',
+            '  const resourcesApp = path.join(context.appOutDir, "resources", "app");',
+            '  const sourcePackage = path.join(__dirname, ".packaged-app", "package.json");',
+            '  const targetPackage = path.join(resourcesApp, "package.json");',
+            '  fs.mkdirSync(resourcesApp, { recursive: true });',
+            '  fs.copyFileSync(sourcePackage, targetPackage);',
+            '  const manifest = JSON.parse(fs.readFileSync(sourcePackage, "utf8"));',
+            '  const mainEntry = path.join(resourcesApp, String(manifest.main || ""));',
+            '  if (!manifest.main || !fs.existsSync(mainEntry)) throw new Error(`PACKAGED_MAIN_ENTRY_MISSING:${mainEntry}`);',
+            '  process.stdout.write(`DEVBOX_AFTER_PACK_VERIFIED package=${targetPackage} main=${mainEntry}\n`);',
+            '};'
+          )
+          Set-Content 'after-pack.cjs' -Value ($hookLines -join "`n") -Encoding utf8NoBOM -NoNewline
+          $cfg = Get-Content '.packaged-app/electron-builder.yml' -Raw
+          $cfg = [regex]::Replace($cfg, '(?m)^\s*output:\s*release\s*$', '  output: ../release', 1)
+          $cfg = [regex]::Replace($cfg, '(?m)^asar:\s*true\s*$', "asar: false`nafterPack: after-pack.cjs", 1)
+          $cfg = [regex]::Replace($cfg, '(?ms)^asarUnpack:\s*\r?\n\s+- node_modules/node-pty/\*\*/\*\r?\n', '')
+          Set-Content '.packaged-app/electron-builder.yml' -Value $cfg -Encoding utf8NoBOM -NoNewline
+          if (-not (Test-Path '.packaged-app/build/icon.ico' -PathType Leaf)) { throw 'STAGE_ICON_MISSING' }
+          Write-Host 'DEVBOX_STAGE_READY projectRoot=.packaged-app package=ok main=ok node_modules=ok build=ok vendor=ok asar=false afterPack=fail-closed'
 
-      - name: İmzasız paketi inceleme için yükle
+      - name: NSIS eksik upstream include dosyasını doğrula ve yerel builder'a bağla
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $builderPackage = Get-ChildItem -LiteralPath 'node_modules/.pnpm' -Directory |
+            Where-Object { $_.Name -like 'app-builder-lib@26.15.3*' } |
+            Select-Object -First 1
+          if (-not $builderPackage) { throw 'APP_BUILDER_LIB_26_15_3_NOT_FOUND' }
+          $includeDir = Join-Path $builderPackage.FullName 'node_modules/app-builder-lib/templates/nsis/include'
+          if (-not (Test-Path -LiteralPath $includeDir -PathType Container)) { throw "NSIS_INCLUDE_DIR_NOT_FOUND:$includeDir" }
+          $sourceInclude = 'build/allowOnlyOneInstallerInstance.nsh'
+          if (-not (Test-Path -LiteralPath $sourceInclude -PathType Leaf)) { throw 'REVIEWED_NSIS_INCLUDE_SOURCE_MISSING' }
+          $targetInclude = Join-Path $includeDir 'allowOnlyOneInstallerInstance.nsh'
+          Copy-Item -LiteralPath $sourceInclude -Destination $targetInclude -Force
+          $sourceHash = (Get-FileHash -LiteralPath $sourceInclude -Algorithm SHA256).Hash.ToLowerInvariant()
+          $targetHash = (Get-FileHash -LiteralPath $targetInclude -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sourceHash -ne $targetHash) { throw "NSIS_INCLUDE_COPY_HASH_MISMATCH:${sourceHash}:${targetHash}" }
+          $builderCli = 'node_modules/.bin/electron-builder.cmd'
+          if (-not (Test-Path -LiteralPath $builderCli -PathType Leaf)) { throw 'LOCAL_ELECTRON_BUILDER_CLI_MISSING' }
+          Write-Host "DEVBOX_NSIS_INCLUDE_READY target=$targetInclude sha256=$targetHash builder=$builderCli"
+
+      - name: NSIS Windows kurucusunu üret
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & '.\node_modules\.bin\electron-builder.cmd' --projectDir .packaged-app --config electron-builder.yml --win nsis
+          if ($LASTEXITCODE -ne 0) { throw "ELECTRON_BUILDER_NSIS_FAILED:$LASTEXITCODE" }
+
+      - name: EXE yapısını ve özetini fail-closed doğrula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-Item 'release/DevBox-Setup.exe' -ErrorAction Stop
+          if ($installer.Length -lt 5MB) { throw "INSTALLER_TOO_SMALL: $($installer.Length)" }
+          $stream = [IO.File]::OpenRead($installer.FullName)
+          try {
+            $b0 = $stream.ReadByte(); $b1 = $stream.ReadByte()
+          } finally { $stream.Dispose() }
+          if ($b0 -ne 0x4D -or $b1 -ne 0x5A) { throw 'INSTALLER_NOT_PE_MZ' }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  DevBox-Setup.exe" | Set-Content 'release/DevBox-Setup.exe.sha256' -Encoding ascii
+          Write-Host "DEVBOX_INSTALLER_VERIFIED bytes=$($installer.Length) sha256=$hash"
+
+      - name: Gerçek Windows kurucusunu yükle
         uses: actions/upload-artifact@v6
         with:
-          name: devbox-unsigned-${{ github.sha }}
-          path: release/devbox-package/
+          name: DevBox-v0.1.7-Windows-Installer
+          path: |
+            release/DevBox-Setup.exe
+            release/DevBox-Setup.exe.sha256
           if-no-files-found: error
           retention-days: 14

@@ -15,12 +15,13 @@ asar: true
 asarUnpack:
   - node_modules/node-pty/**/*
 win:
-  icon: build/icon.ico
+  icon: icon.ico
   target:
     - nsis
   requestedExecutionLevel: asInvoker
   verifyUpdateCodeSignature: true
 nsis:
+  include: installer.nsh
   oneClick: false
   perMachine: false
   allowElevation: false
