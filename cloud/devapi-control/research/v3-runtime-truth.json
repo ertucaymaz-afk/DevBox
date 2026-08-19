@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "product": "DevAPI",
+  "phase": "v3",
+  "dependencySupplyChain": {
+    "agentsSdk": "SUPPLY_CHAIN_VERIFIED",
+    "agentsVersion": "0.14.3",
+    "zodVersion": "4.4.3",
+    "lockCommitted": true
+  },
+  "runtime": {
+    "worker": "RUNTIME_VERIFIED_CI_SCOPE",
+    "worktree": "RUNTIME_VERIFIED_CI_SCOPE",
+    "browserReadOnly": "RUNTIME_VERIFIED_CI_SCOPE",
+    "plannerModel": "BLOCKED_EXTERNAL",
+    "independentReviewer": "BLOCKED_EXTERNAL",
+    "webSearch": "BLOCKED_EXTERNAL",
+    "databaseGitHubActions": "BLOCKED_EXTERNAL",
+    "databaseTemporaryMigrationBranch": "RUNTIME_VERIFIED_TEMPORARY_SCOPE",
+    "preview": "NOT_RUN",
+    "canary": "NOT_RUN",
+    "production": "NOT_RUN",
+    "knownGood": "NOT_RUN"
+  },
+  "blockers": [
+    "OPENAI_API_KEY_UNCONFIGURED_IN_GITHUB_ACTIONS",
+    "DEVBOX_DATABASE_URL_UNCONFIGURED_IN_GITHUB_ACTIONS",
+    "VERCEL_PRODUCTION_EVIDENCE_NOT_AVAILABLE"
+  ],
+  "truth": {
+    "temporaryDatabaseEvidenceDoesNotPromoteMainDatabase": true,
+    "sourceSiteRootsDoNotMeanProductionSites": true,
+    "dependencyIntegrationDoesNotMeanModelRuntimeVerified": true
+  }
+}
