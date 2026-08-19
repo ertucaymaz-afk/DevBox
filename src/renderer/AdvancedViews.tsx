@@ -11,7 +11,6 @@ import {
   Globe2,
   LoaderCircle,
   Play,
-  PlugZap,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -22,8 +21,6 @@ import {
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   AppSettings,
-  CatalogItem,
-  CatalogSnapshot,
   CommandResult,
   DebugResponse,
   DebugSession,
@@ -48,79 +45,6 @@ type DapVariableView = { name: string; value: string; type: string | null; varia
 function debugBody(response: DebugResponse): Record<string, unknown> {
   const body = response.body;
   return body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
-}
-
-export function CatalogWorkspace(): ReactNode {
-  const [catalog, setCatalog] = useState<CatalogSnapshot | null>(null);
-  const [section, setSection] = useState<"skill" | "plugin">("skill");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const reload = useCallback(async (): Promise<void> => {
-    setError(null);
-    try { setCatalog(await window.devbox.inspectCatalog()); }
-    catch (caught) { setError(failure(caught)); }
-  }, []);
-  useEffect(() => { void reload(); }, [reload]);
-  const selectSource = async (kind: "skill" | "plugin"): Promise<void> => {
-    setBusy(`source-${kind}`); setError(null);
-    try { setCatalog(await window.devbox.selectCatalogSource(kind)); }
-    catch (caught) { setError(failure(caught)); }
-    finally { setBusy(null); }
-  };
-  const installPlugins = async (): Promise<void> => {
-    setBusy("install"); setError(null);
-    try { setCatalog(await window.devbox.installPortablePlugins()); }
-    catch (caught) { setError(failure(caught)); }
-    finally { setBusy(null); }
-  };
-  const connectPlugins = async (): Promise<void> => {
-    setBusy("connect"); setError(null);
-    try { setCatalog(await window.devbox.connectPortablePlugins()); }
-    catch (cause) { setError(failure(cause)); }
-    finally { setBusy(null); }
-  };
-  const disconnectPlugins = async (): Promise<void> => {
-    setBusy("disconnect"); setError(null);
-    try { setCatalog(await window.devbox.disconnectPortablePlugins()); }
-    catch (cause) { setError(failure(cause)); }
-    finally { setBusy(null); }
-  };
-  const visible = catalog?.items.filter((item) => item.kind === section) ?? [];
-  const verifiedPlugins = catalog?.items.some((item) => item.kind === "plugin" && ["HASH_VERIFIED", "BUNDLE_VERIFIED"].includes(item.sourceState)) ?? false;
-  const pluginsInstalled = catalog?.items.some((item) => item.kind === "plugin" && item.runtimeState === "INSTALLED") ?? false;
-  return <section className="advanced-page catalog-workspace">
-    <div className="advanced-heading"><div><span className="advanced-eyebrow">DOĞRULANMIŞ YEREL KATALOG</span><h1>Beceriler ve taşınabilir eklentiler</h1><p>Kaynak bütünlüğü, lisans, çalışma zamanı kurulumu ve MCP doktoru ayrı kanıtlanır. Yalnız gerçekten geçen durumlar “Hazır” gösterilir.</p></div><button onClick={() => void reload()} disabled={Boolean(busy)}><RefreshCw className={busy ? "spin" : ""} size={14} /> Yeniden denetle</button></div>
-    {catalog && <div className="catalog-summary"><article><strong>{catalog.counts.skills}</strong><span>yerel beceri kaynağı</span></article><article><strong>{catalog.counts.plugins}</strong><span>taşınabilir eklenti</span></article><article className="ready"><strong>{catalog.counts.installed}</strong><span>kurulu, doktoru geçti</span></article><article><strong>{catalog.counts.running}</strong><span>canlı MCP oturumu</span></article><article className={catalog.counts.blocked ? "blocked" : ""}><strong>{catalog.counts.blocked}</strong><span>bütünlük/çalışma hatası</span></article></div>}
-    <nav className="catalog-tabs" aria-label="Katalog türü"><button className={section === "skill" ? "active" : ""} onClick={() => setSection("skill")}>Beceriler</button><button className={section === "plugin" ? "active" : ""} onClick={() => setSection("plugin")}>Eklentiler ve MCP</button></nav>
-    <div className="catalog-source"><div><strong>{section === "skill" ? "Beceri kaynağı" : "Eklenti kaynağı"}</strong><span title={section === "skill" ? catalog?.skillRoot ?? "" : catalog?.pluginRoot ?? ""}>{section === "skill" ? catalog?.skillRoot ?? "Seçilmedi" : catalog?.pluginRoot ?? "Seçilmedi"}</span></div><button onClick={() => void selectSource(section)} disabled={Boolean(busy)}><Upload size={14} /> Klasör seç</button>{section === "plugin" && !pluginsInstalled && <button className="primary" onClick={() => void installPlugins()} disabled={Boolean(busy) || !verifiedPlugins}>{busy === "install" ? <LoaderCircle className="spin" size={14} /> : <ShieldCheck size={14} />}Doğrula ve kur</button>}{section === "plugin" && pluginsInstalled && (catalog?.counts.running ?? 0) < (catalog?.counts.installed ?? 0) && <button className="primary" onClick={() => void connectPlugins()} disabled={Boolean(busy)}>{busy === "connect" ? <LoaderCircle className="spin" size={14} /> : <PlugZap size={14} />}Canlı MCP bağla</button>}{section === "plugin" && (catalog?.counts.running ?? 0) > 0 && <button onClick={() => void disconnectPlugins()} disabled={Boolean(busy)}>{busy === "disconnect" ? <LoaderCircle className="spin" size={14} /> : <CircleStop size={14} />}Bağlantıyı kes</button>}</div>
-    {visible.length === 0 ? <div className="advanced-empty compact"><Activity size={22} /><strong>Doğrulanmış kayıt yok</strong><span>Kaynak klasörünü seçin; DevBox arşivleri çalıştırmadan önce SHA-256 kaydını denetler.</span></div> : <div className="catalog-grid">{visible.map((item) => <article key={`${item.kind}:${item.id}`}><header><div><strong>{item.productName}</strong><span>{item.id} · v{item.version}</span></div><span className={`catalog-state ${item.runtimeState === "RUNNING" ? "ready" : item.runtimeState === "INSTALLED" ? "installed" : item.sourceState === "HASH_FAILED" || item.runtimeState === "FAILED" ? "failed" : "source"}`}>{item.runtimeState === "RUNNING" ? "ÇALIŞIYOR" : item.runtimeState === "INSTALLED" ? "KURULU" : item.runtimeState === "SOURCE_ONLY" ? "YALNIZ KAYNAK" : item.runtimeState === "FAILED" ? "BAŞARISIZ" : "KURULU DEĞİL"}</span></header><div className={`catalog-trust ${item.trustClass.toLowerCase().replaceAll("_", "-")}`}>{item.trustClass === "MANAGED_SIGNED_CATALOG" ? "İmzalı yönetilen katalog" : item.trustClass === "LOCAL_SIDELOAD" ? "Yerel sideload · yönetici onaylı değil" : item.trustClass === "LOCAL_HASH_VERIFIED" ? "Yerel kaynak · SHA-256 doğrulandı" : "Özel lisanslı kaynak · dağıtıma kapalı"}</div><p>{item.detail}</p><dl><div><dt>Geliştirici</dt><dd>{item.publisher}</dd></div><div><dt>Lisans</dt><dd>{item.license}</dd></div><div><dt>Bütünlük</dt><dd>{item.sourceState}</dd></div><div><dt>Doktor</dt><dd>{item.doctorState}</dd></div><div><dt>Araç</dt><dd>{item.toolCount || "canlı bağlantı bekliyor"}</dd></div><div><dt>İzin</dt><dd>{item.grantedPermissions.length ? `${item.grantedPermissions.length}/${item.requestedPermissions.length}` : "host izni istemiyor"}</dd></div></dl>{item.health?.lastError && <div className="inline-error">Son çalışma hatası: {item.health.lastError}</div>}<details><summary>Kanıtları göster</summary>{item.evidence.map((line) => <code key={line}>{line}</code>)}</details>{item.runtimeState === "RUNNING" && item.tools.length > 0 && <CatalogToolRunner pluginId={item.id} tools={item.tools} />}</article>)}</div>}
-    {catalog?.issues.length ? <section className="catalog-issues"><strong>Sınırlar ve notlar</strong>{catalog.issues.map((issue) => <p key={issue}>{issue}</p>)}</section> : null}
-    {error && <div className="inline-error">{error}</div>}
-  </section>;
-}
-
-function CatalogToolRunner({ pluginId, tools }: { pluginId: string; tools: CatalogItem["tools"] }): ReactNode {
-  const [toolName, setToolName] = useState(tools[0]?.name ?? "");
-  const [argumentsText, setArgumentsText] = useState("{}");
-  const [output, setOutput] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const invoke = async (): Promise<void> => {
-    setError(null);
-    setOutput(null);
-    let parsed: unknown;
-    try { parsed = JSON.parse(argumentsText); }
-    catch { return setError("Araç girdisi geçerli JSON olmalıdır."); }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return setError("Araç girdisinin kökü bir JSON nesnesi olmalıdır.");
-    setBusy(true);
-    try {
-      const result = await window.devbox.callCatalogTool({ pluginId, toolName, arguments: parsed as Record<string, unknown> });
-      setOutput(JSON.stringify({ süreMs: result.durationMs, sonuç: result.result }, null, 2));
-    } catch (cause) { setError(failure(cause)); }
-    finally { setBusy(false); }
-  };
-  const selected = tools.find((tool) => tool.name === toolName);
-  return <details className="catalog-tool-runner"><summary>Canlı MCP aracını çalıştır</summary><label>Araç<select value={toolName} onChange={(event) => setToolName(event.target.value)}>{tools.map((tool) => <option key={tool.name} value={tool.name}>{tool.name}</option>)}</select></label>{selected?.description && <p>{selected.description}</p>}<label>JSON girdisi<textarea value={argumentsText} onChange={(event) => setArgumentsText(event.target.value)} spellCheck={false} /></label><button className="primary" onClick={() => void invoke()} disabled={busy || !toolName}>{busy ? <LoaderCircle className="spin" size={14} /> : <Play size={14} />}Onayla ve gerçekten çalıştır</button>{error && <div className="inline-error">{error}</div>}{output && <pre>{output}</pre>}</details>;
 }
 
 function failure(error: unknown): string {
