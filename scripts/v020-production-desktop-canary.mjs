@@ -167,11 +167,13 @@ async function waitApplied(projectId, command, expectedInstanceId, timeoutSecond
 async function waitSnapshot(projectId, after, predicate, label, timeoutSeconds = 120) {
   const deadline = Date.now() + timeoutSeconds * 1000;
   let last = "none";
+  const threshold = Date.parse(after);
+  if (!Number.isFinite(threshold)) fail("SNAPSHOT_THRESHOLD_INVALID", label);
   while (Date.now() < deadline) {
     const data = await state(projectId);
     const identity = snapshotIdentity(data);
     last = identity.capturedAt;
-    if (Date.parse(identity.capturedAt) > Date.parse(after) && predicate(identity)) {
+    if (Date.parse(identity.capturedAt) > threshold && predicate(identity)) {
       console.log(`V020_CANARY_SNAPSHOT_PASS label=${label} capturedAt=${identity.capturedAt} instance=${identity.instanceId}`);
       return { data, identity };
     }
@@ -199,7 +201,7 @@ try {
   const enableAck = await waitApplied(projectId, enable, baseline.instanceId);
   proof.push(enable);
   const enableAppliedAt = normalizeCommand((enableAck.state.commands ?? []).find((item) => String(item.id) === enable.id)).appliedAt;
-  const enabledSnapshot = await waitSnapshot(projectId, baseline.capturedAt, (identity) => identity.enabled === true, "enabled-true");
+  const enabledSnapshot = await waitSnapshot(projectId, enableAppliedAt, (identity) => identity.enabled === true, "enabled-true");
   enabledForCanary = true;
 
   const run = await createCommand(projectId, "evolution.run", {});
@@ -213,7 +215,7 @@ try {
   proof.push(cancel);
   runMayBeActive = false;
   const cancelAppliedAt = normalizeCommand((cancelAck.state.commands ?? []).find((item) => String(item.id) === cancel.id)).appliedAt;
-  const cancelledSnapshot = await waitSnapshot(projectId, enabledSnapshot.identity.capturedAt, (identity) => identity.isRunning === false, "cancelled-idle", 150);
+  const cancelledSnapshot = await waitSnapshot(projectId, cancelAppliedAt, (identity) => identity.isRunning === false, "cancelled-idle", 150);
 
   let restore = null;
   if (!baseline.enabled) {
@@ -221,7 +223,7 @@ try {
     const restoreAck = await waitApplied(projectId, restore, baseline.instanceId);
     proof.push(restore);
     const restoreAppliedAt = normalizeCommand((restoreAck.state.commands ?? []).find((item) => String(item.id) === restore.id)).appliedAt;
-    await waitSnapshot(projectId, cancelledSnapshot.identity.capturedAt, (identity) => identity.enabled === false && identity.isRunning === false, "restored-disabled");
+    await waitSnapshot(projectId, restoreAppliedAt, (identity) => identity.enabled === false && identity.isRunning === false, "restored-disabled");
     enabledForCanary = false;
     restore.appliedAt = restoreAppliedAt;
   }
