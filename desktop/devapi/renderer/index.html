@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self'; style-src 'self'; img-src 'self' file: data:; frame-src file:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' devapi:; script-src 'self'; style-src 'self'; img-src 'self' devapi: data:; frame-src devapi:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';" />
   <meta name="color-scheme" content="light" />
   <title>DevAPI Desktop</title>
   <link rel="stylesheet" href="./styles.css" />
@@ -30,7 +30,7 @@
 
       <div class="sidebar-foot">
         <span id="versionText">DevAPI Desktop</span>
-        <small>Truth-first Windows shell</small>
+        <small id="healthFoot">Başlangıç denetimi çalışıyor…</small>
       </div>
     </aside>
 
@@ -42,16 +42,22 @@
           <p id="surfaceDescription" class="subtitle">Ürünün ne yaptığını, nelerin gerçekten çalıştığını ve sıradaki gelişim kapılarını tek yerde gösterir.</p>
         </div>
         <div class="top-actions">
+          <div id="healthBadge" class="status-pill health-checking">DESKTOP · CHECKING</div>
           <div id="deploymentBadge" class="status-pill">DEPLOYMENT · NOT RUN</div>
           <button id="refreshBtn" class="ghost-btn" type="button">Yenile</button>
         </div>
       </header>
 
-      <section class="overview-strip">
+      <section class="overview-strip four">
         <article>
           <span>Kaynak durumu</span>
           <strong>SOURCE VERIFIED</strong>
           <small>UI + güvenlik + worker gate'leri CI ile doğrulandı.</small>
+        </article>
+        <article>
+          <span>Masaüstü sağlığı</span>
+          <strong id="desktopHealth">CHECKING</strong>
+          <small id="desktopHealthDetail">Paket, protokol ve kullanıcı veri alanı doğrulanıyor.</small>
         </article>
         <article>
           <span>Model runtime</span>
@@ -87,8 +93,8 @@
         </article>
         <article class="explain-card">
           <div class="number">03</div>
-          <h2>Sonraki gerçek kapı nedir?</h2>
-          <p>Planner + Reviewer provider runtime, parent DB doğrulaması ve beş fiziksel .vercel.app deployment tamamlandıktan sonra preview, canary ve production state'leri açılır.</p>
+          <h2>Sağlık kontrolü neyi doğruluyor?</h2>
+          <p>Kurulu paket dosyalarının hash bütünlüğü, beş yerel yüzey, manifest politikası, özel devapi:// protokolü ve Windows kullanıcı veri dizininin yazma/okuma kabiliyeti başlangıçta denetlenir.</p>
         </article>
       </section>
     </main>
