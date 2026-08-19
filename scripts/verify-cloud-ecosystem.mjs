@@ -11,6 +11,8 @@ const files = {
   devapiIndex: "cloud/devapi-control/index.html",
   devapiApp: "cloud/devapi-control/app.js",
   devapiCss: "cloud/devapi-control/styles.css",
+  devapiExperienceJs: "cloud/devapi-control/experience-v2.js",
+  devapiExperienceCss: "cloud/devapi-control/experience-v2.css",
   devapiVercel: "cloud/devapi-control/vercel.json",
   devboxPackage: "cloud/devbox-site/package.json",
   devboxIndex: "cloud/devbox-site/index.html",
@@ -46,7 +48,7 @@ if (devapiPackage.version !== version) throw new Error("CLOUD_VERIFY_FAIL:devapi
 if (devboxPackage.version !== version) throw new Error("CLOUD_VERIFY_FAIL:devbox-version-drift");
 if (links.productVersion !== version) throw new Error("CLOUD_VERIFY_FAIL:links-version-drift");
 if (evidence.productVersion !== version) throw new Error("CLOUD_VERIFY_FAIL:evidence-version-drift");
-for (const file of [files.devapiHealth, files.devapiPublic, files.devapiLinksApi, files.devapiLinksClient, files.devapiApp, files.devboxApp, files.devboxProxy, files.devboxLinksApi]) {
+for (const file of [files.devapiHealth, files.devapiPublic, files.devapiLinksApi, files.devapiLinksClient, files.devapiApp, files.devapiExperienceJs, files.devboxApp, files.devboxProxy, files.devboxLinksApi]) {
   execFileSync(process.execPath, ["--check", file], { stdio: "inherit" });
 }
 const requireText = (key, needle, id) => { if (!content[key].includes(needle)) throw new Error(`CLOUD_VERIFY_FAIL:${id}`); };
@@ -85,6 +87,18 @@ requireText("devboxProxy", "x-devbox-public-state", "site-proxy-upstream-sanitiz
 requireText("devboxProxy", "AbortSignal.timeout(5_000)", "site-proxy-timeout");
 requireText("devboxLinksApi", "DEVAPI_PUBLIC_URL", "site-link-runtime-origin");
 requireText("devapiApp", "visibilitychange", "devapi-hidden-polling-stop");
+requireText("devapiApp", 'import "./experience-v2.js";', "devapi-experience-loader");
+requireText("devapiApp", 'sessionStorage.removeItem("devbox.adminToken")', "devapi-admin-token-memory-only-cleanup");
+forbidText("devapiApp", 'sessionStorage.setItem("devbox.adminToken"', "devapi-admin-token-browser-storage");
+requireText("devapiApp", 'token: ""', "devapi-admin-token-memory-only-state");
+requireText("devapiApp", "STAGE_LABELS", "devapi-human-stage-labels");
+requireText("devapiApp", "syncSnapshotFreshness", "devapi-snapshot-freshness-ui");
+requireText("devapiExperienceJs", 'ensureStylesheet("/experience-v2.css")', "devapi-experience-css-loader");
+requireText("devapiExperienceJs", "IntersectionObserver", "devapi-experience-bounded-observer");
+requireText("devapiExperienceJs", "prefers-reduced-motion", "devapi-experience-reduced-motion-js");
+requireText("devapiExperienceJs", "visibilitychange", "devapi-experience-hidden-state");
+requireText("devapiExperienceCss", "prefers-reduced-motion", "devapi-experience-reduced-motion-css");
+requireText("devapiExperienceCss", "runtime-stale", "devapi-experience-stale-state");
 requireText("devboxCss", "prefers-reduced-motion", "site-reduced-motion");
 requireText("devapiCss", "prefers-reduced-motion", "devapi-reduced-motion");
 requireText("devboxVercel", "Content-Security-Policy", "site-csp");
