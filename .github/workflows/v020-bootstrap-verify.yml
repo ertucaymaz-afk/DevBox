@@ -59,3 +59,28 @@ jobs:
           if (-not $source.Contains('RedirectStandardInput = $true')) { throw 'V020_BOOTSTRAP_STDIN_SECRET_WRITE_MISSING' }
           if (-not $source.Contains('value=masked')) { throw 'V020_BOOTSTRAP_MASKED_EVIDENCE_MISSING' }
           Write-Host 'V020_BOOTSTRAP_SECRET_GUARD_PASS values=not-embedded stdin=true'
+
+      - name: Local desktop config boundary guard
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = Get-Content 'scripts/bootstrap-v020-production-secrets.ps1' -Raw
+          foreach ($required in @(
+            "SetEnvironmentVariable('DEVBOX_CONTROL_PLANE_URL'",
+            "SetEnvironmentVariable('DEVBOX_CONTROL_PLANE_TOKEN'",
+            '[EnvironmentVariableTarget]::User',
+            'NoLocalDesktopConfig',
+            'adminTokenPersisted=false',
+            'Broadcast-EnvironmentChange'
+          )) {
+            if (-not $source.Contains($required)) { throw "V020_BOOTSTRAP_LOCAL_CONFIG_MISSING:$required" }
+          }
+          foreach ($forbidden in @(
+            "SetEnvironmentVariable('DEVBOX_CONTROL_ADMIN_TOKEN'",
+            "SetEnvironmentVariable('VERCEL_TOKEN'",
+            "SetEnvironmentVariable('DEVBOX_DATABASE_URL'",
+            "SetEnvironmentVariable('DATABASE_URL'"
+          )) {
+            if ($source.Contains($forbidden)) { throw "V020_BOOTSTRAP_LOCAL_SECRET_SCOPE_VIOLATION:$forbidden" }
+          }
+          Write-Host 'V020_BOOTSTRAP_LOCAL_CONFIG_GUARD_PASS persisted=desktop-only admin=false database=false vercel=false'
