@@ -3,10 +3,12 @@ import { cp, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "no
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { assertWorkerApproval } from "./approval.mjs";
 
-const COMMANDS = new Set(["git", "node", "npm", "pnpm"]);
 const MAX_OUTPUT = 512 * 1024;
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const GIT_READ_ONLY = new Set(["status", "diff", "grep", "rev-parse", "log", "show"]);
+const PACKAGE_SCRIPTS = new Set(["test", "typecheck", "cloud:verify", "source:hygiene", "truth:audit", "evolution:verify"]);
 
 function hash(value) { return createHash("sha256").update(value).digest("hex"); }
 function safeRelative(value) {
@@ -21,17 +23,42 @@ function safeArg(value) {
   if (text.includes("\0") || text.length > 2_000) throw new Error("WORKSPACE_ARG_INVALID");
   return text;
 }
+function redact(value) {
+  return String(value ?? "")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}\b/giu, "Bearer [REDACTED]")
+    .replace(/\bsk-[A-Za-z0-9_-]{12,}\b/gu, "[REDACTED_OPENAI_KEY]")
+    .replace(/\b(?:API_KEY|ACCESS_TOKEN|AUTH_TOKEN|PASSWORD|SECRET)\s*[=:]\s*[^\s]+/giu, (match) => `${match.split(/[=:]/u)[0]}=[REDACTED]`);
+}
+function assertCommandAllowed(executable, argv) {
+  if (executable === "git") {
+    if (!GIT_READ_ONLY.has(argv[0])) throw new Error(`WORKSPACE_COMMAND_SUBCOMMAND_DENIED:git:${argv[0] || "missing"}`);
+    return;
+  }
+  if (executable === "node") {
+    if (argv[0] !== "--check" || !/\.(?:mjs|cjs|js)$/u.test(argv[1] || "")) throw new Error("WORKSPACE_COMMAND_SUBCOMMAND_DENIED:node");
+    return;
+  }
+  if (executable === "pnpm" || executable === "npm") {
+    const direct = argv[0];
+    const script = direct === "run" ? argv[1] : direct;
+    if (!PACKAGE_SCRIPTS.has(script)) throw new Error(`WORKSPACE_COMMAND_SUBCOMMAND_DENIED:${executable}:${script || "missing"}`);
+    return;
+  }
+  throw new Error("WORKSPACE_COMMAND_DENIED");
+}
 
 export class LocalWorkerWorkspace {
-  constructor(root, workspaceId = randomUUID()) {
+  constructor(root, approval, workspaceId = randomUUID()) {
     this.root = root;
     this.workspaceId = workspaceId;
+    this.approval = approval;
     this.destroyed = false;
   }
 
-  static async create() {
+  static async create({ approval } = {}) {
+    const verifiedApproval = assertWorkerApproval(approval, "R2");
     const root = await mkdtemp(path.join(os.tmpdir(), "devapi-worker-"));
-    return new LocalWorkerWorkspace(await realpath(root));
+    return new LocalWorkerWorkspace(await realpath(root), verifiedApproval);
   }
 
   assertLive() { if (this.destroyed) throw new Error("WORKSPACE_DESTROYED"); }
@@ -56,6 +83,7 @@ export class LocalWorkerWorkspace {
 
   async materializeDirectory(sourceDir, targetRelative = "repo") {
     this.assertLive();
+    assertWorkerApproval(this.approval, "R2");
     const source = await realpath(sourceDir);
     const stat = await lstat(source);
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("WORKSPACE_SOURCE_INVALID");
@@ -63,7 +91,7 @@ export class LocalWorkerWorkspace {
     const target = path.resolve(this.root, targetRel);
     if (path.relative(this.root, target).startsWith("..")) throw new Error("WORKSPACE_PATH_ESCAPE");
     await cp(source, target, { recursive: true, dereference: false, errorOnExist: false });
-    return { workspaceId: this.workspaceId, target: targetRel };
+    return { workspaceId: this.workspaceId, target: targetRel, approvalId: this.approval.approvalId };
   }
 
   async readText(relativePath) {
@@ -76,6 +104,7 @@ export class LocalWorkerWorkspace {
   }
 
   async writeText(relativePath, content, { expectedSha256 = null } = {}) {
+    assertWorkerApproval(this.approval, "R2");
     const text = String(content ?? "");
     if (Buffer.byteLength(text) > MAX_FILE_BYTES) throw new Error("WORKSPACE_FILE_TOO_LARGE");
     const relative = safeRelative(relativePath);
@@ -89,14 +118,15 @@ export class LocalWorkerWorkspace {
     await writeFile(target, text, "utf8");
     const after = await this.readText(relative);
     if (after.sha256 !== hash(text)) throw new Error("WORKSPACE_WRITE_READBACK_MISMATCH");
-    return { path: relative, beforeSha256: before?.sha256 ?? null, afterSha256: after.sha256, bytes: after.bytes };
+    return { path: relative, beforeSha256: before?.sha256 ?? null, afterSha256: after.sha256, bytes: after.bytes, approvalId: this.approval.approvalId };
   }
 
   async exec(command, args = [], { cwd = "repo", timeoutMs = 60_000 } = {}) {
     this.assertLive();
+    const approval = assertWorkerApproval(this.approval, "R2");
     const executable = String(command ?? "");
-    if (!COMMANDS.has(executable)) throw new Error("WORKSPACE_COMMAND_DENIED");
     const argv = Array.isArray(args) ? args.map(safeArg) : [];
+    assertCommandAllowed(executable, argv);
     const cwdPath = await this.resolve(cwd);
     const startedAt = new Date().toISOString();
     const started = Date.now();
@@ -124,19 +154,22 @@ export class LocalWorkerWorkspace {
         child.on("error", reject);
         child.on("close", (code, signal) => resolve({ code: code ?? -1, signal }));
       });
+      const safeStdout = redact(stdout);
+      const safeStderr = redact(stderr);
       return {
         commandHash: hash(JSON.stringify([executable, argv])),
         command: executable,
         args: argv,
         cwd: safeRelative(cwd),
+        approvalId: approval.approvalId,
         startedAt,
         durationMs: Date.now() - started,
         exitCode: result.code,
         signal: result.signal,
-        stdout,
-        stderr,
-        stdoutDigest: hash(stdout),
-        stderrDigest: hash(stderr),
+        stdout: safeStdout,
+        stderr: safeStderr,
+        stdoutDigest: hash(safeStdout),
+        stderrDigest: hash(safeStderr),
         truncated,
         timedOut: false
       };
