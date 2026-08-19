@@ -53,6 +53,11 @@ describe("catalog view truth state", () => {
     expect(catalogTrustClass(missing)).toBe("source");
   });
 
+  it("distinguishes verified source-only content from pending source content", () => {
+    expect(catalogRuntimeLabel(item({ sourceState: "HASH_VERIFIED", runtimeState: "SOURCE_ONLY", doctorState: "NOT_RUN" }))).toBe("Kaynak doğrulandı");
+    expect(catalogRuntimeLabel(item({ sourceState: "MISSING", runtimeState: "SOURCE_ONLY", doctorState: "NOT_RUN" }))).toBe("Kaynak bekliyor");
+  });
+
   it("allows tools only for verified healthy running plugins", () => {
     expect(catalogCanRunTools(item({ runtimeState: "RUNNING", toolCount: 1, tools: [{ name: "ping", description: null, inputSchema: {} }] }))).toBe(true);
     expect(catalogCanRunTools(item({ runtimeState: "RUNNING", sourceState: "MISSING", toolCount: 1, tools: [{ name: "ping", description: null, inputSchema: {} }] }))).toBe(false);
