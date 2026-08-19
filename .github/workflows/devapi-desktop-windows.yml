@@ -8,13 +8,20 @@ on:
       - desktop/devapi/**
       - cloud/devapi-sites/**
       - .github/workflows/devapi-desktop-windows.yml
+  pull_request:
+    branches:
+      - codex/v0.1.20-vercel-production-modernization
+    paths:
+      - desktop/devapi/**
+      - cloud/devapi-sites/**
+      - .github/workflows/devapi-desktop-windows.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: devapi-desktop-windows-${{ github.ref }}
+  group: devapi-desktop-windows-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -97,7 +104,7 @@ jobs:
           } finally { $stream.Dispose() }
           if ($b0 -ne 0x4D -or $b1 -ne 0x5A) { throw 'DEVAPI_DESKTOP_PE_HEADER_INVALID' }
           $sha = (Get-FileHash -Algorithm SHA256 $exe.FullName).Hash.ToLowerInvariant()
-          $sourceSha = '${{ github.sha }}'
+          $sourceSha = '${{ github.event.pull_request.head.sha || github.sha }}'
           $evidence = [ordered]@{
             schemaVersion = 1
             state = 'PACKAGED_VERIFIED'
