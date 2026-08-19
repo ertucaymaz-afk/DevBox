@@ -7,6 +7,8 @@ const requiredFiles = [
   "index.html",
   "app.js",
   "ecosystem-nav.js",
+  "ecosystem-v2.js",
+  "ecosystem-v2.css",
   "ecosystem-page.html",
   "ecosystem-page.js",
   "ecosystem.css",
@@ -40,6 +42,8 @@ for (const file of requiredFiles) {
 const read = (file) => fs.readFileSync(path.join(site, file), "utf8");
 const app = read("app.js");
 const nav = read("ecosystem-nav.js");
+const v2 = read("ecosystem-v2.js");
+const v2css = read("ecosystem-v2.css");
 const pageHtml = read("ecosystem-page.html");
 const pageJs = read("ecosystem-page.js");
 const css = read("ecosystem.css");
@@ -49,6 +53,14 @@ const vercel = JSON.parse(read("vercel.json"));
 const manifest = JSON.parse(read("ecosystem-manifest.json"));
 
 if (!app.includes('import "./ecosystem-nav.js";')) fail("WEB_ECOSYSTEM_HOME_IMPORT_MISSING");
+if (!app.includes('import "./ecosystem-v2.js";')) fail("WEB_ECOSYSTEM_V2_IMPORT_MISSING");
+if (!v2.includes("ecoArchitectureExplorer")) fail("WEB_ECOSYSTEM_ARCHITECTURE_EXPLORER_MISSING");
+if (!v2.includes("ecoSourceCapabilityMatrix")) fail("WEB_ECOSYSTEM_CAPABILITY_MATRIX_MISSING");
+if (!v2.includes("ecoEvolutionTracks")) fail("WEB_ECOSYSTEM_EVOLUTION_TRACKS_MISSING");
+if (!v2.includes("SOURCE VERIFIED")) fail("WEB_ECOSYSTEM_V2_SOURCE_TRUTH_MISSING");
+if (!v2.includes("production runtime")) fail("WEB_ECOSYSTEM_V2_RUNTIME_BOUNDARY_MISSING");
+if (!v2css.includes("eco-architecture")) fail("WEB_ECOSYSTEM_ARCHITECTURE_STYLE_MISSING");
+if (!v2css.includes("@media(prefers-reduced-motion:reduce)")) fail("WEB_ECOSYSTEM_V2_REDUCED_MOTION_MISSING");
 if (!pageHtml.includes('lang="tr"')) fail("WEB_ECOSYSTEM_TURKISH_LANG_MISSING");
 if (!pageHtml.includes('src="/ecosystem-page.js"')) fail("WEB_ECOSYSTEM_PAGE_SCRIPT_MISSING");
 if (!pageHtml.includes('href="/ecosystem.css"')) fail("WEB_ECOSYSTEM_PAGE_STYLE_MISSING");
@@ -107,4 +119,4 @@ for (const [name, license] of expectedResearch) {
   if (!entry || entry.license !== license) fail("WEB_ECOSYSTEM_RESEARCH_SOURCE_MISSING", name);
 }
 
-console.log(`WEB_ECOSYSTEM_VERIFY_PASS surfaces=${surfaces.length} routes=${expectedRoutes.length} csp=fail-closed liveState=sanitized-proxy research=${research.length}`);
+console.log(`WEB_ECOSYSTEM_VERIFY_PASS surfaces=${surfaces.length} routes=${expectedRoutes.length} architecture=10 capabilities=12 evolutionTracks=10 csp=fail-closed liveState=sanitized-proxy research=${research.length}`);
