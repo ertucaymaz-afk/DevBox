@@ -59,7 +59,7 @@ function Set-GhSecret([string]$Name, [string]$Value) {
     $process.WaitForExit()
     if ($process.ExitCode -ne 0) {
       $detail = (($stderr + ' ' + $stdout).Trim() -replace '\s+', ' ')
-      throw "GH_SECRET_SET_FAILED:$Name:$detail"
+      throw "GH_SECRET_SET_FAILED:${Name}:$detail"
     }
   }
   finally { $process.Dispose() }
@@ -67,6 +67,8 @@ function Set-GhSecret([string]$Name, [string]$Value) {
   Write-Host "SECRET_SET_PASS name=$Name value=masked"
 }
 
+if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'REPOSITORY_FORMAT_INVALID' }
+if ($Ref -notmatch '^[A-Za-z0-9._/-]+$') { throw 'REF_FORMAT_INVALID' }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
   throw 'GITHUB_CLI_REQUIRED: https://cli.github.com/'
 }
