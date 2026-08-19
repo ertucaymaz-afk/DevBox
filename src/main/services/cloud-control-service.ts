@@ -28,10 +28,13 @@ type CloudCommand = {
 
 type CloudCommandAckStatus = "APPLIED" | "RETRYING" | "FAILED";
 type CloudConfig = { endpoint: URL; token: string };
+type RunSettlement = { settled: true; error: unknown | null };
 
 const SYNC_INTERVAL_MS = 30_000;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const CLOUD_COMMAND_MAX_ATTEMPTS = 5;
+const RUN_START_OBSERVATION_MS = 15_000;
+const RUN_START_POLL_MS = 100;
 
 function parseConfig(environment: NodeJS.ProcessEnv = process.env): CloudConfig | null {
   const endpointText = environment.DEVBOX_CONTROL_PLANE_URL?.trim();
@@ -48,6 +51,7 @@ function parseConfig(environment: NodeJS.ProcessEnv = process.env): CloudConfig 
 
 function boundedError(error: unknown): string { return (error instanceof Error ? error.message : String(error)).slice(0, 1_000); }
 function signature(token: string, timestamp: string, body: string): string { return createHmac("sha256", token).update(`${timestamp}.${body}`).digest("hex"); }
+function delay(ms: number): Promise<null> { return new Promise((resolve) => setTimeout(() => resolve(null), ms)); }
 
 export class CloudControlService {
   readonly #database: StateDatabase;
@@ -173,6 +177,29 @@ export class CloudControlService {
     }
   }
 
+  async #startEvolutionRun(projectId: string): Promise<void> {
+    const settlement: Promise<RunSettlement> = this.#evolution.runNow(projectId).then(
+      () => ({ settled: true as const, error: null }),
+      (error: unknown) => ({ settled: true as const, error })
+    );
+    const deadline = Date.now() + RUN_START_OBSERVATION_MS;
+    while (Date.now() < deadline) {
+      if (this.#evolution.get(projectId).isRunning) {
+        void settlement.then((result) => {
+          if (!result.error) return;
+          this.#database.appendEvent("cloud.command.run.settled-failed", projectId, { detail: boundedError(result.error), at: new Date().toISOString() }, true);
+        });
+        return;
+      }
+      const early = await Promise.race<RunSettlement | null>([settlement, delay(RUN_START_POLL_MS)]);
+      if (early) {
+        if (early.error) throw early.error;
+        return;
+      }
+    }
+    throw new Error("CLOUD_COMMAND_RUN_START_TIMEOUT");
+  }
+
   async #applyCommand(command: CloudCommand): Promise<void> {
     this.#projects.get(command.projectId);
     if (command.kind === "evolution.setEnabled") {
@@ -181,7 +208,7 @@ export class CloudControlService {
       this.#evolution.setEnabled(command.projectId, payload.enabled);
       return;
     }
-    if (command.kind === "evolution.run") { await this.#evolution.runNow(command.projectId); return; }
+    if (command.kind === "evolution.run") { await this.#startEvolutionRun(command.projectId); return; }
     if (command.kind === "evolution.cancel") { this.#evolution.cancel(command.projectId); return; }
     command.kind satisfies never;
   }
