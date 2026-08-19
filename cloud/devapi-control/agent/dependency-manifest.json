@@ -1,17 +1,17 @@
 {
   "schemaVersion": 2,
-  "generatedFrom": "primary-source-review+exact-pin-candidate",
+  "generatedFrom": "primary-source-review+verified-lock",
   "reviewedAt": "2026-08-19T11:45:00.000Z",
   "runtime": {
     "name": "@openai/agents",
-    "state": "SOURCE_REVIEWED",
+    "state": "SUPPLY_CHAIN_VERIFIED",
     "installState": "INTEGRATED",
     "version": "0.14.3",
     "tag": "v0.14.3",
     "releaseCommit": "94a3edc3e5318fdbc4ceb045df4dad934ca4ab2b",
     "packageBlobSha": "d943cf61c06655fdada00ba09ecea543b81ccbe7",
     "license": "MIT",
-    "nodeRequirement": "DevAPI target Node 24; runtime compatibility must pass clean install and smoke.",
+    "nodeRequirement": "DevAPI target Node 24; clean npm ci and source runtime import passed in CI.",
     "directPackageDependenciesAtTag": {
       "@openai/agents-core": "0.14.3 via package release",
       "@openai/agents-openai": "0.14.3 via package release",
@@ -19,42 +19,33 @@
       "debug": "^4.4.0",
       "openai": "^6.46.0"
     },
-    "peerDependenciesAtTag": {
-      "zod": "^4.0.0"
-    },
-    "optionalCoreDependencies": {
-      "@modelcontextprotocol/sdk": "^1.26.0"
-    },
+    "peerDependenciesAtTag": { "zod": "^4.0.0" },
+    "optionalCoreDependencies": { "@modelcontextprotocol/sdk": "^1.26.0" },
     "securityPolicySourcePresent": true,
     "transitiveLockState": "LOCKED",
     "advisoryAuditState": "PASS",
-    "integrationDecision": "Exact direct dependency is staged in package.json; INTEGRATED is forbidden until committed lock + clean npm ci + audit/license gates pass.",
+    "integrationDecision": "Exact package and transitive graph are locked and integrated. Model provider runtime remains independently BLOCKED_EXTERNAL until OPENAI_API_KEY-backed smoke passes.",
     "resolvedIntegrity": "sha512-mhAPpDz+CeEoViMsYxPcHEMUonPQnGIgP2yCch/SXhXQkhb/53ojO2bUIXW3NSD5lIDyyV6sTIkO+O5WWJrVDA==",
     "installScriptsObserved": [],
-    "licenseGraph": [
-      "Apache-2.0",
-      "BSD-2-Clause",
-      "BSD-3-Clause",
-      "ISC",
-      "MIT"
-    ]
+    "licenseGraph": ["Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT"]
   },
   "schemaRuntime": {
     "name": "zod",
-    "state": "SOURCE_REVIEWED",
+    "state": "SUPPLY_CHAIN_VERIFIED",
     "installState": "INTEGRATED",
     "version": "4.4.3",
     "tag": "v4.4.3",
     "releaseCommit": "1fb56a5c18c27102dbc92260a4007c7732a0ccca",
     "licenseReviewState": "PASS",
-    "reason": "Exact Zod v4 peer pinned alongside @openai/agents."
+    "reason": "Exact Zod v4 peer is pinned and locked alongside @openai/agents."
   },
   "truth": {
     "supplyChainVerified": true,
     "pinnedForInstallation": true,
     "lockCommitted": true,
     "runtimeVerified": false,
-    "reason": "Exact versions are locked; npm audit has no high/critical findings; package integrity and license metadata passed. Runtime provider smoke remains independent."
+    "reason": "Dependency supply chain is verified and integrated; actual OpenAI model execution is a separate runtime gate and is not yet verified."
   },
-  "finalizedAt": "2026-08-19T11:57:16.152Z"
+  "finalizedAt": "2026-08-19T11:57:16.152Z",
+  "reconciledAt": "2026-08-19T12:10:00.000Z"
 }
