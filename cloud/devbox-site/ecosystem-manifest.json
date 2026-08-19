@@ -47,41 +47,31 @@
     "integrationState": "SOURCE_PINNED"
   },
   "products": [
-    {
-      "id": "devbox",
-      "name": "DevBox",
-      "kind": "windows-engineering-desktop",
-      "source": "https://github.com/ertucaymaz-afk/DevBox"
-    },
-    {
-      "id": "devapi",
-      "name": "DevAPI",
-      "kind": "cloud-control-plane",
-      "production": "https://devapi-virid.vercel.app"
-    }
+    {"id":"devbox","name":"DevBox","kind":"windows-engineering-desktop","source":"https://github.com/ertucaymaz-afk/DevBox"},
+    {"id":"devapi","name":"DevAPI","kind":"cloud-control-plane","production":"https://devapi-virid.vercel.app"}
   ],
   "surfaces": [
-    { "id": "portal", "path": "/", "title": "DevBox Ekosistemi", "type": "portal" },
-    { "id": "home", "path": "/devapi-home", "title": "DevAPI Home", "type": "devapi" },
-    { "id": "api", "path": "/devapi-api", "title": "API Merkezi", "type": "devapi" },
-    { "id": "docs", "path": "/devapi-docs", "title": "Dokümantasyon", "type": "devapi" },
-    { "id": "console", "path": "/devapi-console", "title": "Developer Console", "type": "devapi" },
-    { "id": "status", "path": "/devapi-status", "title": "Status", "type": "devapi" },
-    { "id": "studio", "path": "/devapi-studio", "title": "API Studio", "type": "devapi" },
-    { "id": "evolution", "path": "/devapi-evolution", "title": "Evolution", "type": "devapi" },
-    { "id": "workbench", "path": "/devapi-workbench", "title": "Workbench", "type": "devapi" },
-    { "id": "memory", "path": "/devapi-memory", "title": "Memory", "type": "devapi" },
-    { "id": "diagnostics", "path": "/devapi-diagnostics", "title": "Diagnostics", "type": "devapi" }
+    {"id":"portal","path":"/","title":"DevBox Ekosistemi","type":"portal"},
+    {"id":"home","path":"/devapi-home","title":"DevAPI Home","type":"devapi"},
+    {"id":"api","path":"/devapi-api","title":"API Merkezi","type":"devapi"},
+    {"id":"docs","path":"/devapi-docs","title":"Dokümantasyon","type":"devapi"},
+    {"id":"console","path":"/devapi-console","title":"Developer Console","type":"devapi"},
+    {"id":"status","path":"/devapi-status","title":"Status","type":"devapi"},
+    {"id":"studio","path":"/devapi-studio","title":"API Studio","type":"devapi"},
+    {"id":"evolution","path":"/devapi-evolution","title":"Evolution","type":"devapi"},
+    {"id":"workbench","path":"/devapi-workbench","title":"Workbench","type":"devapi"},
+    {"id":"memory","path":"/devapi-memory","title":"Memory","type":"devapi"},
+    {"id":"diagnostics","path":"/devapi-diagnostics","title":"Diagnostics","type":"devapi"}
   ],
   "researchSources": [
-    { "name": "Magic UI", "repository": "magicuidesign/magicui", "license": "MIT", "usage": "interaction-pattern-research", "runtimeDependency": false, "integrationState": "REVIEWED" },
-    { "name": "shadcn/ui", "repository": "shadcn-ui/ui", "license": "MIT", "usage": "component-architecture-research", "runtimeDependency": false, "integrationState": "REVIEWED" },
-    { "name": "Lucide", "repository": "lucide-icons/lucide", "license": "ISC; Feather-derived icon subset MIT", "usage": "primary-curated-semantic-icon-source", "runtimeDependency": false, "exactTag": "1.27.0", "integrationState": "SOURCE_PINNED", "note": "Twelve selected icons are shipped as a local SVG sprite; the full library is not bundled." },
-    { "name": "Tabler Icons", "repository": "tabler/tabler-icons", "license": "MIT", "usage": "secondary-icon-coverage-candidate", "runtimeDependency": false, "integrationState": "DISCOVERED", "note": "Use only when the pinned Lucide subset does not cover a semantic need." },
-    { "name": "Motion", "repository": "motiondivision/motion", "license": "MIT", "usage": "animation-performance-reference", "runtimeDependency": false, "integrationState": "REVIEWED" },
-    { "name": "Kibo UI", "repository": "shadcnblocks/kibo", "license": "MIT", "usage": "accessible-composition-reference", "runtimeDependency": false, "integrationState": "REVIEWED" },
-    { "name": "Microsoft Playwright", "repository": "microsoft/playwright", "license": "Apache-2.0", "usage": "44-case-browser-visual-evidence", "runtimeDependency": false, "ciOnly": true, "exactPackage": "@playwright/test@1.62.1", "integrationState": "INTEGRATED_CI" },
-    { "name": "axe-core", "repository": "dequelabs/axe-core", "license": "MPL-2.0", "usage": "accessibility-ci-candidate", "runtimeDependency": false, "ciOnly": true, "exactVersionResearched": "4.12.1", "integrationState": "DISCOVERED" },
-    { "name": "Lighthouse", "repository": "GoogleChrome/lighthouse", "license": "Apache-2.0", "usage": "performance-accessibility-seo-baseline-candidate", "runtimeDependency": false, "ciOnly": true, "integrationState": "DISCOVERED" }
+    {"name":"Magic UI","repository":"magicuidesign/magicui","license":"MIT","usage":"interaction-pattern-research","runtimeDependency":false,"integrationState":"REVIEWED"},
+    {"name":"shadcn/ui","repository":"shadcn-ui/ui","license":"MIT","usage":"component-architecture-research","runtimeDependency":false,"integrationState":"REVIEWED"},
+    {"name":"Lucide","repository":"lucide-icons/lucide","license":"ISC","usage":"primary-curated-semantic-icon-source","runtimeDependency":false,"exactTag":"1.27.0","integrationState":"SOURCE_PINNED","note":"Twelve selected icons are shipped as a local SVG sprite; the full library is not bundled."},
+    {"name":"Tabler Icons","repository":"tabler/tabler-icons","license":"MIT","usage":"secondary-icon-coverage-candidate","runtimeDependency":false,"integrationState":"DISCOVERED","note":"Use only when the pinned Lucide subset does not cover a semantic need."},
+    {"name":"Motion","repository":"motiondivision/motion","license":"MIT","usage":"animation-performance-reference","runtimeDependency":false,"integrationState":"REVIEWED"},
+    {"name":"Kibo UI","repository":"shadcnblocks/kibo","license":"MIT","usage":"accessible-composition-reference","runtimeDependency":false,"integrationState":"REVIEWED"},
+    {"name":"Microsoft Playwright","repository":"microsoft/playwright","license":"Apache-2.0","usage":"44-case-browser-visual-evidence","runtimeDependency":false,"ciOnly":true,"exactPackage":"@playwright/test@1.62.1","integrationState":"INTEGRATED_CI"},
+    {"name":"axe-core","repository":"dequelabs/axe-core","license":"MPL-2.0","usage":"accessibility-ci-candidate","runtimeDependency":false,"ciOnly":true,"exactVersionResearched":"4.12.1","integrationState":"DISCOVERED"},
+    {"name":"Lighthouse","repository":"GoogleChrome/lighthouse","license":"Apache-2.0","usage":"performance-accessibility-seo-baseline-candidate","runtimeDependency":false,"ciOnly":true,"integrationState":"DISCOVERED"}
   ]
 }
