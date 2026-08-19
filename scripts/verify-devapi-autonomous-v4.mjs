@@ -27,8 +27,11 @@ for (const [name, runtime] of [["provider", provider], ["reviewer", reviewer], [
   if (runtime.state === "RUNTIME_VERIFIED") assert(runtime.runtimeVerified === true, `DEVAPI_V4_${name.toUpperCase()}_VERIFIED_FLAG`);
   if (runtime.state === "BLOCKED_EXTERNAL") assert(runtime.runtimeVerified === false && runtime.blocker, `DEVAPI_V4_${name.toUpperCase()}_BLOCKER`);
 }
-assert(["SOURCE_READY", "BLOCKED_EXTERNAL", "RUNTIME_VERIFIED", "PRODUCTION_VERIFIED"].includes(vercel.state), "DEVAPI_V4_VERCEL_STATE");
-assert(vercel.secretValue === null, "DEVAPI_V4_VERCEL_SECRET_EXPOSED");
+assert(["SOURCE_READY_FOR_DEPLOY_ATTEMPT", "BLOCKED_EXTERNAL", "RUNTIME_VERIFIED", "PRODUCTION_VERIFIED"].includes(vercel.state), "DEVAPI_V4_VERCEL_STATE");
+assert(vercel.tokenValue === null, "DEVAPI_V4_VERCEL_TOKEN_EXPOSED");
+assert(vercel.scopeValue === null || vercel.scopeValue === "configured-redacted", "DEVAPI_V4_VERCEL_SCOPE_EXPOSED");
+assert(typeof vercel.tokenConfigured === "boolean" && typeof vercel.scopeConfigured === "boolean", "DEVAPI_V4_VERCEL_CREDENTIAL_FLAGS_INVALID");
+if (vercel.state === "BLOCKED_EXTERNAL") assert(vercel.tokenConfigured === false && vercel.blocker === "VERCEL_TOKEN_UNCONFIGURED", "DEVAPI_V4_VERCEL_BLOCKER_MISMATCH");
 if (vercel.state !== "PRODUCTION_VERIFIED") assert(vercel.productionVerified === false, "DEVAPI_V4_VERCEL_OVERCLAIM");
 
 const leaseSource = await readFile("cloud/devapi-control/worker/file-lease.mjs", "utf8");
