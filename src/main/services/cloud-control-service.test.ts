@@ -55,6 +55,22 @@ const command = {
   payload: { enabled: true },
   createdAt: new Date().toISOString()
 };
+const runCommand = {
+  id: "22222222-2222-4222-8222-222222222222",
+  sequence: 1,
+  projectId: "project-cloud-control",
+  kind: "evolution.run",
+  payload: {},
+  createdAt: new Date().toISOString()
+};
+const cancelCommand = {
+  id: "33333333-3333-4333-8333-333333333333",
+  sequence: 2,
+  projectId: "project-cloud-control",
+  kind: "evolution.cancel",
+  payload: {},
+  createdAt: new Date().toISOString()
+};
 
 describe("CloudControlService", () => {
   it("is explicitly UNCONFIGURED when no cloud endpoint/token exists", async () => {
@@ -99,6 +115,68 @@ describe("CloudControlService", () => {
     expect(status).toMatchObject({ state: "READY", pendingCommandCursor: "1", lastError: null });
     expect(calls.map((item) => item.method)).toEqual(["GET", "PATCH"]);
     expect(JSON.parse(calls[1]?.body ?? "{}")).toMatchObject({ id: command.id, sequence: 1, status: "APPLIED" });
+  });
+
+  it("acknowledges evolution.run only after real running state and still processes following cancel in FIFO order", async () => {
+    const runNow = vi.fn(() => new Promise<never>(() => undefined));
+    const get = vi.fn(() => ({ isRunning: true }));
+    const cancel = vi.fn();
+    const acknowledgements: Array<{ sequence: number; status: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.includes("/api/v1/commands")) return response({ items: [runCommand, cancelCommand] });
+      if (method === "PATCH" && url.includes("/api/v1/commands")) {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        acknowledgements.push({ sequence: Number(body.sequence), status: String(body.status) });
+        return response({ item: { id: body.id, sequence: body.sequence, applyStatus: body.status } });
+      }
+      return response({ error: "UNEXPECTED_REQUEST" }, 500);
+    }));
+    const evolution = { runNow, get, cancel } as unknown as ApiEvolutionService;
+    const { service, projectId } = await fixture(cloudEnvironment, evolution);
+
+    const status = await service.poll(projectId);
+
+    expect(runNow).toHaveBeenCalledTimes(1);
+    expect(runNow).toHaveBeenCalledWith(projectId);
+    expect(get).toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(cancel).toHaveBeenCalledWith(projectId);
+    expect(acknowledgements).toEqual([
+      { sequence: 1, status: "APPLIED" },
+      { sequence: 2, status: "APPLIED" }
+    ]);
+    expect(status).toMatchObject({ state: "READY", pendingCommandCursor: "2", lastError: null });
+  });
+
+  it("does not process cancel when evolution.run fails before any real running state", async () => {
+    const runNow = vi.fn(async () => { throw new Error("provider unavailable before run start"); });
+    const get = vi.fn(() => ({ isRunning: false }));
+    const cancel = vi.fn();
+    const acknowledgements: Array<{ sequence: number; status: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.includes("/api/v1/commands")) return response({ items: [runCommand, cancelCommand] });
+      if (method === "PATCH" && url.includes("/api/v1/commands")) {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        acknowledgements.push({ sequence: Number(body.sequence), status: String(body.status) });
+        return response({ item: { id: body.id, sequence: body.sequence, applyStatus: body.status } });
+      }
+      return response({ error: "UNEXPECTED_REQUEST" }, 500);
+    }));
+    const evolution = { runNow, get, cancel } as unknown as ApiEvolutionService;
+    const { service, projectId } = await fixture(cloudEnvironment, evolution);
+
+    const status = await service.poll(projectId);
+
+    expect(runNow).toHaveBeenCalledTimes(1);
+    expect(cancel).not.toHaveBeenCalled();
+    expect(acknowledgements).toEqual([{ sequence: 1, status: "RETRYING" }]);
+    expect(status.state).toBe("DEGRADED");
+    expect(status.pendingCommandCursor).toBeNull();
+    expect(status.lastError).toContain("CLOUD_COMMAND_RETRYING");
   });
 
   it("marks poison commands RETRYING and terminally FAILED after five bounded attempts", async () => {

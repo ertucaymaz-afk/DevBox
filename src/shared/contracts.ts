@@ -520,7 +520,7 @@ export const AutomationCreateInputSchema = ProjectIdInputSchema.extend({
 }).strict();
 export const AutomationIdInputSchema = z.object({ automationId: z.string().uuid() }).strict();
 
-export const EvolutionTrackSchema = z.enum(["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain"]);
+export const EvolutionTrackSchema = z.enum(["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain", "cloud-continuity", "deployment-safety", "public-api-contract", "command-delivery", "disaster-recovery", "database-performance", "site-performance", "protocol-compatibility", "secret-rotation", "dependency-provenance"]);
 export type EvolutionTrack = z.infer<typeof EvolutionTrackSchema>;
 export const EvolutionTaskStateSchema = z.enum(["QUEUED", "PREPARING", "RUNNING", "VERIFYING", "REVIEWING", "SUCCEEDED", "FAILED", "BLOCKED_EXTERNAL", "CANCELLED", "RECOVERY_REQUIRED"]);
 export const EvolutionRoutingModeSchema = z.enum(["AUTO", "LOCKED"]);

@@ -11,21 +11,16 @@ import {
   Globe2,
   LoaderCircle,
   Play,
-  PlugZap,
   Plus,
   RefreshCw,
   ShieldCheck,
   SquareTerminal,
   Trash2,
   Upload,
-  X
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { DEVBOX_DAY_THEME, DEVBOX_OBSIDIAN_THEME } from "../shared/theme-presets";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   AppSettings,
-  CatalogItem,
-  CatalogSnapshot,
   CommandResult,
   DebugResponse,
   DebugSession,
@@ -52,79 +47,6 @@ function debugBody(response: DebugResponse): Record<string, unknown> {
   return body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
 }
 
-export function CatalogWorkspace(): ReactNode {
-  const [catalog, setCatalog] = useState<CatalogSnapshot | null>(null);
-  const [section, setSection] = useState<"skill" | "plugin">("skill");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const reload = useCallback(async (): Promise<void> => {
-    setError(null);
-    try { setCatalog(await window.devbox.inspectCatalog()); }
-    catch (caught) { setError(failure(caught)); }
-  }, []);
-  useEffect(() => { void reload(); }, [reload]);
-  const selectSource = async (kind: "skill" | "plugin"): Promise<void> => {
-    setBusy(`source-${kind}`); setError(null);
-    try { setCatalog(await window.devbox.selectCatalogSource(kind)); }
-    catch (caught) { setError(failure(caught)); }
-    finally { setBusy(null); }
-  };
-  const installPlugins = async (): Promise<void> => {
-    setBusy("install"); setError(null);
-    try { setCatalog(await window.devbox.installPortablePlugins()); }
-    catch (caught) { setError(failure(caught)); }
-    finally { setBusy(null); }
-  };
-  const connectPlugins = async (): Promise<void> => {
-    setBusy("connect"); setError(null);
-    try { setCatalog(await window.devbox.connectPortablePlugins()); }
-    catch (cause) { setError(failure(cause)); }
-    finally { setBusy(null); }
-  };
-  const disconnectPlugins = async (): Promise<void> => {
-    setBusy("disconnect"); setError(null);
-    try { setCatalog(await window.devbox.disconnectPortablePlugins()); }
-    catch (cause) { setError(failure(cause)); }
-    finally { setBusy(null); }
-  };
-  const visible = catalog?.items.filter((item) => item.kind === section) ?? [];
-  const verifiedPlugins = catalog?.items.some((item) => item.kind === "plugin" && ["HASH_VERIFIED", "BUNDLE_VERIFIED"].includes(item.sourceState)) ?? false;
-  const pluginsInstalled = catalog?.items.some((item) => item.kind === "plugin" && item.runtimeState === "INSTALLED") ?? false;
-  return <section className="advanced-page catalog-workspace">
-    <div className="advanced-heading"><div><span className="advanced-eyebrow">DOĞRULANMIŞ YEREL KATALOG</span><h1>Beceriler ve taşınabilir eklentiler</h1><p>Kaynak bütünlüğü, lisans, çalışma zamanı kurulumu ve MCP doktoru ayrı kanıtlanır. Yalnız gerçekten geçen durumlar “Hazır” gösterilir.</p></div><button onClick={() => void reload()} disabled={Boolean(busy)}><RefreshCw className={busy ? "spin" : ""} size={14} /> Yeniden denetle</button></div>
-    {catalog && <div className="catalog-summary"><article><strong>{catalog.counts.skills}</strong><span>yerel beceri kaynağı</span></article><article><strong>{catalog.counts.plugins}</strong><span>taşınabilir eklenti</span></article><article className="ready"><strong>{catalog.counts.installed}</strong><span>kurulu, doktoru geçti</span></article><article><strong>{catalog.counts.running}</strong><span>canlı MCP oturumu</span></article><article className={catalog.counts.blocked ? "blocked" : ""}><strong>{catalog.counts.blocked}</strong><span>bütünlük/çalışma hatası</span></article></div>}
-    <nav className="catalog-tabs" aria-label="Katalog türü"><button className={section === "skill" ? "active" : ""} onClick={() => setSection("skill")}>Beceriler</button><button className={section === "plugin" ? "active" : ""} onClick={() => setSection("plugin")}>Eklentiler ve MCP</button></nav>
-    <div className="catalog-source"><div><strong>{section === "skill" ? "Beceri kaynağı" : "Eklenti kaynağı"}</strong><span title={section === "skill" ? catalog?.skillRoot ?? "" : catalog?.pluginRoot ?? ""}>{section === "skill" ? catalog?.skillRoot ?? "Seçilmedi" : catalog?.pluginRoot ?? "Seçilmedi"}</span></div><button onClick={() => void selectSource(section)} disabled={Boolean(busy)}><Upload size={14} /> Klasör seç</button>{section === "plugin" && !pluginsInstalled && <button className="primary" onClick={() => void installPlugins()} disabled={Boolean(busy) || !verifiedPlugins}>{busy === "install" ? <LoaderCircle className="spin" size={14} /> : <ShieldCheck size={14} />}Doğrula ve kur</button>}{section === "plugin" && pluginsInstalled && (catalog?.counts.running ?? 0) < (catalog?.counts.installed ?? 0) && <button className="primary" onClick={() => void connectPlugins()} disabled={Boolean(busy)}>{busy === "connect" ? <LoaderCircle className="spin" size={14} /> : <PlugZap size={14} />}Canlı MCP bağla</button>}{section === "plugin" && (catalog?.counts.running ?? 0) > 0 && <button onClick={() => void disconnectPlugins()} disabled={Boolean(busy)}>{busy === "disconnect" ? <LoaderCircle className="spin" size={14} /> : <CircleStop size={14} />}Bağlantıyı kes</button>}</div>
-    {visible.length === 0 ? <div className="advanced-empty compact"><Activity size={22} /><strong>Doğrulanmış kayıt yok</strong><span>Kaynak klasörünü seçin; DevBox arşivleri çalıştırmadan önce SHA-256 kaydını denetler.</span></div> : <div className="catalog-grid">{visible.map((item) => <article key={`${item.kind}:${item.id}`}><header><div><strong>{item.productName}</strong><span>{item.id} · v{item.version}</span></div><span className={`catalog-state ${item.runtimeState === "RUNNING" ? "ready" : item.runtimeState === "INSTALLED" ? "installed" : item.sourceState === "HASH_FAILED" || item.runtimeState === "FAILED" ? "failed" : "source"}`}>{item.runtimeState === "RUNNING" ? "ÇALIŞIYOR" : item.runtimeState === "INSTALLED" ? "KURULU" : item.runtimeState === "SOURCE_ONLY" ? "YALNIZ KAYNAK" : item.runtimeState === "FAILED" ? "BAŞARISIZ" : "KURULU DEĞİL"}</span></header><div className={`catalog-trust ${item.trustClass.toLowerCase().replaceAll("_", "-")}`}>{item.trustClass === "MANAGED_SIGNED_CATALOG" ? "İmzalı yönetilen katalog" : item.trustClass === "LOCAL_SIDELOAD" ? "Yerel sideload · yönetici onaylı değil" : item.trustClass === "LOCAL_HASH_VERIFIED" ? "Yerel kaynak · SHA-256 doğrulandı" : "Özel lisanslı kaynak · dağıtıma kapalı"}</div><p>{item.detail}</p><dl><div><dt>Geliştirici</dt><dd>{item.publisher}</dd></div><div><dt>Lisans</dt><dd>{item.license}</dd></div><div><dt>Bütünlük</dt><dd>{item.sourceState}</dd></div><div><dt>Doktor</dt><dd>{item.doctorState}</dd></div><div><dt>Araç</dt><dd>{item.toolCount || "canlı bağlantı bekliyor"}</dd></div><div><dt>İzin</dt><dd>{item.grantedPermissions.length ? `${item.grantedPermissions.length}/${item.requestedPermissions.length}` : "host izni istemiyor"}</dd></div></dl>{item.health?.lastError && <div className="inline-error">Son çalışma hatası: {item.health.lastError}</div>}<details><summary>Kanıtları göster</summary>{item.evidence.map((line) => <code key={line}>{line}</code>)}</details>{item.runtimeState === "RUNNING" && item.tools.length > 0 && <CatalogToolRunner pluginId={item.id} tools={item.tools} />}</article>)}</div>}
-    {catalog?.issues.length ? <section className="catalog-issues"><strong>Sınırlar ve notlar</strong>{catalog.issues.map((issue) => <p key={issue}>{issue}</p>)}</section> : null}
-    {error && <div className="inline-error">{error}</div>}
-  </section>;
-}
-
-function CatalogToolRunner({ pluginId, tools }: { pluginId: string; tools: CatalogItem["tools"] }): ReactNode {
-  const [toolName, setToolName] = useState(tools[0]?.name ?? "");
-  const [argumentsText, setArgumentsText] = useState("{}");
-  const [output, setOutput] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const invoke = async (): Promise<void> => {
-    setError(null);
-    setOutput(null);
-    let parsed: unknown;
-    try { parsed = JSON.parse(argumentsText); }
-    catch { return setError("Araç girdisi geçerli JSON olmalıdır."); }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return setError("Araç girdisinin kökü bir JSON nesnesi olmalıdır.");
-    setBusy(true);
-    try {
-      const result = await window.devbox.callCatalogTool({ pluginId, toolName, arguments: parsed as Record<string, unknown> });
-      setOutput(JSON.stringify({ süreMs: result.durationMs, sonuç: result.result }, null, 2));
-    } catch (cause) { setError(failure(cause)); }
-    finally { setBusy(false); }
-  };
-  const selected = tools.find((tool) => tool.name === toolName);
-  return <details className="catalog-tool-runner"><summary>Canlı MCP aracını çalıştır</summary><label>Araç<select value={toolName} onChange={(event) => setToolName(event.target.value)}>{tools.map((tool) => <option key={tool.name} value={tool.name}>{tool.name}</option>)}</select></label>{selected?.description && <p>{selected.description}</p>}<label>JSON girdisi<textarea value={argumentsText} onChange={(event) => setArgumentsText(event.target.value)} spellCheck={false} /></label><button className="primary" onClick={() => void invoke()} disabled={busy || !toolName}>{busy ? <LoaderCircle className="spin" size={14} /> : <Play size={14} />}Onayla ve gerçekten çalıştır</button>{error && <div className="inline-error">{error}</div>}{output && <pre>{output}</pre>}</details>;
-}
-
 function failure(error: unknown): string {
   if (error instanceof Error) return error.message.replace(/^Error invoking remote method '[^']+':\s*/iu, "");
   return String(error);
@@ -145,6 +67,20 @@ function Status({ value }: { value: string }): ReactNode {
     CANCEL_REQUESTED: "İPTAL BEKLENİYOR",
     DISABLED: "KAPALI",
     IDLE: "BEKLİYOR",
+    QUEUEING: "KUYRUĞA ALINIYOR",
+    PREPARING: "HAZIRLANIYOR",
+    PROVIDER_CHECK: "SAĞLAYICI DOĞRULANIYOR",
+    AUTH_CHECK: "OTURUM DOĞRULANIYOR",
+    MODEL_ATTEMPT: "MODEL HAZIRLANIYOR",
+    PLANNING: "PLANLANIYOR",
+    INSPECTING: "KAYNAK İNCELENİYOR",
+    EDITING: "KODLANIYOR",
+    RUNNING_COMMAND: "KOMUT YÜRÜTÜLÜYOR",
+    TESTING: "TEST EDİLİYOR",
+    VERIFYING: "DOĞRULANIYOR",
+    REVIEWING: "KANIT İNCELENİYOR",
+    WAITING: "BEKLİYOR",
+    SETTLING: "SONUÇLANDIRILIYOR",
     ONLINE: "ÇEVRİM İÇİ",
     OFFLINE: "ÇEVRİM DIŞI",
     REVOKED: "YETKİSİ KALDIRILDI",
@@ -161,6 +97,30 @@ function Status({ value }: { value: string }): ReactNode {
     "SAVED LOCALLY": "YERELDE KAYITLI"
   };
   return <span className={`advanced-status ${healthy ? "healthy" : "limited"}`} title={value}>{labels[value] ?? value}</span>;
+}
+
+function evolutionStageLabel(value: string): string {
+  const labels: Record<string, string> = {
+    PROVIDER_CHECK: "Sağlayıcı doğrulanıyor",
+    AUTH_CHECK: "Oturum doğrulanıyor",
+    MODEL_ATTEMPT: "Model hazırlanıyor",
+    PLANNING: "Planlanıyor",
+    INSPECTING: "Kaynak inceleniyor",
+    EDITING: "Kodlanıyor",
+    RUNNING_COMMAND: "Komut yürütülüyor",
+    TESTING: "Test ediliyor",
+    VERIFYING: "Doğrulanıyor",
+    REVIEWING: "Kanıt inceleniyor",
+    WAITING: "Bekliyor",
+    BACKOFF: "Yeniden deneme bekleniyor",
+    COMPLETED: "Tamamlandı",
+    FAILED: "Başarısız",
+    BLOCKED_EXTERNAL: "Harici engel",
+    RECOVERY_REQUIRED: "Kurtarma gerekiyor",
+    CANCELLED: "Durduruldu",
+    IDLE: "Hazır"
+  };
+  return labels[value] ?? value.replaceAll("_", " ").toLocaleLowerCase("tr-TR");
 }
 
 function EmptyProject(): ReactNode {
@@ -194,6 +154,15 @@ export function TerminalWorkspace({ project, settings }: { project: ProjectSumma
   const [busy, setBusy] = useState(false);
   const [terminalReady, setTerminalReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = (event: MediaQueryListEvent): void => setSystemDark(event.matches);
+    setSystemDark(media.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, []);
+  const terminalIsLight = settings?.theme.base === "light" || (settings?.theme.base === "system" && !systemDark);
 
   const reload = useCallback(async () => {
     if (!project) return setTerminals([]);
@@ -214,7 +183,7 @@ export function TerminalWorkspace({ project, settings }: { project: ProjectSumma
         fontSize: 13,
         lineHeight: 1.25,
         scrollback: 20_000,
-        theme: settings?.theme.base === "light"
+        theme: terminalIsLight
           ? { background: "#ffffff", foreground: "#182027", cursor: "#182027", selectionBackground: "#cfe2f3" }
           : { background: "#0b0b0b", foreground: "#dddddd", cursor: "#f2f2f2", selectionBackground: "#3e3e3e" }
       });
@@ -258,7 +227,7 @@ export function TerminalWorkspace({ project, settings }: { project: ProjectSumma
       setTerminalReady(false);
       cleanup();
     };
-  }, [reload, settings?.theme.base]);
+  }, [reload, terminalIsLight]);
 
   useEffect(() => { void reload().catch((caught) => setError(failure(caught))); }, [reload]);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
@@ -460,19 +429,19 @@ export function AutomationWorkspace({ project }: { project: ProjectSummary | nul
   const adaptiveMode = Boolean(campaign && campaign.spec.remainingCount === 0);
   const adaptiveActive = Boolean(campaign?.runtime.activeSpecTaskId?.startsWith("ADAPT-"));
   const phaseProgressLabel = campaign?.spec.currentPhaseId
-    ? `${campaign.spec.currentPhaseId}/22 · G${campaign.spec.currentTaskIndex ?? "—"}/${campaign.spec.currentPhaseTaskCount ?? "—"} · ${campaign.runtime.stage}`
+    ? `${campaign.spec.currentPhaseId}/22 · G${campaign.spec.currentTaskIndex ?? "—"}/${campaign.spec.currentPhaseTaskCount ?? "—"} · ${evolutionStageLabel(campaign.runtime.stage)}`
     : adaptiveMode ? adaptiveActive ? `22/22 çekirdek PASS · ${campaign?.runtime.activeSpecTaskId}` : "22/22 çekirdek PASS · adaptif bakım hazır" : "22/22 Faz tamamlandı";
   const recoveryRequired = campaign?.runtime.stage === "RECOVERY_REQUIRED" || campaign?.spec.currentGateState === "RECOVERY_REQUIRED";
   const externalBlocked = campaign?.runtime.stage === "BLOCKED_EXTERNAL" || campaign?.spec.currentGateState === "BLOCKED_EXTERNAL";
   const runLabel = recoveryRequired ? "Kurtarmayı yeniden dene" : externalBlocked ? "Engeli yeniden dene" : "Şimdi çalıştır";
 
   return <section className="advanced-page">
-    <div className="advanced-heading evolution-heading"><div><span className="advanced-eyebrow">KALICI GELİŞİM KONTROL DÜZLEMİ · V9 ADAPTIVE</span><h1>DevBox API gelişimi</h1><p><strong>geliştirme.md</strong> içindeki 22 faz / 3362 atomik çekirdek görevi önce kanıtlı biçimde uygular. Çekirdek plan bittiğinde sistem durmaz; <strong>adaptif bakım döngüsü</strong> repo, test ve runtime kanıtını yeniden inceleyerek kalite, performans, UX, güvenlik, eşzamanlılık, API ve supply-chain alanlarında yeni somut görev üretir. <strong>Simülasyon, demo, fake, sahte, placeholder, no-op ve uydurma kanıt yasaktır.</strong> Recoverable hata aynı görevi FIX → RETEST backoff döngüsünde tutar; yalnız gerçek harici engel, veri kaybı riski taşıyan recovery veya Durdur akışı keser. Kalıcı Git commit + bağımsız verify olmadan PASS yoktur.</p></div><div className="advanced-actions"><button onClick={() => { setBusy("reload"); void reload().catch((caught) => setError(failure(caught))).finally(() => setBusy(null)); }} disabled={!project || busy === "reload"}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yenile</button>{campaign?.isRunning || busy === "run" ? <button className="danger-action" onClick={() => void cancel()} disabled={busy === "cancel"}><CircleStop size={14} /> {busy === "cancel" ? "Durduruluyor" : "Durdur"}</button> : <button className={recoveryRequired ? "recovery-action" : "primary"} onClick={() => void run()} disabled={!project || Boolean(busy)}>{recoveryRequired ? <RefreshCw size={14} /> : <Play size={14} />} {runLabel}</button>}</div></div>
+    <div className="advanced-heading evolution-heading"><div><span className="advanced-eyebrow">KALICI GELİŞİM KONTROL DÜZLEMİ · ADAPTİF</span><h1>DevBox API gelişimi</h1><p><strong>geliştirme.md</strong> içindeki 22 faz / 3362 atomik çekirdek görevi önce kanıtlı biçimde uygular. Çekirdek plan bittiğinde sistem durmaz; <strong>adaptif bakım döngüsü</strong> repo, test ve runtime kanıtını yeniden inceleyerek kalite, performans, UX, güvenlik, eşzamanlılık, API ve supply-chain alanlarında yeni somut görev üretir. <strong>Simülasyon, demo, fake, sahte, placeholder, no-op ve uydurma kanıt yasaktır.</strong> Recoverable hata aynı görevi FIX → RETEST backoff döngüsünde tutar; yalnız gerçek harici engel, veri kaybı riski taşıyan recovery veya Durdur akışı keser. Kalıcı Git commit + bağımsız verify olmadan PASS yoktur.</p></div><div className="advanced-actions"><button onClick={() => { setBusy("reload"); void reload().catch((caught) => setError(failure(caught))).finally(() => setBusy(null)); }} disabled={!project || busy === "reload"}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yenile</button>{campaign?.isRunning || busy === "run" ? <button className="danger-action" onClick={() => void cancel()} disabled={busy === "cancel"}><CircleStop size={14} /> {busy === "cancel" ? "Durduruluyor" : "Durdur"}</button> : <button className={recoveryRequired ? "recovery-action" : "primary"} onClick={() => void run()} disabled={!project || Boolean(busy)}>{recoveryRequired ? <RefreshCw size={14} /> : <Play size={14} />} {runLabel}</button>}</div></div>
     {!project ? <EmptyProject /> : !campaign ? <div className="advanced-empty"><LoaderCircle className="spin" size={24} />Gerçek kampanya durumu yükleniyor…</div> : <>
       {(recoveryRequired || externalBlocked) && <div className={`evolution-recovery-banner ${recoveryRequired ? "recovery" : "blocked"}`}><ShieldCheck size={18} /><div><strong>{recoveryRequired ? "Otomatik ilerleme fail-closed durdu" : "Harici engel nedeniyle ilerleme durdu"}</strong><p>{campaign.runtime.waitingReason ?? campaign.lastError ?? campaign.runtime.detail}</p><small>{recoveryRequired ? "Kör otomatik tekrar yapılmaz. Yukarıdaki kurtarma düğmesi tek bir manuel reconcile/retry çevrimi çalıştırır; gerçek mutasyon + verify + commit olmadan PASS verilmez." : "Engel giderildiyse yukarıdaki manuel yeniden deneme düğmesini kullanın."}</small></div></div>}
       <div className="evolution-summary">
         <div className="evolution-score"><strong>{campaign.lifetimeLevel}</strong><span>kalıcı gelişim seviyesi</span><small>{campaign.spec.passCount.toLocaleString("tr-TR")} / {campaign.spec.totalTaskCount.toLocaleString("tr-TR")} atomik görev kanıtlı PASS</small></div>
-        <dl><div><dt>Model rotası</dt><dd title={routeLabel}>{routeLabel}</dd></div><div><dt>Çalışma durumu</dt><dd>{campaign.runtime.stage}</dd></div><div><dt>Aktif görev</dt><dd>{campaign.runtime.activeSpecTaskId ?? "—"}</dd></div><div><dt>Faz</dt><dd>{campaign.runtime.activePhaseId ?? "—"}</dd></div><div><dt>Kalan görev</dt><dd>{campaign.spec.remainingCount.toLocaleString("tr-TR")}</dd></div><div><dt>Başarılı / hatalı</dt><dd>{campaign.completedCycles} / {campaign.failedCycles}</dd></div><div><dt>Son sağlayıcı</dt><dd>{campaign.lastProvider ? `${campaign.lastProvider} · ${campaign.lastModel ?? "model yok"}` : "Henüz yok"}</dd></div><div><dt>Durable job</dt><dd title={campaign.runtime.durableJobId ?? undefined}>{campaign.runtime.durableJobId ?? "—"}</dd></div><div><dt>Son çevrim</dt><dd>{readableDate(campaign.lastCycleAt)}</dd></div></dl>
+        <dl><div><dt>Model rotası</dt><dd title={routeLabel}>{routeLabel}</dd></div><div><dt>Çalışma durumu</dt><dd title={campaign.runtime.stage}>{evolutionStageLabel(campaign.runtime.stage)}</dd></div><div><dt>Aktif görev</dt><dd>{campaign.runtime.activeSpecTaskId ?? "—"}</dd></div><div><dt>Faz</dt><dd>{campaign.runtime.activePhaseId ?? "—"}</dd></div><div><dt>Kalan görev</dt><dd>{campaign.spec.remainingCount.toLocaleString("tr-TR")}</dd></div><div><dt>Başarılı / hatalı</dt><dd>{campaign.completedCycles} / {campaign.failedCycles}</dd></div><div><dt>Son sağlayıcı</dt><dd>{campaign.lastProvider ? `${campaign.lastProvider} · ${campaign.lastModel ?? "model yok"}` : "Henüz yok"}</dd></div><div><dt>Durable job</dt><dd title={campaign.runtime.durableJobId ?? undefined}>{campaign.runtime.durableJobId ?? "—"}</dd></div><div><dt>Son çevrim</dt><dd>{readableDate(campaign.lastCycleAt)}</dd></div></dl>
         <label className="evolution-toggle"><span><strong>Durdurulana kadar otomatik atomik görev uygula</strong><small>Bir görev kanıtlı PASS olunca sıradaki otomatik başlar · managed-source hatasında doğrulanmış rollback + backoff · aynı anda tek çevrim · SQLite durable job + heartbeat.</small></span><button className={`automation-toggle ${campaign.enabled ? "on" : ""}`} onClick={() => void toggle()} disabled={busy === "toggle"} aria-label={`API gelişim döngüsünü ${campaign.enabled ? "kapat" : "aç"}`}><i /></button></label>
       </div>
 
@@ -483,7 +452,7 @@ export function AutomationWorkspace({ project }: { project: ProjectSummary | nul
         <div className="evolution-phase-grid">{campaign.spec.phaseSummaries.map((phase) => <article key={phase.phaseId} className={`phase-card ${phase.phaseId === campaign.spec.currentPhaseId ? "active" : ""}`} title={`${phase.title} · ${phase.passCount}/${phase.taskCount} PASS`}><div><strong>{phase.phaseId}</strong><Status value={phase.gateState} /></div><span>{phase.passCount}/{phase.taskCount}</span><small>{phase.gateState === "BLOCKED_EXTERNAL" ? `${phase.blockedCount} harici engel` : phase.gateState === "RECOVERY_REQUIRED" ? `${phase.recoveryCount} recovery` : phase.failedCount ? `${phase.failedCount} hata` : phase.title}</small><i><b style={{ width: `${phase.taskCount ? Math.round((phase.passCount / phase.taskCount) * 100) : 0}%` }} /></i></article>)}</div>
       </section>
 
-      <section className={`evolution-live ${campaign.isRunning ? "running" : ""}`} aria-live="polite"><header><div><span className="live-dot" /><strong>Canlı çalışma</strong><Status value={campaign.runtime.stage} /></div><small>{readableDate(campaign.runtime.updatedAt)}</small></header><h3>{campaign.runtime.detail}</h3><dl><div><dt>Şu an</dt><dd>{campaign.runtime.stage}</dd></div><div><dt>Sağlayıcı / model</dt><dd>{campaign.runtime.provider ? `${campaign.runtime.provider} · ${campaign.runtime.model ?? "—"}` : "Henüz provider seçilmedi"}</dd></div><div><dt>Bekliyor</dt><dd>{campaign.runtime.waitingReason ?? "Hayır"}</dd></div><div><dt>Çalışma alanı</dt><dd title={campaign.runtime.worktreePath ?? undefined}>{campaign.runtime.worktreePath ?? "—"}</dd></div></dl></section>
+      <section className={`evolution-live ${campaign.isRunning ? "running" : ""}`} aria-live="polite"><header><div><span className="live-dot" /><strong>Canlı çalışma</strong><Status value={campaign.runtime.stage} /></div><small>{readableDate(campaign.runtime.updatedAt)}</small></header><h3>{campaign.runtime.detail}</h3><dl><div><dt>Şu an</dt><dd title={campaign.runtime.stage}>{evolutionStageLabel(campaign.runtime.stage)}</dd></div><div><dt>Sağlayıcı / model</dt><dd>{campaign.runtime.provider ? `${campaign.runtime.provider} · ${campaign.runtime.model ?? "—"}` : "Henüz provider seçilmedi"}</dd></div><div><dt>Bekliyor</dt><dd>{campaign.runtime.waitingReason ?? "Hayır"}</dd></div><div><dt>Çalışma alanı</dt><dd title={campaign.runtime.worktreePath ?? undefined}>{campaign.runtime.worktreePath ?? "—"}</dd></div></dl></section>
 
       <section className="evolution-section routing-editor"><div className="panel-title"><div><h2>Manuel model ve rota</h2><span>Codex modeli app-server <code>model/list</code> kataloğundan keşfedilir. LOCKED router değişikliğini kapatır; katalog bulunamazsa manuel model ID yazımı çalışmaya devam eder.</span></div><div className="routing-actions"><button onClick={() => { if (!project || !routing) return; setCatalogBusy(true); void window.devbox.getEvolutionModelCatalog(project.id, routing.provider).then(setModelCatalog).catch((caught) => setModelCatalog({ provider: routing.provider, state: "FAILED", detail: failure(caught), items: [], checkedAt: new Date().toISOString() })).finally(() => setCatalogBusy(false)); }} disabled={!routing || catalogBusy}><RefreshCw className={catalogBusy ? "spin" : ""} size={14} /> Model listesi</button><button className="primary" onClick={() => void saveRouting()} disabled={!routing || Boolean(campaign.isRunning) || busy === "route"}>{busy === "route" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Uygula</button></div></div>{routing && <><div className="routing-grid"><label><span>Mod</span><select value={routing.mode} onChange={(event) => setRouting({ ...routing, mode: event.target.value as EvolutionRouting["mode"], allowFallback: event.target.value === "LOCKED" ? false : routing.allowFallback })}><option value="AUTO">Otomatik rota</option><option value="LOCKED">Modeli kilitle</option></select></label><label><span>Sağlayıcı</span><select value={routing.provider} onChange={(event) => setRouting({ ...routing, provider: event.target.value as EvolutionRouting["provider"], model: event.target.value === "codex" ? "gpt-5.6-sol" : "nvidia/nemotron-3-super-120b-a12b", reasoningEffort: event.target.value === "codex" ? "high" : "none" })}><option value="codex">OpenAI Codex CLI</option><option value="hermes-nvidia">Hermes / NVIDIA NIM</option></select></label><label className="model-input"><span>Model</span><input list="devbox-evolution-models" value={routing.model} onChange={(event) => setRouting({ ...routing, model: event.target.value })} /><datalist id="devbox-evolution-models">{modelCatalog?.provider === routing.provider && modelCatalog.items.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}</datalist></label><label><span>Muhakeme</span><select value={routing.reasoningEffort} disabled={routing.provider === "hermes-nvidia"} onChange={(event) => setRouting({ ...routing, reasoningEffort: event.target.value as EvolutionRouting["reasoningEffort"] })}>{reasoningOptions.map((effort) => <option key={effort} value={effort}>{reasoningLabels[effort]}</option>)}</select></label><label className="fallback-check"><input type="checkbox" checked={routing.allowFallback} disabled={routing.mode === "LOCKED"} onChange={(event) => setRouting({ ...routing, allowFallback: event.target.checked })} /><span>Uyumlu fallback kullan</span></label></div><div className="model-catalog-state"><div><Status value={catalogBusy ? "VERIFYING" : modelCatalog?.state ?? "UNAVAILABLE"} /><strong>{catalogBusy ? "Model kataloğu sorgulanıyor" : `${modelCatalog?.items.length ?? 0} model keşfedildi`}</strong></div><span>{modelCatalog?.detail ?? "Provider kataloğu henüz sorgulanmadı."}{modelCatalog?.checkedAt ? ` · ${readableDate(modelCatalog.checkedAt)}` : ""}</span></div></>}</section>
 
@@ -491,7 +460,7 @@ export function AutomationWorkspace({ project }: { project: ProjectSummary | nul
 
       <div className="evolution-metrics"><article><span>Spec toplamı</span><strong>{campaign.spec.totalTaskCount.toLocaleString("tr-TR")}</strong></article><article><span>PASS</span><strong>{campaign.spec.passCount.toLocaleString("tr-TR")}</strong></article><article><span>FAILED</span><strong>{campaign.spec.failedCount.toLocaleString("tr-TR")}</strong></article><article><span>BLOCKED</span><strong>{campaign.spec.blockedCount.toLocaleString("tr-TR")}</strong></article><article><span>RECOVERY</span><strong>{campaign.spec.recoveryCount.toLocaleString("tr-TR")}</strong></article><article><span>Kalan</span><strong>{campaign.spec.remainingCount.toLocaleString("tr-TR")}</strong></article></div>
 
-      <section className="evolution-section"><div className="panel-title"><div><h2>Canlı işlem günlüğü</h2><span>SQLite kalıcı event store + canlı typed runtime eventleri · en yeni 120 kayıt</span></div><Status value={campaign.isRunning ? "RUNNING" : campaign.runtime.stage} /></div>{activity.length === 0 ? <div className="advanced-empty compact"><Activity size={22} /><strong>Henüz runtime olayı yok</strong><span>“Şimdi çalıştır” sonrası provider, model, sandbox/probe, patch, komut, test, bekleme ve hata adımları burada görünür.</span></div> : <div className="evolution-activity-list">{activity.map((item) => <article key={item.id}><span className={`activity-kind ${item.kind}`} /><div><strong>{item.stage}</strong><p>{item.message}</p><small>{item.provider ? `${item.provider}${item.model ? ` · ${item.model}` : ""} · ` : ""}{readableDate(item.createdAt)}</small></div></article>)}</div>}</section>
+      <section className="evolution-section"><div className="panel-title"><div><h2>Canlı işlem günlüğü</h2><span>SQLite kalıcı event store + canlı typed runtime eventleri · en yeni 120 kayıt</span></div><Status value={campaign.isRunning ? "RUNNING" : campaign.runtime.stage} /></div>{activity.length === 0 ? <div className="advanced-empty compact"><Activity size={22} /><strong>Henüz runtime olayı yok</strong><span>“Şimdi çalıştır” sonrası provider, model, sandbox/probe, patch, komut, test, bekleme ve hata adımları burada görünür.</span></div> : <div className="evolution-activity-list">{activity.map((item) => <article key={item.id}><span className={`activity-kind ${item.kind}`} /><div><strong title={item.stage}>{evolutionStageLabel(item.stage)}</strong><p>{item.message}</p><small>{item.provider ? `${item.provider}${item.model ? ` · ${item.model}` : ""} · ` : ""}{readableDate(item.createdAt)}</small></div></article>)}</div>}</section>
 
       <section className="evolution-section"><div className="panel-title"><div><h2>geliştirme.md uygulama kuyruğu</h2><span>{campaign.spec.phaseCount} Faz · {campaign.spec.totalTaskCount.toLocaleString("tr-TR")} atomik görev · kaynak SHA-256 {campaign.spec.sourceSha256.slice(0, 16)}…</span></div><Status value={campaign.spec.remainingCount === 0 ? "COMPLETED" : campaign.isRunning ? "RUNNING" : "LOADED"} /></div><div className="advanced-list evolution-list" tabIndex={0}>{campaign.spec.queuePreview.slice(0, 40).map((item) => <article key={item.taskId}><div className="list-icon">{item.state === "RUNNING" ? <LoaderCircle className="spin" size={16} /> : <Activity size={16} />}</div><div><strong>{item.taskId} · {item.title}</strong><span>{item.phaseId}{item.sourceLine ? ` · geliştirme.md:${item.sourceLine}` : ""}</span><small>Spec state: {item.state} · deneme {item.attempts}{item.requirementCount ? ` · ${item.requirementCount} req` : ""}{item.testCount ? ` · ${item.testCount} test` : ""}{item.failureTestCount ? ` · ${item.failureTestCount} failure test` : ""}{item.blockReason ? ` · ENGEL: ${item.blockReason}` : item.lastError ? ` · ${item.lastError}` : ""}</small></div><Status value={item.state} /></article>)}</div></section>
 
@@ -730,42 +699,4 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
     {result && <div className="command-evidence"><header><span>{result.commandDisplay}</span><Status value={result.exitCode === 0 ? "SUCCEEDED" : result.exitReason === "CANCELLED" ? "CANCELLED" : "FAILED"} /><button onClick={() => void window.devbox.copyText(`${result.stdout}\n${result.stderr}`)}><Copy size={13} /> Kopyala</button></header><pre>{result.stdout || result.stderr || (result.exitReason === "CANCELLED" ? "İşlem kullanıcı tarafından iptal edildi." : "Komut çıktı üretmedi.")}</pre><footer>{result.durationMs} ms · {resultReasonLabel(result.exitReason)} · çıkış {result.exitCode ?? "—"}</footer></div>}
     {error && <div className="inline-error">{error}</div>}
   </section>;
-}
-
-export function SettingsWorkspace({ settings, onSettings, onClose }: { settings: AppSettings | null; onSettings: (settings: AppSettings) => void; onClose: () => void }): ReactNode {
-  const [portable, setPortable] = useState("");
-  const [notice, setNotice] = useState<string | null>(null);
-  const [section, setSection] = useState<"appearance" | "permissions" | "terminal">("appearance");
-  const patch = async (value: Parameters<typeof window.devbox.patchSettings>[0]): Promise<void> => {
-    try { onSettings(await window.devbox.patchSettings(value)); setNotice("Ayar yerel SQLite deposuna kaydedildi."); }
-    catch (caught) { setNotice(failure(caught)); }
-  };
-  if (!settings) return <section className="advanced-page"><div className="advanced-empty"><LoaderCircle className="spin" size={24} />Ayarlar yükleniyor…</div></section>;
-  return <section className="advanced-page settings-workspace">
-    <div className="advanced-heading"><div><span className="advanced-eyebrow">POLİTİKA MERKEZİ</span><h1>Ayarlar</h1><p>Yalnızca gerçek çalışma zamanında uygulanan görünüm, izin, sandbox, ağ ve terminal politikaları.</p></div><div className="settings-heading-actions"><Status value="SAVED LOCALLY" /><button onClick={onClose} aria-label="Ayarları kapat" title="Ayarları kapat"><X size={16} /></button></div></div>
-    <nav className="settings-nav" aria-label="Ayar bölümleri"><button className={section === "appearance" ? "active" : ""} onClick={() => setSection("appearance")}>Görünüm</button><button className={section === "permissions" ? "active" : ""} onClick={() => setSection("permissions")}>İzinler ve sandbox</button><button className={section === "terminal" ? "active" : ""} onClick={() => setSection("terminal")}>Terminal</button></nav>
-    <div className="settings-sections">
-      {section === "appearance" && <section><h2>Görünüm</h2><div className="theme-presets" aria-label="Yerleşik tema seçimi"><button className={settings.theme.base === "dark" ? "active" : ""} onClick={() => void patch({ theme: DEVBOX_OBSIDIAN_THEME })}>Obsidyen · koyu</button><button className={settings.theme.base === "light" ? "active" : ""} onClick={() => void patch({ theme: DEVBOX_DAY_THEME })}>Gündüz · açık</button></div><div className="settings-grid"><label><span>Tema adı<small>Portable tema manifestinde görünür.</small></span><input value={settings.theme.name} onChange={(event) => void patch({ theme: { name: event.target.value || "DevBox" } })} /></label><label><span>Vurgu rengi<small>Hex renk, kod çalıştırmaz.</small></span><input type="color" value={settings.theme.accent} onChange={(event) => void patch({ theme: { accent: event.target.value } })} /></label><label><span>Arayüz yazı tipi</span><input value={settings.theme.uiFont} onChange={(event) => void patch({ theme: { uiFont: event.target.value || "Segoe UI" } })} /></label><label><span>Kod yazı tipi</span><input value={settings.theme.codeFont} onChange={(event) => void patch({ theme: { codeFont: event.target.value || "Consolas" } })} /></label><label><span>Kontrast</span><select value={settings.theme.contrast} onChange={(event) => void patch({ theme: { contrast: event.target.value as AppSettings["theme"]["contrast"] } })}><option value="normal">Normal</option><option value="high">Yüksek</option></select></label><label><span>Başlangıç tanıtımı<small>Seçim yerel ayarlarda kalıcı olarak saklanır.</small></span><select value={settings.launchIntroMode} onChange={(event) => { const mode = event.target.value as AppSettings["launchIntroMode"]; void patch({ launchIntroMode: mode, launchIntroSeen: mode === "once" ? false : settings.launchIntroSeen }); }}><option value="once">Yalnız ilk açılışta</option><option value="always">Her açılışta</option><option value="never">Gösterme</option></select></label><label className="switch-setting"><span>Hareketi azalt<small>Animasyonları ve geçişleri sınırlar.</small></span><button className={`automation-toggle ${settings.reduceMotion ? "on" : ""}`} onClick={() => void patch({ reduceMotion: !settings.reduceMotion })} aria-label="Hareketi azalt"><i /></button></label></div><div className="theme-row"><textarea value={portable} onChange={(event) => setPortable(event.target.value)} placeholder="devbox-theme-v1:… veya güvenli codex-theme-v1:… veri manifesti" /><button onClick={() => void window.devbox.importTheme(portable).then((next) => { onSettings(next); setNotice("Tema doğrulandı ve içe aktarıldı."); }).catch((caught) => setNotice(failure(caught)))} disabled={!portable.trim()}><Upload size={14} /> İçe aktar</button><button onClick={() => void window.devbox.exportTheme().then((value) => { setPortable(value); void window.devbox.copyText(value); setNotice("Portable tema panoya kopyalandı."); })}><Copy size={14} /> Dışa aktar</button></div></section>}
-      {section === "permissions" && <section><h2>İzinler ve sandbox</h2><div className="permission-settings"><label><span>İzin profili<small>Profil, onay + sandbox + ağ politikasını atomik olarak değiştirir.</small></span><select value={settings.permissionProfile} onChange={(event) => void patch({ permissionProfile: event.target.value as AppSettings["permissionProfile"] })}><option value="Salt okunur">Onay iste</option><option value="Onaylı">Benim için onayla</option><option value="Tam erişim">Tam erişim</option></select></label><dl><div><dt>Onay davranışı</dt><dd>{settings.approvalPolicy === "always" ? "Her proje yazma, süreç ve ağ işleminde sor" : settings.approvalPolicy === "on-request" ? "Yalnız riskli işlemde sor" : "Politika diyaloğu gösterme"}</dd></div><div><dt>Dosya kapsamı</dt><dd>{settings.sandboxPolicy === "read-only" ? "Salt okunur" : settings.sandboxPolicy === "workspace-write" ? "Seçili proje kökü; profil kurallarına bağlı yazma" : "Açılan hedeflerde tam erişim"}</dd></div><div><dt>Ağ</dt><dd>{settings.networkAccess ? "Gerçek sağlayıcı ve entegrasyon çağrıları profil onayıyla açık" : "Kapalı"}</dd></div></dl></div></section>}
-      {section === "terminal" && <section><h2>Terminal</h2><div className="settings-grid"><label><span>Terminal kabuğu<small>Yeni ConPTY oturumlarında gerçekten kullanılan çalıştırılabilir dosya.</small></span><select value={settings.terminalShell} onChange={(event) => void patch({ terminalShell: event.target.value as AppSettings["terminalShell"] })}><option value="pwsh">PowerShell 7</option><option value="powershell">Windows PowerShell</option><option value="cmd">Command Prompt</option></select></label></div></section>}
-    </div>
-    {notice && <div className="inline-info">{notice}</div>}
-  </section>;
-}
-
-export function themeStyle(settings: AppSettings | null): CSSProperties {
-  if (!settings) return {};
-  return {
-    "--accent": settings.theme.accent,
-    "--bg-app": settings.theme.surface,
-    "--bg-sidebar": settings.theme.sidebar,
-    "--bg-panel": settings.theme.panel,
-    "--border": settings.theme.border,
-    "--text": settings.theme.ink,
-    "--text-muted": settings.theme.muted,
-    "--success": settings.theme.success,
-    "--warning": settings.theme.warning,
-    "--danger": settings.theme.danger,
-    fontFamily: `${settings.theme.uiFont}, "Segoe UI", sans-serif`
-  } as CSSProperties;
 }

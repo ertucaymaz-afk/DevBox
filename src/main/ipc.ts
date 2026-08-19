@@ -453,7 +453,9 @@ export function registerIpcHandlers(services: IpcServices): () => void {
           ? "Windows ortamına NVIDIA_API_KEY ekleyip DevBox'ı yeniden başlatın."
           : code === "HERMES_EXECUTION_FAILED"
             ? "Hermes/NVIDIA çalıştırması başarısız oldu. Sistem kabiliyetlerini ve sağlayıcı erişimini denetleyin."
-            : "Hermes yanıtı güvenli biçimde doğrulanıp ayrıştırılamadı. Ham çıktı, iç muhakeme ve sistem istemi güvenlik gereği gösterilmedi.";
+            : code === "CHAT_PROVIDER_INTERNAL_ARTIFACT_REJECTED"
+              ? "Sağlayıcı yalnız iç çalışma zamanı tanılaması üretti; bu çıktı sohbet mesajı olarak gösterilmedi. İsteği yeniden gönderin veya sağlayıcı durumunu denetleyin."
+              : "Hermes yanıtı güvenli biçimde doğrulanıp ayrıştırılamadı. Ham çıktı, iç muhakeme ve sistem istemi güvenlik gereği gösterilmedi.";
         assistantContent = `Ajan yanıtı üretilemedi (**${code}**). ${remediation}`;
     }
     if (baseline) {

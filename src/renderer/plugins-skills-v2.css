@@ -1,0 +1,53 @@
+/* Plugins / Skills / Integrations product-facing hierarchy. Raw developer surfaces stay opt-in. */
+.integration-workspace,.catalog-workspace{max-width:1220px;margin:0 auto;}
+.integration-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px;}
+.integration-grid>article{min-height:118px;padding:15px;border:1px solid var(--ds-border);border-radius:14px;background:var(--ds-surface-1);color:var(--ds-text);box-shadow:var(--ds-shadow-xs);}
+.integration-grid>article header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
+.integration-grid>article p{color:var(--ds-muted);line-height:1.45;}
+.integration-console{padding:14px!important;border:1px solid var(--ds-border)!important;border-radius:16px!important;background:var(--ds-surface-1)!important;color:var(--ds-text)!important;box-shadow:var(--ds-shadow-sm)!important;}
+.integration-console .console-controls{display:grid;gap:10px;}
+.integration-console .console-controls>label{display:grid;gap:6px;}
+.integration-console .console-controls>label span{color:var(--ds-muted);font-size:10px;}
+.integration-console .console-controls>div{display:flex;flex-wrap:wrap;gap:7px;}
+.integration-console input,.integration-console textarea,.integration-console select{border:1px solid var(--ds-border)!important;background:var(--ds-surface-2)!important;color:var(--ds-text)!important;}
+.integration-console button{min-height:34px;border:1px solid var(--ds-border)!important;background:var(--ds-surface-2)!important;color:var(--ds-text-2)!important;border-radius:8px!important;}
+.integration-console button:hover:not(:disabled){border-color:var(--ds-border-strong)!important;background:var(--ds-surface-3)!important;color:var(--ds-text)!important;}
+.integration-console button:disabled{background:var(--ds-surface-2)!important;color:var(--ds-disabled)!important;border-color:var(--ds-border-subtle)!important;}
+.console-busy{border:1px solid var(--ds-accent-border);border-radius:10px;background:var(--ds-accent-soft);color:var(--ds-accent);}
+.command-evidence{overflow:hidden;border:1px solid var(--ds-border);border-radius:13px;background:var(--ds-surface-1);box-shadow:var(--ds-shadow-sm);}
+.command-evidence header,.command-evidence footer{background:var(--ds-surface-2);border-color:var(--ds-border-subtle);color:var(--ds-muted);}
+.command-evidence pre{max-height:320px;margin:0;padding:13px;border:0;background:var(--ds-terminal);color:#D8E0E5;overflow:auto;}
+
+.catalog-tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--ds-border);border-radius:10px;background:var(--ds-surface-2);}
+.catalog-tabs button{min-height:32px;padding:0 12px;border:0!important;background:transparent!important;color:var(--ds-muted)!important;border-radius:7px!important;}
+.catalog-tabs button.active{background:var(--ds-surface-1)!important;color:var(--ds-text)!important;box-shadow:var(--ds-shadow-xs)!important;}
+.catalog-summary{display:grid;grid-template-columns:repeat(6,minmax(110px,1fr));gap:8px;}
+.catalog-summary article{min-height:86px;display:grid;align-content:center;gap:5px;padding:12px;border:1px solid var(--ds-border);border-radius:12px;background:var(--ds-surface-1);}
+.catalog-summary strong{color:var(--ds-text);font-size:20px;}
+.catalog-summary span{color:var(--ds-muted);font-size:9px;text-transform:uppercase;letter-spacing:.07em;}
+.catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;}
+.catalog-grid>article{display:grid;align-content:start;gap:10px;min-height:210px;padding:15px;border:1px solid var(--ds-border);border-radius:15px;background:var(--ds-surface-1);box-shadow:var(--ds-shadow-xs);}
+.catalog-grid>article:hover{border-color:var(--ds-border-strong);box-shadow:var(--ds-shadow-sm);transform:translateY(-1px);}
+.catalog-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.catalog-item-head strong{color:var(--ds-text);font-size:13px;}
+.catalog-item-head small{display:block;margin-top:3px;color:var(--ds-muted);font-size:10px;}
+.catalog-meta{display:flex;flex-wrap:wrap;gap:5px;}
+.catalog-meta span,.catalog-trust,.catalog-state{display:inline-flex;align-items:center;min-height:24px;padding:0 8px;border:1px solid var(--ds-border);border-radius:999px;background:var(--ds-surface-2);color:var(--ds-text-2);font-size:9px;font-weight:700;}
+.catalog-trust.verified,.catalog-state.ready{border-color:color-mix(in srgb,var(--ds-success) 30%,var(--ds-border));background:color-mix(in srgb,var(--ds-success) 8%,var(--ds-surface-1));color:var(--ds-success);}
+.catalog-trust.blocked,.catalog-state.failed{border-color:color-mix(in srgb,var(--ds-danger) 30%,var(--ds-border));background:color-mix(in srgb,var(--ds-danger) 8%,var(--ds-surface-1));color:var(--ds-danger);}
+.catalog-grid details{margin-top:auto;border-top:1px solid var(--ds-border-subtle);padding-top:8px;}
+.catalog-grid details summary{color:var(--ds-muted);font-size:10px;cursor:pointer;}
+.catalog-grid details[open] summary{color:var(--ds-text-2);}
+.catalog-grid pre{max-height:220px;overflow:auto;border-radius:9px;}
+.catalog-source,.catalog-issues{padding:12px;border:1px solid var(--ds-border);border-radius:12px;background:var(--ds-surface-2);color:var(--ds-text-2);}
+
+/* DAP remains a developer surface, but no longer consumes the whole page as a black monolith. */
+.debugger-console{border:1px solid var(--ds-border)!important;border-radius:15px!important;background:var(--ds-surface-1)!important;color:var(--ds-text)!important;box-shadow:var(--ds-shadow-sm)!important;}
+.debugger-grid,.debugger-inspector-grid{gap:8px;}
+.debugger-inspector-grid>section{border:1px solid var(--ds-border);border-radius:10px;background:var(--ds-surface-2);}
+.debugger-inspector-grid button{background:var(--ds-surface-1)!important;color:var(--ds-text-2)!important;}
+.debugger-inspector-grid button.selected{border-color:var(--ds-accent-border)!important;background:var(--ds-accent-soft)!important;color:var(--ds-accent)!important;}
+.debug-raw{border-top:1px solid var(--ds-border-subtle);}
+
+@media(max-width:980px){.catalog-summary{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:680px){.catalog-summary{grid-template-columns:repeat(2,1fr);}.catalog-grid,.integration-grid{grid-template-columns:1fr;}.integration-console .console-controls>div{display:grid;grid-template-columns:1fr 1fr;}}

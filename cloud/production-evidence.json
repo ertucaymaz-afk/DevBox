@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "productVersion": "0.1.20",
+  "capturedAt": "2026-08-19T01:14:33Z",
+  "source": {
+    "repository": "ertucaymaz-afk/DevBox",
+    "branch": "codex/v0.1.20-vercel-production-modernization",
+    "verifiedCommit": "c31df2bcbb9d7dca9fe3a720ac0ac342c30f879d",
+    "status": "PASS"
+  },
+  "vercel": {
+    "teamId": "team_PNUxk74M7XR8MFlKl676ZHlv",
+    "teamSlug": "ertucaymaz-5672s-projects",
+    "devapi": {
+      "projectId": "prj_mJCrN5G6w4R32axSWYSLSuuAdmBz",
+      "canonicalUrl": "https://devapi-virid.vercel.app",
+      "latestDeploymentId": "dpl_G136cKsQQ3W4b7UneNJu7osR1n7x",
+      "rollbackCandidateId": "dpl_AuUDtYcyZJdY5dYACxKJgs43LsjC",
+      "observedVersion": "0.4.1",
+      "expectedVersion": "0.1.20",
+      "rootHttpStatus": 200,
+      "healthHttpStatus": 404,
+      "publicStateHttpStatus": 404,
+      "runtimeErrorClusters24h": 0,
+      "state": "BLOCKED_STALE_PRODUCTION"
+    },
+    "devbox": {
+      "projectId": null,
+      "requestedCanonicalUrl": "https://devbox.vercel.app",
+      "canonicalUrl": null,
+      "latestDeploymentId": null,
+      "rollbackCandidateId": null,
+      "rootHttpStatus": null,
+      "state": "BLOCKED_PROJECT_OWNERSHIP"
+    }
+  },
+  "neon": {
+    "projectId": "delicate-heart-48380148",
+    "projectName": "devbox-devapi-control",
+    "branchId": "br-broad-frog-aua7edwl",
+    "branchName": "main",
+    "computeId": "ep-hidden-union-aupznhip",
+    "region": "aws-us-east-1",
+    "schemaTables": [
+      "devbox_project_state",
+      "devbox_project_state_history",
+      "devbox_control_commands"
+    ],
+    "schemaReadBack": "PASS",
+    "state": "READY_FOR_CONNECTION_SECRET"
+  },
+  "promotion": {
+    "workflow": ".github/workflows/v020-production-promote.yml",
+    "lastObservedRunId": 32204225065,
+    "state": "BLOCKED_EXTERNAL",
+    "missingGitHubSecrets": [
+      "VERCEL_TOKEN",
+      "DEVBOX_DATABASE_URL",
+      "DEVBOX_CONTROL_PLANE_TOKEN",
+      "DEVBOX_CONTROL_ADMIN_TOKEN"
+    ]
+  },
+  "canary": {
+    "desktopSnapshot": "PENDING",
+    "publicStateSanitization": "PENDING_DEPLOY",
+    "setEnabledAck": "PENDING",
+    "runAck": "PENDING",
+    "cancelAck": "PENDING",
+    "commandIdempotency": "PENDING",
+    "commandSequence": "PENDING",
+    "crossSiteLinks": "PENDING",
+    "runtimeErrorScan": "PENDING_NEW_DEPLOY"
+  },
+  "release": {
+    "productionEvidence": "BLOCKED",
+    "blockers": [
+      "DevAPI production still serves v0.4.1 and health/public-state return 404",
+      "GitHub Actions production promotion is BLOCKED_EXTERNAL because VERCEL_TOKEN, DEVBOX_DATABASE_URL, DEVBOX_CONTROL_PLANE_TOKEN and DEVBOX_CONTROL_ADMIN_TOKEN are not configured",
+      "devbox project/canonical alias ownership is not verified in the connected Vercel team",
+      "Desktop-to-cloud snapshot and command ACK canary has not passed against v0.1.20 production"
+    ]
+  }
+}

@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import type { CommandResult } from "../../shared/contracts.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AgentService, evolutionRoutePlan, isWorkspaceMutationRequest, parseCodexModelCatalog, parseEvolutionProviderOutcome, parseNvidiaModelCatalog, resolveCodexExecutable } from "./agent-service.js";
+import { AgentService, evolutionRoutePlan, isInternalChatArtifact, isWorkspaceMutationRequest, parseCodexModelCatalog, parseEvolutionProviderOutcome, parseNvidiaModelCatalog, resolveCodexExecutable } from "./agent-service.js";
 import type { CommandRunner } from "./command-runner.js";
 
 function result(runId: string, stdout: string): CommandResult {
@@ -95,6 +95,16 @@ describe("evolution model routing", () => {
     expect(pass.acceptance.positiveTests).toEqual(["positive test PASS"]);
     expect(parseEvolutionProviderOutcome('DEVBOX_RESULT_JSON: {"status":"BLOCKED_EXTERNAL","blockReason":"login gerekli"}')).toMatchObject({ outcome: "BLOCKED_EXTERNAL", blockReason: "login gerekli" });
     expect(parseEvolutionProviderOutcome("ordinary text")).toMatchObject({ outcome: "UNSPECIFIED", blockReason: null });
+  });
+});
+
+describe("chat artifact boundary", () => {
+  it("rejects internal runtime telemetry but preserves ordinary user-facing language", () => {
+    expect(isInternalChatArtifact("DevBox görev geçmişi sağlanmadı.")).toBe(true);
+    expect(isInternalChatArtifact("MODEL_ATTEMPT\nPLANNING\nRUNNING_COMMAND")).toBe(true);
+    expect(isInternalChatArtifact("Hermes aracılığıyla NVIDIA NIM oturumu başlatıldı.\nYanıt ayrıştırıldı · session 123")).toBe(true);
+    expect(isInternalChatArtifact("Merhaba, nasıl yardımcı olabilirim?")).toBe(false);
+    expect(isInternalChatArtifact("MODEL_ATTEMPT ne demek?")).toBe(false);
   });
 });
 

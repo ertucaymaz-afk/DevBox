@@ -4,30 +4,153 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
-  <meta name="theme-color" content="#090b0d" />
-  <title>DevBox · Gerçek mühendislik masaüstü</title>
-  <meta name="description" content="DevBox: sohbet, gerçek kodlama, Git, ConPTY, LSP/DAP, kalıcı hafıza, adaptif API gelişimi, release gate ve DevAPI cloud control." />
+  <meta name="theme-color" content="#07090c" />
+  <title>DevBox · Windows Engineering Control Plane</title>
+  <meta name="description" content="DevBox v0.1.20: sohbet, gerçek kodlama, Git/ConPTY, TypeScript LSP/DAP, kalıcı hafıza, adaptif API gelişimi, release gate ve DevAPI cloud control." />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="noise" aria-hidden="true"></div><div class="flare flare-a" aria-hidden="true"></div><div class="flare flare-b" aria-hidden="true"></div>
-  <header class="nav"><a class="brand" href="#top"><span>D</span><b>DevBox</b><small>v0.1.19</small></a><nav><a href="#features">Özellikler</a><a href="#evolution">API Gelişimi</a><a href="#evidence">Kanıt</a><a href="https://devapi-virid.vercel.app" target="_blank" rel="noreferrer">DevAPI ↗</a></nav><a class="ghost" href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">GitHub ↗</a></header>
+  <div class="grid-bg" aria-hidden="true"></div>
+  <div class="aurora aurora-a" aria-hidden="true"></div>
+  <div class="aurora aurora-b" aria-hidden="true"></div>
+
+  <header class="nav-shell">
+    <a class="brand" href="#top" aria-label="DevBox ana sayfa">
+      <span class="brand-mark"><i></i></span>
+      <span><strong>DevBox</strong><small>v0.1.20</small></span>
+    </a>
+    <nav aria-label="Ana menü">
+      <a href="#platform">Platform</a>
+      <a href="#evolution">API Evolution</a>
+      <a href="#release">Release Gate</a>
+      <a href="#architecture">Mimari</a>
+    </nav>
+    <div class="nav-actions">
+      <a id="devapiLink" class="nav-link" href="https://devapi-virid.vercel.app" target="_blank" rel="noreferrer">DevAPI</a>
+      <a class="nav-cta" href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">GitHub ↗</a>
+    </div>
+  </header>
 
   <main id="top">
-    <section class="hero reveal"><div class="hero-copy"><span class="kicker"><i></i> WINDOWS ENGINEERING CONTROL PLANE</span><h1>Gerçek özellikler.<br><em>Gerçek kanıt.</em></h1><p>DevBox; sohbeti, kodlamayı, terminali, Git’i, TypeScript tanılarını, kalıcı hafızayı ve kendi API gelişimini tek bir fail-closed Windows masaüstünde birleştirir. Çalışmayan yol başarı gibi gösterilmez.</p><div class="cta"><a class="primary" href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">Kaynağı incele</a><a href="https://devapi-virid.vercel.app" target="_blank" rel="noreferrer">DevAPI Cloud Control</a></div><div class="truth"><span>NO FAKE READY</span><span>REAL DISK MUTATION</span><span>INSTALL / LAUNCH / UNINSTALL GATE</span></div></div><div class="hero-core" aria-label="DevBox mimari animasyonu"><div class="core"><span>DEVBOX</span><strong>CONTROL<br>PLANE</strong></div><i class="orbit o1"></i><i class="orbit o2"></i><i class="orbit o3"></i><b class="node n1">Git</b><b class="node n2">LSP</b><b class="node n3">API</b><b class="node n4">Gate</b><b class="node n5">Memory</b></div></section>
+    <section class="hero reveal">
+      <div class="hero-copy">
+        <div class="status-line"><span class="signal"></span><span>WINDOWS ENGINEERING CONTROL PLANE</span><b>0.1.20</b></div>
+        <h1>Kod yazan değil.<br><em>Kanıt üreten</em> masaüstü.</h1>
+        <p>DevBox; sohbeti, gerçek dosya mutasyonunu, terminali, Git’i, TypeScript tanılarını, kalıcı hafızayı, adaptif API gelişimini ve yayın kapılarını tek bir fail-closed Windows çalışma yüzeyinde birleştirir.</p>
+        <div class="hero-actions">
+          <a class="primary" href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">Kaynağı incele</a>
+          <a href="https://devapi-virid.vercel.app" target="_blank" rel="noreferrer">DevAPI Cloud Control</a>
+        </div>
+        <div class="truth-row" aria-label="DevBox doğruluk ilkeleri">
+          <span>NO FAKE READY</span><span>REAL DISK MUTATION</span><span>FAIL-CLOSED RELEASE</span><span>REAL WINDOWS ACCEPTANCE</span>
+        </div>
+      </div>
 
-    <section class="live reveal" data-live-status><header><div><span class="eyebrow">LIVE DEVAPI</span><h2>Cloud state, masaüstünden bağımsız</h2></div><span id="livePill" class="pill pending">BAĞLANIYOR</span></header><div class="live-grid"><article><span>Evolution level</span><strong id="level">—</strong><small id="stage">public state bekleniyor</small></article><article><span>Score</span><strong id="score">—</strong><small>kanıtlanmış kapsama</small></article><article><span>Open findings</span><strong id="findings">—</strong><small id="blocking">blocking: —</small></article><article><span>Release gate</span><strong id="gate">—</strong><small id="freshness">snapshot bekleniyor</small></article></div><p id="liveError" class="live-error hidden"></p></section>
+      <div class="hero-visual" aria-label="DevBox çalışma mimarisi">
+        <div class="visual-window">
+          <div class="window-bar"><i></i><i></i><i></i><span>DevBox / engineering-session</span><b>LIVE SOURCE</b></div>
+          <div class="window-body">
+            <aside>
+              <span class="mini-brand">D/</span>
+              <i class="active"></i><i></i><i></i><i></i><i></i><i></i>
+            </aside>
+            <div class="mock-main">
+              <div class="mock-tabs"><span class="active">Chat</span><span>Code</span><span>Canvas</span><span>Terminal</span></div>
+              <div class="mock-chat">
+                <div class="bubble user">index.html tasarımını geliştir</div>
+                <div class="activity"><span></span> workspace mutation · gerçek dosya</div>
+                <div class="code-lines"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="pipeline"><span>READ</span><b></b><span>PATCH</span><b></b><span>VERIFY</span><b></b><span>RENDER</span></div>
+              </div>
+            </div>
+            <div class="mock-inspector">
+              <small>RELEASE GATE</small><strong>FAIL-CLOSED</strong>
+              <ul><li><i></i> TypeScript</li><li><i></i> Regression</li><li><i></i> Build truth</li><li><i></i> Runtime acceptance</li></ul>
+            </div>
+          </div>
+        </div>
+        <div class="orbit-ring ring-a"></div><div class="orbit-ring ring-b"></div>
+        <span class="float-chip chip-a">FIFO</span><span class="float-chip chip-b">FTS5</span><span class="float-chip chip-c">ConPTY</span><span class="float-chip chip-d">LSP/DAP</span>
+      </div>
+    </section>
 
-    <section id="features" class="section reveal"><div class="section-title"><span class="eyebrow">ENGINEERING SURFACE</span><h2>Bir sohbet kutusundan fazlası.</h2><p>Her kart mevcut ürün kaynaklarında çalışan bir alt sistemi temsil eder.</p></div><div class="cards"><article><b>01</b><h3>Chat + FIFO</h3><p>Aynı thread sıralı; farklı thread’ler paralel. Provider beklerken yeni sohbet açılabilir.</p></article><article><b>02</b><h3>Canvas</h3><p>Gerçek dosya kodu önce görünür; disk hash/read-back ve offscreen render kapısından sonra Preview açılır.</p></article><article><b>03</b><h3>ConPTY + Git</h3><p>Gerçek Windows terminal oturumu, Git durum/diff ve izole worktree.</p></article><article><b>04</b><h3>TypeScript LSP + DAP</h3><p>Sınırlı LSP havuzu ve gerçek vscode-js-debug DAP thread/stack/scope/step/breakpoint akışı.</p></article><article><b>05</b><h3>SQLite + FTS5 Memory</h3><p>Preference, constraint, decision ve context katmanları; dedup, pruning ve secret filtresi.</p></article><article><b>06</b><h3>RemixRota</h3><p>Dar izinli current-user named-pipe companion köprüsü, capability handshake ve stale-process doğrulaması.</p></article></div></section>
+    <section class="live-strip reveal" aria-labelledby="live-title">
+      <div class="live-head"><div><span class="eyebrow">LIVE DEVAPI PUBLIC STATE</span><h2 id="live-title">Cloud durumu yalnız gerçek snapshot’tan.</h2></div><span id="livePill" class="state-pill pending">BAĞLANIYOR</span></div>
+      <div class="live-grid">
+        <article><span>Evolution level</span><strong id="level">—</strong><small id="stage">snapshot bekleniyor</small></article>
+        <article><span>Score</span><strong id="score">—</strong><small>kanıtlanmış kapsam</small></article>
+        <article><span>Open findings</span><strong id="findings">—</strong><small id="blocking">blocking: —</small></article>
+        <article><span>Release gate</span><strong id="gate">—</strong><small id="freshness">snapshot bekleniyor</small></article>
+        <article><span>Core graph</span><strong id="core">—</strong><small id="coreDetail">22 faz / 3362 görev</small></article>
+      </div>
+      <p id="liveError" class="live-error hidden"></p>
+    </section>
 
-    <section id="evolution" class="section split reveal"><div><span class="eyebrow">API EVOLUTION</span><h2>3362 görev bitince durmuyor.</h2><p>22 fazlık çekirdek plan tamamlandıktan sonra adaptif görev motoru yeni kalite, performans, güvenlik, UX, API ve entegrasyon işleri üretir. Gerçek diff, test/verify ve commit olmadan iyileştirme sayılmaz.</p><div class="flow"><span>FIND</span><i></i><span>PATCH</span><i></i><span>VERIFY</span><i></i><span>COMMIT</span><i></i><span>LEARN</span></div></div><div class="terminal"><div class="terminal-head"><i></i><i></i><i></i><span>evolution/runtime</span></div><code><b>$</b> scope: isolated-worktree<br><b>$</b> finding: fingerprint + severity + owner<br><b>$</b> mutation: required<br><b>$</b> typecheck/test/build: required<br><b>$</b> blocker: fail-closed<br><b class="ok">✓</b> promotion: evidence-backed</code></div></section>
+    <section id="platform" class="section reveal">
+      <div class="section-heading"><div><span class="eyebrow">ENGINEERING SURFACE</span><h2>Tek pencere. Gerçek alt sistemler.</h2></div><p>Her kart ürünün çalışan bir capability sınırını temsil eder. Pazarlama için uydurulmuş “AI sihri” değil, diskten Git’e kadar izlenebilir mühendislik yüzeyi.</p></div>
+      <div class="bento">
+        <article class="feature feature-wide"><span>01 · CHAT / AGENT</span><h3>FIFO konuşma akışı</h3><p>Aynı thread sıralı, farklı thread’ler paralel. Provider yanıtı beklerken yeni sohbet açılabilir; eski yanıt yeni sohbeti ele geçiremez.</p><div class="mini-flow"><i>TURN 1</i><b></b><i>TURN 2</i><b></b><i>TURN 3</i></div></article>
+        <article class="feature"><span>02 · CANVAS</span><h3>Kod önce, preview sonra</h3><p>Gerçek disk içeriği canlı görünür. Hash/read-back ve offscreen Electron render geçmeden Preview terfi etmez.</p></article>
+        <article class="feature"><span>03 · TERMINAL</span><h3>Windows ConPTY</h3><p>Gerçek <code>node-pty</code> / ConPTY oturumları; komut, cwd, exit ve iptal semantiği kayıtlı.</p></article>
+        <article class="feature"><span>04 · TYPESCRIPT</span><h3>Kalıcı LSP havuzu</h3><p>Proje başına yeniden kullanılan language-server, URI canonicalization, bounded document LRU ve gerçek diagnostic.</p></article>
+        <article class="feature"><span>05 · DEBUG</span><h3>Microsoft DAP</h3><p><code>vscode-js-debug</code> ile thread, stack, scope, variable, stepping ve breakpoint kontrolü.</p></article>
+        <article class="feature feature-tall"><span>06 · MEMORY</span><h3>SQLite + FTS5 hafıza</h3><p>Preference, constraint, decision ve context katmanları; dedup, pruning, secret filtresi ve scope-güvenli retrieval.</p><div class="memory-stack"><i>CONSTRAINT</i><i>PREFERENCE</i><i>DECISION</i><i>CONTEXT</i></div></article>
+        <article class="feature"><span>07 · GIT</span><h3>Diff + worktree</h3><p>Gerçek status/diff, değişiklik sayacı ve API Evolution için izole worktree yaşam döngüsü.</p></article>
+        <article class="feature"><span>08 · REMIXROTA</span><h3>Dar companion köprüsü</h3><p>Current-user named pipe, capability handshake, allowlist ve stale-process doğrulaması.</p></article>
+        <article class="feature feature-wide"><span>09 · CLOUD</span><h3>DevAPI continuity</h3><p>HMAC doğrulamalı snapshot, kalıcı Postgres history ve <strong>PENDING → RETRYING → APPLIED / FAILED</strong> command ACK yaşam döngüsü.</p><a href="https://devapi-virid.vercel.app" target="_blank" rel="noreferrer">Control plane’i aç ↗</a></article>
+      </div>
+    </section>
 
-    <section id="evidence" class="section reveal"><div class="section-title"><span class="eyebrow">RELEASE EVIDENCE</span><h2>“EXE çıktı” yayın kanıtı değildir.</h2></div><div class="evidence"><article><span>01</span><h3>Source gate</h3><p>Development spec, evolution verifier, cloud contract, TypeScript, regresyon ve truth audit.</p></article><article><span>02</span><h3>Artifact gate</h3><p>NSIS üretimi, PE/MZ ve SHA-256 bütünlüğü.</p></article><article><span>03</span><h3>Runtime acceptance</h3><p>Silent install, kurulu EXE hash, shortcuts, gerçek launch, uninstaller ve cleanup.</p></article></div></section>
+    <section id="evolution" class="section evolution reveal">
+      <div class="section-heading"><div><span class="eyebrow">API EVOLUTION</span><h2>3362 görev bitince motor kapanmıyor.</h2></div><p>Çekirdek development graph tamamlandığında adaptif motor repository/runtime kanıtını yeniden tarar, somut finding seçer ve yalnız gerçek mutasyon + regresyon + doğrulama ile ilerler.</p></div>
+      <div class="evo-grid">
+        <div class="evo-orbit" aria-hidden="true"><div class="evo-core"><span>ADAPT</span><strong>∞</strong><small>continuous</small></div><i class="eo1"></i><i class="eo2"></i><i class="eo3"></i></div>
+        <div class="evo-tracks">
+          <div><b>01</b><span>cloud-continuity</span><small>snapshot + restart sürekliliği</small></div>
+          <div><b>02</b><span>deployment-safety</span><small>staged deploy + rollback kanıtı</small></div>
+          <div><b>03</b><span>public-api-contract</span><small>sanitize schema + compatibility</small></div>
+          <div><b>04</b><span>command-delivery</span><small>sequence + ACK + idempotency</small></div>
+          <div><b>05</b><span>database-performance</span><small>query/state retention bütçesi</small></div>
+          <div><b>06</b><span>protocol-compatibility</span><small>desktop ↔ cloud sözleşmesi</small></div>
+          <div><b>07</b><span>secret-rotation</span><small>credential yaşam döngüsü</small></div>
+          <div><b>08</b><span>dependency-provenance</span><small>kaynak ve binary güveni</small></div>
+        </div>
+      </div>
+      <div class="evo-pipeline"><span>FIND</span><i></i><span>PATCH</span><i></i><span>TEST</span><i></i><span>VERIFY</span><i></i><span>COMMIT</span><i></i><span>LEARN</span></div>
+    </section>
 
-    <section class="section architecture reveal"><div class="section-title"><span class="eyebrow">CONNECTED SYSTEM</span><h2>Desktop ↔ DevAPI ↔ Cloud</h2></div><svg viewBox="0 0 900 330" role="img" aria-label="DevBox cloud mimarisi"><defs><linearGradient id="fire" x1="0" x2="1"><stop stop-color="#ff3b22"/><stop offset="1" stop-color="#ff8a34"/></linearGradient></defs><path class="link" d="M220 165 C310 80 350 80 450 165 S610 250 680 165"/><path class="link dim" d="M220 165 C330 250 350 250 450 165 S590 80 680 165"/><g transform="translate(80 105)"><rect width="180" height="120" rx="24"/><text x="90" y="52">DEVBOX</text><text class="sub" x="90" y="78">Windows Desktop</text></g><g transform="translate(360 105)"><rect width="180" height="120" rx="24"/><text x="90" y="52">DEVAPI</text><text class="sub" x="90" y="78">Evolution + Gate</text></g><g transform="translate(640 105)"><rect width="180" height="120" rx="24"/><text x="90" y="52">CLOUD</text><text class="sub" x="90" y="78">Vercel + Postgres</text></g></svg></section>
+    <section id="release" class="section reveal">
+      <div class="section-heading"><div><span class="eyebrow">RELEASE EVIDENCE</span><h2>“EXE oluştu” yayın kanıtı değil.</h2></div><p>Yayın zinciri kaynak gerçekliği, artifact bütünlüğü ve gerçek Windows kabulünü ayrı kapılar olarak ele alır.</p></div>
+      <div class="release-rail">
+        <article><span>GATE 01</span><h3>Source truth</h3><p>3362 spec, Evolution v7→v13, cloud contract, TypeScript, test, build ve truth audit.</p><b>SOURCE</b></article>
+        <article><span>GATE 02</span><h3>Production evidence</h3><p>DevAPI/DevBox canonical URL, health/public-state canary, runtime errors, rollback ve cross-link kanıtı.</p><b>CLOUD</b></article>
+        <article><span>GATE 03</span><h3>Artifact integrity</h3><p>NSIS, PE/MZ, SHA-256 ve paketlenen main entry doğrulaması.</p><b>PACKAGE</b></article>
+        <article><span>GATE 04</span><h3>Windows acceptance</h3><p>Silent install, kurulu EXE hash, gerçek launch, uninstall ve cleanup.</p><b>RUNTIME</b></article>
+      </div>
+    </section>
+
+    <section id="architecture" class="section architecture reveal">
+      <div class="section-heading"><div><span class="eyebrow">CONNECTED SYSTEM</span><h2>Desktop ↔ DevAPI ↔ Vercel/Neon</h2></div><p>Cloud kontrol düzlemi masaüstü kapansa bile state/history’yi korur. Komutlar arbitrary shell değildir; izinli evolution command sözleşmesiyle sınırlıdır.</p></div>
+      <div class="arch-board">
+        <article><i>D</i><strong>DevBox</strong><span>Windows Desktop</span><small>Agent · Git · LSP · DAP · Memory</small></article>
+        <div class="arch-link"><span>HMAC snapshot</span><b></b><span>ACK commands</span></div>
+        <article><i>A</i><strong>DevAPI</strong><span>Cloud Control</span><small>State · Findings · Gate · Evolution</small></article>
+        <div class="arch-link"><span>durable state</span><b></b><span>history</span></div>
+        <article><i>N</i><strong>Neon</strong><span>Postgres</span><small>Snapshot · Command · Audit</small></article>
+      </div>
+    </section>
+
+    <section class="section oss reveal">
+      <div><span class="eyebrow">OPEN SOURCE / SUPPLY CHAIN</span><h2>Açık kaynak araçlar, dar güven sınırı.</h2><p>DevBox Apache-2.0 kaynaklıdır. UI araştırmasında Motion, Anime.js ve shadcn/ui gibi MIT lisanslı projelerin etkileşim ve erişilebilirlik desenleri incelenir; gereksiz runtime dependency eklemek yerine native browser API’leri tercih edilir.</p></div>
+      <div class="oss-links"><a href="https://github.com/motiondivision/motion" target="_blank" rel="noreferrer">Motion ↗</a><a href="https://github.com/juliangarnier/anime" target="_blank" rel="noreferrer">Anime.js ↗</a><a href="https://github.com/shadcn-ui/ui" target="_blank" rel="noreferrer">shadcn/ui ↗</a></div>
+    </section>
   </main>
 
-  <footer><div><strong>DevBox</strong><span>Evidence-first engineering desktop.</span></div><div><a href="https://devapi-virid.vercel.app" target="_blank" rel="noreferrer">DevAPI</a><a href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">GitHub</a></div><small>v0.1.19 · READY yalnız gerçek state ile.</small></footer>
+  <footer>
+    <div><span class="brand-mark small"><i></i></span><strong>DevBox</strong><small>Evidence-first engineering desktop.</small></div>
+    <div><a href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">GitHub</a><a href="https://devapi-virid.vercel.app" target="_blank" rel="noreferrer">DevAPI</a><a href="#top">Yukarı ↑</a></div>
+    <span>v0.1.20 · READY yalnız gerçek state ile.</span>
+  </footer>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

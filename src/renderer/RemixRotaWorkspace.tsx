@@ -89,20 +89,20 @@ export function RemixRotaWorkspace(): ReactNode {
   const progress = player?.duration ? Math.max(0, Math.min(100, (player.progress / player.duration) * 100)) : 0;
   const state = status?.state ?? "UNCONFIGURED";
   const ready = state === "READY";
-  const currentTitle = player?.current?.title ?? "RemixRota bağlantısı bekleniyor";
-  const currentArtist = player?.current?.artist ?? "DevBox müzik motorunu kopyalamaz; gerçek companion durumunu gösterir.";
+  const currentTitle = player?.current?.title ?? "Müzik kaynağı bağlı değil";
+  const currentArtist = player?.current?.artist ?? "Bağlantı ayarlarından yerel oynatıcıyı seçtiğinizde gerçek oynatma bilgisi burada görünür.";
   const currentThumbnail = trustedThumbnailUrl(player?.current?.thumbnailUrl ?? "");
   const tracks = useMemo(() => view?.tracks ?? [], [view]);
 
   return <section className="advanced-page music-workspace">
-    <div className="advanced-heading music-heading"><div><span className="advanced-eyebrow">REMIXROTA COMPANION · PROTOCOL 1.0</span><h1>Müzik merkezi</h1><p>Oynatma durumunun tek sahibi RemixRota. DevBox yalnız dar izinli Windows named-pipe protokolünden okur ve desteklenen komutları gönderir; ayrı müzik state’i uydurmaz.</p></div><div className="advanced-actions"><button onClick={() => void reload()} disabled={Boolean(busy)}><RefreshCw className={busy ? "spin" : ""} size={14} /> Yenile</button><button onClick={() => void configure()} disabled={Boolean(busy)}><Settings2 size={14} /> RemixRota.exe seç</button>{ready ? <button onClick={() => void disconnect()} disabled={Boolean(busy)}>Bağlantıyı kes</button> : <button className="primary flame" onClick={() => void connect()} disabled={Boolean(busy)}>{busy === "connect" ? <LoaderCircle className="spin" size={14} /> : <Music2 size={14} />} Companion'a bağlan</button>}</div></div>
+    <div className="advanced-heading music-heading"><div><span className="advanced-eyebrow">DEVBOX MUSIC · YEREL MEDYA MERKEZİ</span><h1>Müzik merkezi</h1><p>Şimdi çalan, kütüphane, arama, favoriler ve kuyruk tek çalışma yüzeyinde. Yerel oynatıcı bağlantısı yoksa DevBox örnek parça veya sahte oynatma durumu üretmez.</p></div><div className="advanced-actions"><button onClick={() => void reload()} disabled={Boolean(busy)}><RefreshCw className={busy ? "spin" : ""} size={14} /> Yenile</button><button onClick={() => void configure()} disabled={Boolean(busy)}><Settings2 size={14} /> Bağlantı ayarları</button>{ready ? <button onClick={() => void disconnect()} disabled={Boolean(busy)}>Bağlantıyı kes</button> : <button className="primary flame" onClick={() => void connect()} disabled={Boolean(busy)}>{busy === "connect" ? <LoaderCircle className="spin" size={14} /> : <Music2 size={14} />} Yerel oynatıcıya bağlan</button>}</div></div>
 
-    <div className="music-status-grid">
+    <details className="music-connection-details"><summary><Settings2 size={15} /><span>Bağlantı ve tanılama</span><small>{stateLabel(state)}</small></summary><div className="music-status-grid">
       <article className={`music-connection-card state-${state.toLocaleLowerCase("en-US")}`}><span>BAĞLANTI</span><strong>{stateLabel(state)}</strong><small>{status?.detail ?? "Yerel entegrasyon okunuyor."}</small></article>
       <article><span>PROTOKOL</span><strong>{status?.discovery ? `${status.discovery.protocol.major}.${status.discovery.protocol.minor}` : "1.0"}</strong><small>{status?.discovery?.serviceVersion ? `RemixRota ${status.discovery.serviceVersion}` : "companion discovery"}</small></article>
       <article><span>YETENEK</span><strong>{status?.grantedCapabilities.length ?? 0}/5</strong><small>{status?.grantedCapabilities.join(" · ") || "el sıkışması bekleniyor"}</small></article>
       <article><span>KUYRUK</span><strong>{player?.queueCount ?? 0}</strong><small>{player?.activeView ?? "görünüm yok"}</small></article>
-    </div>
+    </div></details>
 
     <section className="music-now-playing">
       <div className="music-artwork">{currentThumbnail ? <img src={currentThumbnail} alt={`${currentTitle} kapağı`} referrerPolicy="no-referrer" /> : <Music2 size={38} />}</div>

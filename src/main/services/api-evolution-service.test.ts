@@ -57,13 +57,19 @@ describe("adaptive API evolution tasks", () => {
     } finally { service.stop(); }
   });
 
-  it("rotates real maintenance domains after the fixed core graph", () => {
+  it("rotates real maintenance domains deterministically after the fixed core graph", () => {
     const first = createAdaptiveEvolutionTask(1);
+    const repeatedFirst = createAdaptiveEvolutionTask(1);
     const second = createAdaptiveEvolutionTask(2);
-    const nineteenth = createAdaptiveEvolutionTask(19);
+    const sample = Array.from({ length: 80 }, (_, index) => createAdaptiveEvolutionTask(index + 1));
+    const tracks = new Set(sample.map((task) => task.track));
+
     expect(first.taskId).toBe("ADAPT-000001");
+    expect(repeatedFirst.track).toBe(first.track);
+    expect(repeatedFirst.title).toBe(first.title);
     expect(second.track).not.toBe(first.track);
-    expect(nineteenth.track).toBe(first.track);
+    expect(tracks.size).toBeGreaterThanOrEqual(12);
+    expect(sample.every((task, index) => task.taskId === `ADAPT-${String(index + 1).padStart(6, "0")}`)).toBe(true);
     expect(first.objective).toMatch(/gerçek kaynak|regresyon|verify/iu);
     expect(first.objective).toMatch(/demo|placeholder|no-op/iu);
   });
