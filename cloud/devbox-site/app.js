@@ -1,4 +1,5 @@
 import "./experience-v2.js";
+import "./ecosystem-nav.js";
 
 const ENDPOINT = "/api/public-state";
 const $ = (id) => document.getElementById(id);
