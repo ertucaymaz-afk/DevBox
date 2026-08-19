@@ -40,7 +40,11 @@
     "branchName": "main",
     "computeId": "ep-hidden-union-aupznhip",
     "region": "aws-us-east-1",
-    "schemaTables": ["devbox_commands", "devbox_projects", "devbox_snapshot_history"],
+    "schemaTables": [
+      "devbox_project_state",
+      "devbox_project_state_history",
+      "devbox_control_commands"
+    ],
     "schemaReadBack": "PASS",
     "state": "READY_FOR_CONNECTION_SECRET"
   },

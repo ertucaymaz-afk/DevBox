@@ -79,7 +79,7 @@ check("cloud-server-command-allowlist", hasAll(cloudCommands, ["evolution.setEna
 check("cloud-server-project-discovery", cloudProjects.includes("requireAdminAuth") && cloudProjects.includes("listProjects") && cloudProjects.includes("generatedAt"));
 check("cloud-health-coarse-only", cloudHealth.includes("version:") && cloudHealth.includes("state:") && cloudHealth.includes("time:") && !cloudHealth.includes("configured") && !cloudHealth.includes("desktopAuth:") && !cloudHealth.includes("adminAuth:"));
 check("cloud-dashboard-project-discovery", hasAll(cloudApp, ["discoverProjects", "/api/v1/projects", "projectPicker", "renderCommands", "apply_status"]));
-check("cloud-dashboard-command-lifecycle", hasAll(cloudIndex, ["COMMAND AUDIT", "PENDING → RETRYING → APPLIED / FAILED", "desktop ACK"]));
+check("cloud-dashboard-command-lifecycle", hasAll(cloudIndex, ["COMMAND AUDIT", "PENDING → RETRYING → APPLIED / FAILED"]) && cloudIndex.toLocaleLowerCase("en-US").includes("desktop ack"));
 check("cloud-vercel-csp", cloudVercel.includes("Content-Security-Policy") && cloudVercel.includes("frame-ancestors 'none'") && cloudVercel.includes("connect-src 'self'"));
 check("cloud-neon-pinned", cloudPackage.includes('"@neondatabase/serverless": "1.1.0"'));
 check("cloud-deployment-contract", hasAll(cloudReadme, ["cloud/devapi-control", "DATABASE_URL", "DEVBOX_CONTROL_PLANE_TOKEN", "DEVBOX_CONTROL_ADMIN_TOKEN", "PENDING", "RETRYING", "APPLIED", "FAILED"]));

@@ -96,7 +96,19 @@ const ADAPTIVE_FOCUS: ReadonlyArray<{ track: EvolutionTrack; title: string; obje
   { track: "design", title: "Tema eşdeğerliği", objective: "koyu ve gündüz modları arasında kontrast, yüzey, focus, editor, terminal veya DevAPI anlamını bozan gerçek bir tutarsızlık bul ve iki temada doğrula" },
   { track: "integrations", title: "Araç entegrasyonu", objective: "mevcut açık kaynak/izinli araç zincirinde doğrulanabilir bir entegrasyon veya health-check eksikliği bul ve sahte READY üretmeden tamamla" },
   { track: "supply-chain", title: "Bağımlılık güveni", objective: "kilit dosyası, kaynak kimliği, binary/tool doğrulaması veya güncelleme zincirinde somut bir güven açığı bul ve fail-closed kapat" },
-  { track: "documentation", title: "Gerçeklik ve işletilebilirlik", objective: "kullanıcıya yanlış güven verebilecek güncelliğini yitirmiş bir ürün sözleşmesi/diagnostic açıklaması bul ve gerçek runtime davranışıyla eşleştir" }
+  { track: "documentation", title: "Gerçeklik ve işletilebilirlik", objective: "kullanıcıya yanlış güven verebilecek güncelliğini yitirmiş bir ürün sözleşmesi/diagnostic açıklaması bul ve gerçek runtime davranışıyla eşleştir" },
+  { track: "cloud-continuity", title: "Cloud continuity", objective: "desktop restart veya bağlantı kopması sonrasında snapshot cursor, command ACK ve history sürekliliğinde gerçek bir kayıp/duplicate riski bul ve idempotent düzelt" },
+  { track: "deployment-safety", title: "Deployment safety", objective: "staged deploy, canonical promotion, rollback candidate veya source/deployment eşlemesinde false-PASS ihtimali bul ve fail-closed kanıt ekle" },
+  { track: "public-api-contract", title: "Public API contract", objective: "public-state sanitize schema, cache/etag, stale semantiği veya backward compatibility tarafında gerçek bir sözleşme kusuru bul ve negatif testle kapat" },
+  { track: "command-delivery", title: "Command delivery", objective: "cloud command sequence, retry, ACK, idempotency veya poison-command yaşam döngüsünde gerçek duplicate/reorder riski bul ve deterministik düzelt" },
+  { track: "observability", title: "Production observability", objective: "runtime error, function latency, DB failure, HMAC reject veya ACK timeout kök nedenini görünmez bırakan telemetry boşluğu bul ve secret sızdırmadan kanıt ekle" },
+  { track: "disaster-recovery", title: "Disaster recovery", objective: "cloud/desktop state kaybı, rollback, backup veya known-good dönüşünde gerçek recovery boşluğu bul ve fail-closed tatbikat/test ekle" },
+  { track: "database-performance", title: "Database performance", objective: "snapshot/history/command sorgularında retention, index veya query pattern kaynaklı ölçülebilir darboğaz bul ve gerçek plan/read-back ile iyileştir" },
+  { track: "site-performance", title: "Site performance", objective: "DevBox veya DevAPI web yüzeyinde payload, render, polling veya animasyon kaynaklı gerçek performans/erişilebilirlik sorunu bul ve ölçülebilir biçimde düzelt" },
+  { track: "accessibility", title: "Site accessibility", objective: "web ve desktop yüzeylerinde keyboard/focus/reduced-motion/semantic landmark açısından gerçek erişilebilirlik kusuru bul ve regresyonla kapat" },
+  { track: "protocol-compatibility", title: "Protocol compatibility", objective: "desktop ve cloud schema/version/capability sözleşmesinde ileri-geri uyumluluğu bozan gerçek drift bul ve fail-closed compatibility testi ekle" },
+  { track: "secret-rotation", title: "Secret rotation", objective: "desktop/admin/cloud token yaşam döngüsü, eşit-secret yasağı veya rotation sırasında kesinti/sızıntı riski bul ve doğrulanabilir düzelt" },
+  { track: "dependency-provenance", title: "Dependency provenance", objective: "açık kaynak/toolkit/binary kaynağı, lisans, lockfile veya checksum zincirinde doğrulanamayan bir güven sınırı bul ve provenance kanıtı ekle" }
 ];
 
 export function shouldContinueEvolution(input: {
@@ -152,7 +164,7 @@ function conciseLearning(content: string): string { return content.replace(/```[
 function levelForPoints(points: number, floor: number): number { let level = 1; while (Math.round(100 * Math.pow(level, 1.55)) <= points) level += 1; return Math.max(floor, level); }
 function stageFor(level: number, score: number): string { if (score === 0) return `Seviye ${level} · kanıt bekliyor`; if (score >= 90) return `Seviye ${level} · geniş kapsam`; if (score >= 60) return `Seviye ${level} · çok alanlı`; return `Seviye ${level} · uygulanıyor`; }
 
-const TRACKS: readonly EvolutionTrack[] = ["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain"];
+const TRACKS: readonly EvolutionTrack[] = ["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain", "cloud-continuity", "deployment-safety", "public-api-contract", "command-delivery", "disaster-recovery", "database-performance", "site-performance", "protocol-compatibility", "secret-rotation", "dependency-provenance"];
 function domainScores(tasks: readonly EvolutionTask[], previous?: unknown): Record<EvolutionTrack, number> {
   const source = previous && typeof previous === "object" && !Array.isArray(previous) ? previous as Record<string, unknown> : {};
   return Object.fromEntries(TRACKS.map((track) => {
