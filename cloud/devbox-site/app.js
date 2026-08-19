@@ -1,5 +1,4 @@
-const DEVAPI_ORIGIN = "https://devapi-virid.vercel.app";
-const ENDPOINT = `${DEVAPI_ORIGIN}/api/v1/public-state`;
+const ENDPOINT = "/api/public-state";
 const $ = (id) => document.getElementById(id);
 const fields = {
   level: $("level"), stage: $("stage"), score: $("score"), findings: $("findings"), blocking: $("blocking"),
@@ -43,6 +42,21 @@ function render(data) {
   fields.error.classList.add("hidden");
 }
 
+async function hydrateDevApiLinks() {
+  try {
+    const response = await fetch("/api/product-links", { cache: "no-store", signal: AbortSignal.timeout(5_000) });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || typeof body.devapi !== "string") return;
+    const url = new URL(body.devapi);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return;
+    document.querySelectorAll('a[href^="https://devapi-virid.vercel.app"]').forEach((anchor) => {
+      if (anchor instanceof HTMLAnchorElement) anchor.href = url.origin;
+    });
+  } catch {
+    // Canonical fallback links remain usable; live metrics still fail closed through the same-origin proxy.
+  }
+}
+
 async function refresh() {
   try {
     const response = await fetch(ENDPOINT, {
@@ -54,6 +68,7 @@ async function refresh() {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.error || `HTTP_${response.status}`);
     }
+    if (response.headers.get("x-devbox-public-state") !== "sanitized-proxy") throw new Error("PUBLIC_STATE_PROXY_UNTRUSTED");
     render(await response.json());
   } catch (error) {
     setUnavailable(error instanceof Error ? error.message : String(error));
@@ -79,4 +94,5 @@ const observer = new IntersectionObserver((entries) => {
   }
 }, { rootMargin: "0px 0px -8%", threshold: 0.12 });
 document.querySelectorAll(".reveal").forEach((element) => observer.observe(element));
+void hydrateDevApiLinks();
 schedule();
