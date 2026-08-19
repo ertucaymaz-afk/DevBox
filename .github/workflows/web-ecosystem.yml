@@ -34,7 +34,7 @@ jobs:
   web-verify:
     name: 11 route · responsive · reduced-motion · screenshot evidence
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 18
     steps:
       - name: Exact source checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -59,8 +59,12 @@ jobs:
       - name: Static 11-surface contract gate
         run: pnpm web:verify
 
-      - name: Install exact Playwright Chromium runtime
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify runner browser baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v google-chrome
+          google-chrome --version
 
       - name: 11 route × 4 viewport browser QA
         run: pnpm web:visual:verify
@@ -73,9 +77,9 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const x=JSON.parse(fs.readFileSync('outputs/web-visual/summary.json','utf8'));
-          const ok=x?.status==='PASS' && x?.routes===11 && x?.viewports===4 && x?.expectedScreenshots===44 && x?.capturedScreenshots===44 && x?.reducedMotion==='VERIFIED_PER_CASE';
-          if(!ok) throw new Error(`WEB_VISUAL_EVIDENCE_INVALID:${JSON.stringify({status:x?.status,routes:x?.routes,viewports:x?.viewports,captured:x?.capturedScreenshots,reducedMotion:x?.reducedMotion})}`);
-          console.log(`DEVBOX_WEB_SCREENSHOT_EVIDENCE_PASS source=${x.sourceSha||'unknown'} screenshots=${x.capturedScreenshots}`);
+          const ok=x?.status==='PASS' && x?.routes===11 && x?.viewports===4 && x?.expectedScreenshots===44 && x?.capturedScreenshots===44 && x?.reducedMotion==='VERIFIED_PER_CASE' && x?.architectureExplorer==='BROWSER_VERIFIED_ON_HOME' && x?.sourceCapabilities===12 && x?.evolutionTracks===10;
+          if(!ok) throw new Error(`WEB_VISUAL_EVIDENCE_INVALID:${JSON.stringify({status:x?.status,routes:x?.routes,viewports:x?.viewports,captured:x?.capturedScreenshots,reducedMotion:x?.reducedMotion,architecture:x?.architectureExplorer,capabilities:x?.sourceCapabilities,evolutionTracks:x?.evolutionTracks})}`);
+          console.log(`DEVBOX_WEB_SCREENSHOT_EVIDENCE_PASS source=${x.sourceSha||'unknown'} screenshots=${x.capturedScreenshots} architecture=10 capabilities=12 evolutionTracks=10`);
           NODE
 
       - name: Upload visual evidence
