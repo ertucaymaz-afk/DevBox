@@ -1,4 +1,4 @@
-const DEFAULT_MODEL = "gpt-5";
+const DEFAULT_MODEL = "gpt-5.6";
 const SDK_PACKAGE = "@openai/agents";
 const SDK_VERSION = "0.14.3";
 
