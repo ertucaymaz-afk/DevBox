@@ -1,9 +1,9 @@
-name: v0.1.20 source materialize hardening
+name: v0.1.20 final source materialize hardening
 
 on:
   push:
     branches:
-      - codex/v0.1.20-vercel-production-modernization
+      - codex/v0.1.20-final-production-gate
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -12,19 +12,19 @@ permissions:
   contents: write
 
 concurrency:
-  group: v020-materialize-${{ github.event.pull_request.number || github.ref }}
+  group: v020-final-materialize-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   materialize:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'codex/v0.1.20-vercel-production-modernization'
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'codex/v0.1.20-final-production-gate'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
-      - name: v0.1.20 branch kaynağını al
+      - name: v0.1.20 final branch kaynağını al
         uses: actions/checkout@v6
         with:
-          ref: codex/v0.1.20-vercel-production-modernization
+          ref: codex/v0.1.20-final-production-gate
           fetch-depth: 0
 
       - name: pnpm 11.19.0 kur
@@ -75,7 +75,7 @@ jobs:
           if ($text -notmatch 'BLOCKED') { throw 'V020_PRODUCTION_GATE_BLOCKER_NOT_REPORTED' }
           Write-Host 'V020_PRODUCTION_GATE_EXPECTED_BLOCKED PASS'
 
-      - name: Doğrulanmış structural ürün kaynaklarını branch'e yaz
+      - name: Doğrulanmış structural ürün kaynaklarını final branch'e yaz
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -84,7 +84,7 @@ jobs:
           git add src/shared/contracts.ts src/main/services/api-evolution-service.ts
           if (-not (git diff --cached --quiet)) {
             git commit -m 'v0.1.20 adaptive evolution cloud and production tracks'
-            git push origin HEAD:codex/v0.1.20-vercel-production-modernization
+            git push origin HEAD:codex/v0.1.20-final-production-gate
           } else {
             Write-Host 'V020_STRUCTURAL_PRODUCT_ALREADY_MATERIALIZED'
           }
