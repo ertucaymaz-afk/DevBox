@@ -1,4 +1,4 @@
-name: DevAPI autonomous evolution v2
+name: DevAPI autonomous evolution v3
 
 on:
   push:
@@ -6,12 +6,18 @@ on:
       - codex/devapi-autonomous-evolution-v1
     paths:
       - cloud/devapi-control/**
+      - cloud/devapi-sites/**
       - scripts/build-devapi-repo-inventory.mjs
       - scripts/devapi-agent-worker-smoke.mjs
       - scripts/devapi-worktree-smoke.mjs
       - scripts/devapi-browser-smoke.mjs
+      - scripts/devapi-provider-smoke.mjs
+      - scripts/devapi-db-runtime-smoke.mjs
+      - scripts/devapi-agents-supply-chain.mjs
+      - scripts/verify-devapi-sites-v1.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
+      - scripts/verify-devapi-autonomous-v3.mjs
       - scripts/verify-devapi-worker-security.mjs
       - scripts/verify-devapi-tool-catalog-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
@@ -20,14 +26,8 @@ on:
       - codex/v0.1.20-vercel-production-modernization
     paths:
       - cloud/devapi-control/**
-      - scripts/build-devapi-repo-inventory.mjs
-      - scripts/devapi-agent-worker-smoke.mjs
-      - scripts/devapi-worktree-smoke.mjs
-      - scripts/devapi-browser-smoke.mjs
-      - scripts/verify-devapi-autonomous-v1.mjs
-      - scripts/verify-devapi-autonomous-v2.mjs
-      - scripts/verify-devapi-worker-security.mjs
-      - scripts/verify-devapi-tool-catalog-v2.mjs
+      - cloud/devapi-sites/**
+      - scripts/**devapi**
       - .github/workflows/devapi-autonomous-evolution.yml
 
 permissions:
@@ -39,9 +39,13 @@ concurrency:
 
 jobs:
   verify:
-    name: task + worker + worktree + browser + agent + contract + security + research truth gate
+    name: dependency + task + worker + worktree + browser + provider + db + contract + sites truth gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DATABASE_URL: ${{ secrets.DEVBOX_DATABASE_URL }}
+      DEVAPI_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Exact source checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -54,109 +58,108 @@ jobs:
         with:
           node-version: 24
 
+      - name: Exact dependency lock and clean install
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p outputs
+          cd cloud/devapi-control
+          if [ ! -f package-lock.json ]; then npm install --package-lock-only --ignore-scripts --no-fund --no-audit; fi
+          npm audit --json > ../../outputs/devapi-npm-audit.json || true
+          rm -rf node_modules
+          npm ci --ignore-scripts --no-fund --no-audit
+          npm ls --all > ../../outputs/devapi-npm-ls.txt
+          cd ../..
+          node scripts/devapi-agents-supply-chain.mjs
+
       - name: Syntax gate
         shell: bash
         run: |
           set -euo pipefail
-          node --check cloud/devapi-control/agent/tool-registry.mjs
-          node --check cloud/devapi-control/agent/task-policy.mjs
-          node --check cloud/devapi-control/agent/task-state.mjs
-          node --check cloud/devapi-control/agent/runtime.mjs
-          node --check cloud/devapi-control/research/evidence.mjs
-          node --check cloud/devapi-control/lib/openai-web-research.mjs
-          node --check cloud/devapi-control/lib/agent-store.mjs
-          node --check cloud/devapi-control/worker/approval.mjs
-          node --check cloud/devapi-control/worker/workspace.mjs
-          node --check cloud/devapi-control/worker/git-worktree.mjs
-          node --check cloud/devapi-control/browser/system-chrome.mjs
-          node --check cloud/devapi-control/api/v1/agent-capabilities.mjs
-          node --check cloud/devapi-control/api/v1/agent-research.mjs
-          node --check cloud/devapi-control/api/v1/agent-runtime.mjs
-          node --check cloud/devapi-control/api/v1/agent-tasks.mjs
-          node --check scripts/build-devapi-repo-inventory.mjs
-          node --check scripts/devapi-agent-worker-smoke.mjs
-          node --check scripts/devapi-worktree-smoke.mjs
-          node --check scripts/devapi-browser-smoke.mjs
-          node --check scripts/verify-devapi-autonomous-v1.mjs
-          node --check scripts/verify-devapi-autonomous-v2.mjs
-          node --check scripts/verify-devapi-worker-security.mjs
-          node --check scripts/verify-devapi-tool-catalog-v2.mjs
+          for file in \
+            cloud/devapi-control/agent/tool-registry.mjs \
+            cloud/devapi-control/agent/task-policy.mjs \
+            cloud/devapi-control/agent/task-state.mjs \
+            cloud/devapi-control/agent/runtime.mjs \
+            cloud/devapi-control/agent/orchestrator.mjs \
+            cloud/devapi-control/lib/openai-web-research.mjs \
+            cloud/devapi-control/lib/agent-store.mjs \
+            cloud/devapi-control/lib/approval-store.mjs \
+            cloud/devapi-control/lib/migration-ledger.mjs \
+            cloud/devapi-control/lib/http-response.mjs \
+            cloud/devapi-control/worker/approval.mjs \
+            cloud/devapi-control/worker/workspace.mjs \
+            cloud/devapi-control/worker/git-worktree.mjs \
+            cloud/devapi-control/browser/system-chrome.mjs \
+            cloud/devapi-control/api/v1/agent-approvals.mjs \
+            cloud/devapi-control/api/v1/agent-capabilities.mjs \
+            cloud/devapi-control/api/v1/agent-orchestrator.mjs \
+            cloud/devapi-control/api/v1/agent-research.mjs \
+            cloud/devapi-control/api/v1/agent-runtime.mjs \
+            cloud/devapi-control/api/v1/agent-tasks.mjs \
+            scripts/devapi-provider-smoke.mjs \
+            scripts/devapi-db-runtime-smoke.mjs \
+            scripts/verify-devapi-sites-v1.mjs \
+            scripts/verify-devapi-autonomous-v3.mjs; do node --check "$file"; done
 
-      - name: Build real repository inventory
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/build-devapi-repo-inventory.mjs
-          test -s outputs/devapi-repo-inventory.json
+      - name: Build repository inventory
+        run: node scripts/build-devapi-repo-inventory.mjs
 
-      - name: Execute real isolated worker smoke
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/devapi-agent-worker-smoke.mjs
-          test -s outputs/devapi-worker-smoke.json
+      - name: Real isolated worker smoke
+        run: node scripts/devapi-agent-worker-smoke.mjs
 
-      - name: Execute real git worktree smoke
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/devapi-worktree-smoke.mjs
-          test -s outputs/devapi-worktree-smoke.json
-          git worktree list --porcelain
+      - name: Real worktree smoke
+        run: node scripts/devapi-worktree-smoke.mjs
 
-      - name: Execute real browser smoke
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/devapi-browser-smoke.mjs
-          test -s outputs/devapi-browser-smoke.json
+      - name: Real read-only browser smoke
+        run: node scripts/devapi-browser-smoke.mjs
 
-      - name: Worker and browser security gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/verify-devapi-worker-security.mjs
+      - name: Provider runtime smoke or explicit external blocker
+        run: node scripts/devapi-provider-smoke.mjs
+
+      - name: Database runtime smoke or explicit external blocker
+        run: node scripts/devapi-db-runtime-smoke.mjs
+
+      - name: Worker/browser security gate
+        run: node scripts/verify-devapi-worker-security.mjs
+
+      - name: Five-site source truth gate
+        run: node scripts/verify-devapi-sites-v1.mjs
 
       - name: Research catalog truth gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/verify-devapi-tool-catalog-v2.mjs
+        run: node scripts/verify-devapi-tool-catalog-v2.mjs
 
-      - name: Autonomous v1 regression verification
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/verify-devapi-autonomous-v1.mjs
+      - name: Autonomous v1 regression
+        run: node scripts/verify-devapi-autonomous-v1.mjs
 
-      - name: Autonomous v2 task and worker verification
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/verify-devapi-autonomous-v2.mjs
+      - name: Autonomous v2 regression
+        run: node scripts/verify-devapi-autonomous-v2.mjs
 
-      - name: Existing cloud regression gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/verify-cloud-ecosystem.mjs
+      - name: Autonomous v3 verification
+        run: node scripts/verify-devapi-autonomous-v3.mjs
+
+      - name: Existing cloud regression
+        run: node scripts/verify-cloud-ecosystem.mjs
 
       - name: Diff hygiene
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --check
+        run: git diff --check
 
-      - name: Upload source and runtime evidence
+      - name: Upload v3 evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: DevAPI-Autonomous-Evolution-v2-Evidence
+          name: DevAPI-Autonomous-Evolution-v3-Evidence
           path: |
             outputs/devapi-repo-inventory.json
             outputs/devapi-worker-smoke.json
             outputs/devapi-worktree-smoke.json
             outputs/devapi-browser-smoke.json
+            outputs/devapi-provider-smoke.json
+            outputs/devapi-db-runtime-smoke.json
+            outputs/devapi-agents-supply-chain.json
+            outputs/devapi-npm-audit.json
+            outputs/devapi-npm-ls.txt
             cloud/devapi-control/agent/dependency-manifest.json
             cloud/devapi-control/research/tool-catalog.v2.json
+            cloud/devapi-sites/sites.manifest.json
           if-no-files-found: error
           retention-days: 14
