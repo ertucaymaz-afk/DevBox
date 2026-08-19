@@ -39,13 +39,6 @@ jobs:
       DEVAPI_PROJECT_ID: prj_mJCrN5G6w4R32axSWYSLSuuAdmBz
       DEVAPI_CANONICAL_URL: https://devapi-virid.vercel.app
       DEVBOX_PROJECT_NAME: devbox
-      VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_TOKEN_FALLBACK: ${{ secrets.VERCEL_ACCESS_TOKEN }}
-      DEVBOX_DATABASE_URL: ${{ secrets.DEVBOX_DATABASE_URL }}
-      DATABASE_URL_FALLBACK: ${{ secrets.DATABASE_URL }}
-      NEON_DATABASE_URL_FALLBACK: ${{ secrets.NEON_DATABASE_URL }}
-      DEVBOX_CONTROL_PLANE_TOKEN: ${{ secrets.DEVBOX_CONTROL_PLANE_TOKEN }}
-      DEVBOX_CONTROL_ADMIN_TOKEN: ${{ secrets.DEVBOX_CONTROL_ADMIN_TOKEN }}
 
     steps:
       - name: Promotion kaynağını al
@@ -55,28 +48,28 @@ jobs:
 
       - name: Production secret gerçeklik kapısı
         shell: bash
+        env:
+          VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN_FALLBACK: ${{ secrets.VERCEL_ACCESS_TOKEN }}
+          DEVBOX_DATABASE_URL: ${{ secrets.DEVBOX_DATABASE_URL }}
+          DATABASE_URL_FALLBACK: ${{ secrets.DATABASE_URL }}
+          NEON_DATABASE_URL_FALLBACK: ${{ secrets.NEON_DATABASE_URL }}
+          DEVBOX_CONTROL_PLANE_TOKEN: ${{ secrets.DEVBOX_CONTROL_PLANE_TOKEN }}
+          DEVBOX_CONTROL_ADMIN_TOKEN: ${{ secrets.DEVBOX_CONTROL_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
           missing=()
-
           vercel_token="${VERCEL_TOKEN_PRIMARY:-${VERCEL_TOKEN_FALLBACK:-}}"
           database_url="${DEVBOX_DATABASE_URL:-${DATABASE_URL_FALLBACK:-${NEON_DATABASE_URL_FALLBACK:-}}}"
-
           [[ -n "$vercel_token" ]] || missing+=(VERCEL_TOKEN)
           [[ -n "$database_url" ]] || missing+=(DEVBOX_DATABASE_URL)
           [[ ${#DEVBOX_CONTROL_PLANE_TOKEN} -ge 32 ]] || missing+=(DEVBOX_CONTROL_PLANE_TOKEN)
           [[ ${#DEVBOX_CONTROL_ADMIN_TOKEN} -ge 32 ]] || missing+=(DEVBOX_CONTROL_ADMIN_TOKEN)
-
           if (( ${#missing[@]} > 0 )); then
             printf 'V020_PRODUCTION_BLOCKED_EXTERNAL missing-github-secrets=%s\n' "$(IFS=,; echo "${missing[*]}")"
             exit 1
           fi
-
-          {
-            echo "VERCEL_TOKEN=$vercel_token"
-            echo "DATABASE_URL=$database_url"
-          } >> "$GITHUB_ENV"
-          echo 'V020_PRODUCTION_SECRET_GATE_PASS values=masked'
+          echo 'V020_PRODUCTION_SECRET_GATE_PASS values=masked scope=step-only'
 
       - name: pnpm 11.19.0 kur
         uses: pnpm/action-setup@v4
@@ -104,7 +97,20 @@ jobs:
 
       - name: DevAPI ve DevBox production promote
         id: promote
-        run: node scripts/v020-production-promote.mjs
+        shell: bash
+        env:
+          VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN_FALLBACK: ${{ secrets.VERCEL_ACCESS_TOKEN }}
+          DEVBOX_DATABASE_URL: ${{ secrets.DEVBOX_DATABASE_URL }}
+          DATABASE_URL_FALLBACK: ${{ secrets.DATABASE_URL }}
+          NEON_DATABASE_URL_FALLBACK: ${{ secrets.NEON_DATABASE_URL }}
+          DEVBOX_CONTROL_PLANE_TOKEN: ${{ secrets.DEVBOX_CONTROL_PLANE_TOKEN }}
+          DEVBOX_CONTROL_ADMIN_TOKEN: ${{ secrets.DEVBOX_CONTROL_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          export VERCEL_TOKEN="${VERCEL_TOKEN_PRIMARY:-${VERCEL_TOKEN_FALLBACK:-}}"
+          export DATABASE_URL="${DEVBOX_DATABASE_URL:-${DATABASE_URL_FALLBACK:-${NEON_DATABASE_URL_FALLBACK:-}}}"
+          exec node scripts/v020-production-promote.mjs
 
       - name: Secret-free promotion evidence JSON üret
         if: steps.promote.outcome == 'success'
