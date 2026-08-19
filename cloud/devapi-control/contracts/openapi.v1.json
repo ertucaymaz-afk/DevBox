@@ -3,9 +3,10 @@
   "info": {
     "title": "DevAPI Control Plane",
     "version": "0.1.20",
-    "description": "DevAPI mevcut control-plane route'ları ve autonomous-engineering source foundation için truth-first contract baseline."
+    "description": "DevAPI control-plane ve autonomous-engineering source contract. Source contract runtime veya production doğrulaması anlamına gelmez."
   },
-  "servers": [{ "url": "https://devapi-virid.vercel.app" }],
+  "servers": [{ "url": "https://devapi-virid.vercel.app", "description": "Historical canonical target; runtime state must be verified separately." }],
+  "x-devapi-runtime-state": "STALE",
   "paths": {
     "/api/v1/agent-capabilities": {
       "get": {
@@ -40,6 +41,67 @@
           "401": { "description": "Unauthorized" },
           "502": { "description": "Research provider failure" },
           "503": { "description": "External provider credential unconfigured" }
+        }
+      }
+    },
+    "/api/v1/agent-runtime": {
+      "get": {
+        "operationId": "getAgentRuntimeState",
+        "summary": "Agent runtime dependency and credential truth state",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": { "description": "Agent runtime source/configuration state" },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "post": {
+        "operationId": "runAgentPlanner",
+        "summary": "Run the real planner agent for a persisted task when provider requirements are available",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": { "description": "Planner output and evidence digest" },
+          "400": { "description": "Invalid task or state" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Task not found" },
+          "503": { "description": "SDK, provider credential, or database unconfigured" },
+          "504": { "description": "Agent runtime timeout" }
+        }
+      }
+    },
+    "/api/v1/agent-tasks": {
+      "get": {
+        "operationId": "listOrGetAgentTasks",
+        "summary": "List agent tasks or read one task with its append-only events and evidence",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": { "description": "Task list or task detail" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Task not found" },
+          "503": { "description": "Database unconfigured" }
+        }
+      },
+      "post": {
+        "operationId": "createAgentTask",
+        "summary": "Create a persisted task and classify its risk",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "201": { "description": "Task created in CREATED state" },
+          "400": { "description": "Invalid task input" },
+          "401": { "description": "Unauthorized" },
+          "503": { "description": "Database unconfigured" }
+        }
+      },
+      "patch": {
+        "operationId": "transitionAgentTask",
+        "summary": "Apply a validated append-only task state transition",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": { "description": "Task transitioned" },
+          "400": { "description": "Invalid transition request" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Task not found" },
+          "409": { "description": "Transition denied by state machine" },
+          "503": { "description": "Database unconfigured" }
         }
       }
     },
