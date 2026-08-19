@@ -1,0 +1,113 @@
+name: DevBox web production activation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/v0.1.20-web-ecosystem-v1
+    paths:
+      - .github/workflows/devbox-web-production.yml
+      - scripts/deploy-devbox-web-production.mjs
+      - scripts/verify-web-ecosystem.mjs
+      - cloud/devbox-site/**
+  pull_request:
+    branches:
+      - codex/v0.1.20-vercel-production-modernization
+    paths:
+      - .github/workflows/devbox-web-production.yml
+      - scripts/deploy-devbox-web-production.mjs
+      - scripts/verify-web-ecosystem.mjs
+      - cloud/devbox-site/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devbox-web-production-activation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    name: devbox.vercel.app + 10 route production activation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      VERCEL_CLI_VERSION: 58.4.0
+      VERCEL_ORG_ID: team_PNUxk74M7XR8MFlKl676ZHlv
+      DEVBOX_PROJECT_NAME: devbox
+      DEVBOX_CANONICAL_URL: https://devbox.vercel.app
+
+    steps:
+      - name: Exact source checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Exact pnpm 11.19.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global pnpm@11.19.0
+          test "$(pnpm --version)" = "11.19.0"
+
+      - name: Vercel credential gerçeklik kapısı
+        shell: bash
+        env:
+          VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN_FALLBACK: ${{ secrets.VERCEL_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          token="${VERCEL_TOKEN_PRIMARY:-${VERCEL_TOKEN_FALLBACK:-}}"
+          if [[ ${#token} -lt 8 ]]; then
+            echo 'DEVBOX_WEB_PRODUCTION_BLOCKED_EXTERNAL missing-github-secret=VERCEL_TOKEN'
+            exit 1
+          fi
+          echo 'DEVBOX_WEB_VERCEL_SECRET_GATE_PASS value=masked scope=step-only'
+
+      - name: Static 11-surface source gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/deploy-devbox-web-production.mjs
+          node scripts/verify-web-ecosystem.mjs
+
+      - name: Create/reuse project, deploy, bind canonical and probe 11 routes
+        id: production
+        shell: bash
+        env:
+          VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN_FALLBACK: ${{ secrets.VERCEL_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          export VERCEL_TOKEN="${VERCEL_TOKEN_PRIMARY:-${VERCEL_TOKEN_FALLBACK:-}}"
+          exec node scripts/deploy-devbox-web-production.mjs
+
+      - name: Production evidence contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f outputs/devbox-web-production.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const x = JSON.parse(fs.readFileSync('outputs/devbox-web-production.json', 'utf8'));
+          if (x?.state !== 'PRODUCTION_VERIFIED') throw new Error(`DEVBOX_WEB_EVIDENCE_STATE:${x?.state}`);
+          if (x?.vercel?.canonicalUrl !== 'https://devbox.vercel.app') throw new Error(`DEVBOX_WEB_EVIDENCE_CANONICAL:${x?.vercel?.canonicalUrl}`);
+          if (!String(x?.vercel?.projectId || '').startsWith('prj_')) throw new Error('DEVBOX_WEB_EVIDENCE_PROJECT_ID');
+          if (!String(x?.vercel?.deploymentId || '').startsWith('dpl_')) throw new Error('DEVBOX_WEB_EVIDENCE_DEPLOYMENT_ID');
+          if (x?.routeCount !== 11 || !Array.isArray(x?.routes) || x.routes.length !== 11) throw new Error(`DEVBOX_WEB_EVIDENCE_ROUTE_COUNT:${x?.routeCount}`);
+          if (!x.routes.every((route) => route.status === 200)) throw new Error('DEVBOX_WEB_EVIDENCE_ROUTE_HTTP');
+          console.log(`DEVBOX_WEB_PRODUCTION_EVIDENCE_PASS project=${x.vercel.projectId} deployment=${x.vercel.deploymentId} routes=${x.routeCount}`);
+          NODE
+
+      - name: Upload production evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DevBox-Web-Production-Evidence
+          path: outputs/devbox-web-production.json
+          if-no-files-found: error
+          retention-days: 14

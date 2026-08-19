@@ -1,4 +1,7 @@
 import "./experience-v2.js";
+import "./ecosystem-nav.js";
+import "./ecosystem-v2.js";
+import "./ecosystem-theme.js";
 
 const ENDPOINT = "/api/public-state";
 const $ = (id) => document.getElementById(id);

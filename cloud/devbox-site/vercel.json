@@ -2,6 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
+  "rewrites": [
+    { "source": "/devapi-home", "destination": "/ecosystem-page.html" },
+    { "source": "/devapi-api", "destination": "/ecosystem-page.html" },
+    { "source": "/devapi-docs", "destination": "/ecosystem-page.html" },
+    { "source": "/devapi-console", "destination": "/ecosystem-page.html" },
+    { "source": "/devapi-status", "destination": "/ecosystem-page.html" },
+    { "source": "/devapi-studio", "destination": "/ecosystem-page.html" },
+    { "source": "/devapi-evolution", "destination": "/ecosystem-page.html" },
+    { "source": "/devapi-workbench", "destination": "/ecosystem-page.html" },
+    { "source": "/devapi-memory", "destination": "/ecosystem-page.html" },
+    { "source": "/devapi-diagnostics", "destination": "/ecosystem-page.html" }
+  ],
   "headers": [{
     "source": "/(.*)",
     "headers": [

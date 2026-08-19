@@ -1,0 +1,91 @@
+name: DevBox web ekosistemi görsel doğrulama
+
+on:
+  push:
+    branches:
+      - codex/v0.1.20-web-ecosystem-v1
+    paths:
+      - cloud/devbox-site/**
+      - scripts/verify-web-ecosystem.mjs
+      - scripts/verify-web-visual.mjs
+      - package.json
+      - pnpm-lock.yaml
+      - .github/workflows/web-ecosystem.yml
+  pull_request:
+    branches:
+      - codex/v0.1.20-vercel-production-modernization
+    paths:
+      - cloud/devbox-site/**
+      - scripts/verify-web-ecosystem.mjs
+      - scripts/verify-web-visual.mjs
+      - package.json
+      - pnpm-lock.yaml
+      - .github/workflows/web-ecosystem.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devbox-web-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-verify:
+    name: 11 route · responsive · reduced-motion · screenshot evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Exact source checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Exact pnpm 11.19.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global pnpm@11.19.0
+          test "$(pnpm --version)" = "11.19.0"
+
+      - name: Frozen dependency install
+        run: pnpm install --frozen-lockfile
+
+      - name: Static 11-surface contract gate
+        run: pnpm web:verify
+
+      - name: Verify runner browser baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v google-chrome
+          google-chrome --version
+
+      - name: 11 route × 4 viewport browser QA
+        run: pnpm web:visual:verify
+
+      - name: Screenshot evidence manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f outputs/web-visual/summary.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const x=JSON.parse(fs.readFileSync('outputs/web-visual/summary.json','utf8'));
+          const ok=x?.status==='PASS' && x?.routes===11 && x?.viewports===4 && x?.expectedScreenshots===44 && x?.capturedScreenshots===44 && x?.reducedMotion==='VERIFIED_PER_CASE' && x?.architectureExplorer==='BROWSER_VERIFIED_ON_HOME' && x?.sourceCapabilities===12 && x?.evolutionTracks===10;
+          if(!ok) throw new Error(`WEB_VISUAL_EVIDENCE_INVALID:${JSON.stringify({status:x?.status,routes:x?.routes,viewports:x?.viewports,captured:x?.capturedScreenshots,reducedMotion:x?.reducedMotion,architecture:x?.architectureExplorer,capabilities:x?.sourceCapabilities,evolutionTracks:x?.evolutionTracks})}`);
+          console.log(`DEVBOX_WEB_SCREENSHOT_EVIDENCE_PASS source=${x.sourceSha||'unknown'} screenshots=${x.capturedScreenshots} architecture=10 capabilities=12 evolutionTracks=10`);
+          NODE
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DevBox-Web-Ecosystem-Visual-Evidence
+          path: outputs/web-visual/
+          if-no-files-found: error
+          retention-days: 14
