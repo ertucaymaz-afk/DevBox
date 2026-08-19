@@ -1,0 +1,113 @@
+name: DevAPI five-site production deploy
+
+on:
+  push:
+    branches:
+      - codex/devapi-autonomous-evolution-v1
+    paths:
+      - cloud/devapi-sites/**
+      - scripts/verify-devapi-sites-v1.mjs
+      - .github/workflows/devapi-sites-production.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devapi-sites-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_SCOPE: ${{ secrets.DEVAPI_VERCEL_SCOPE || 'nice' }}
+      VERCEL_CLI_VERSION: 58.9.4
+    steps:
+      - name: Exact source checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Verify five-site source before deployment
+        run: node scripts/verify-devapi-sites-v1.mjs
+
+      - name: Credential truth gate
+        id: credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p outputs
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            cat > outputs/devapi-sites-production.json <<'JSON'
+          {"schemaVersion":1,"state":"BLOCKED_EXTERNAL","blocker":"VERCEL_TOKEN_UNCONFIGURED","productionVerified":false,"projects":[]}
+          JSON
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo 'DEVAPI_SITES_PRODUCTION_BLOCKED_EXTERNAL credential=VERCEL_TOKEN'
+            exit 0
+          fi
+          echo 'configured=true' >> "$GITHUB_OUTPUT"
+          echo 'DEVAPI_SITES_VERCEL_CREDENTIAL_PRESENT value=redacted'
+
+      - name: Verify target scope and deploy five physical projects
+        if: steps.credential.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" project ls --json --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" > outputs/vercel-projects-before.json
+          node <<'NODE'
+          const fs = require('fs');
+          const data = JSON.parse(fs.readFileSync('outputs/vercel-projects-before.json','utf8'));
+          const projects = Array.isArray(data) ? data : (data.projects || []);
+          console.log(`DEVAPI_VERCEL_SCOPE_VERIFIED projects=${projects.length}`);
+          NODE
+
+          : > outputs/devapi-sites-urls.txt
+          deploy_one() {
+            id="$1"; root="$2"; name="$3"
+            echo "Deploying $id from $root as $name"
+            url="$(npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy "$root" --prod --yes --name "$name" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN")"
+            url="$(printf '%s' "$url" | tail -n 1 | tr -d '\r')"
+            case "$url" in https://*) ;; *) echo "DEVAPI_SITE_DEPLOY_URL_INVALID:$id:$url" >&2; exit 1;; esac
+            printf '%s\t%s\n' "$id" "$url" >> outputs/devapi-sites-urls.txt
+            code="$(curl --silent --show-error --location --output /tmp/devapi-site-body --write-out '%{http_code}' --max-time 30 "$url")"
+            test "$code" = '200'
+            grep -qi '<title>DevAPI' /tmp/devapi-site-body
+            echo "DEVAPI_SITE_PRODUCTION_HTTP_PASS id=$id http=$code"
+          }
+
+          deploy_one main cloud/devapi-sites/main devapi
+          deploy_one runtime cloud/devapi-sites/runtime devapi-api
+          deploy_one docs cloud/devapi-sites/docs devapi-docs
+          deploy_one status cloud/devapi-sites/status devapi-status
+          deploy_one console cloud/devapi-sites/console devapi-console
+
+          SOURCE_SHA="$GITHUB_SHA" node <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const lines = fs.readFileSync('outputs/devapi-sites-urls.txt','utf8').trim().split(/\r?\n/).filter(Boolean);
+          if (lines.length !== 5) throw new Error(`DEVAPI_SITE_DEPLOY_COUNT:${lines.length}`);
+          const projects = lines.map(line => { const [id,url] = line.split('\t'); return {id,url,http:200}; });
+          const digest = crypto.createHash('sha256').update(JSON.stringify(projects)).digest('hex');
+          const out = {schemaVersion:1,state:'PRODUCTION_VERIFIED',productionVerified:true,scope:process.env.VERCEL_SCOPE,sourceSha:process.env.SOURCE_SHA,projectCount:projects.length,projects,digest,generatedAt:new Date().toISOString()};
+          fs.writeFileSync('outputs/devapi-sites-production.json', JSON.stringify(out,null,2)+'\n');
+          console.log(`DEVAPI_SITES_PRODUCTION_PASS projects=${projects.length} sourceSha=${process.env.SOURCE_SHA} digest=${digest}`);
+          NODE
+
+      - name: Upload deployment truth evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DevAPI-Five-Site-Production-Evidence
+          path: |
+            outputs/devapi-sites-production.json
+            outputs/devapi-sites-urls.txt
+            outputs/vercel-projects-before.json
+          if-no-files-found: warn
+          retention-days: 14
