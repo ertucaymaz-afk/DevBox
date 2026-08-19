@@ -1,0 +1,108 @@
+name: v0.1.20 production promotion
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/v0.1.20-vercel-production-modernization
+    paths:
+      - .github/workflows/v020-production-promote.yml
+      - scripts/v020-production-promote.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v020-production-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Vercel production gerçeklik ve promotion
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      VERCEL_CLI_VERSION: 58.4.0
+      VERCEL_ORG_ID: team_PNUxk74M7XR8MFlKl676ZHlv
+      DEVAPI_PROJECT_ID: prj_mJCrN5G6w4R32axSWYSLSuuAdmBz
+      DEVAPI_CANONICAL_URL: https://devapi-virid.vercel.app
+      DEVBOX_PROJECT_NAME: devbox
+      VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TOKEN_FALLBACK: ${{ secrets.VERCEL_ACCESS_TOKEN }}
+      DEVBOX_DATABASE_URL: ${{ secrets.DEVBOX_DATABASE_URL }}
+      DATABASE_URL_FALLBACK: ${{ secrets.DATABASE_URL }}
+      NEON_DATABASE_URL_FALLBACK: ${{ secrets.NEON_DATABASE_URL }}
+      DEVBOX_CONTROL_PLANE_TOKEN: ${{ secrets.DEVBOX_CONTROL_PLANE_TOKEN }}
+      DEVBOX_CONTROL_ADMIN_TOKEN: ${{ secrets.DEVBOX_CONTROL_ADMIN_TOKEN }}
+
+    steps:
+      - name: Promotion kaynağını al
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Node.js 24 kullan
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Kilitli bağımlılıkları kur
+        run: pnpm install --frozen-lockfile
+
+      - name: Production secret gerçeklik kapısı
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+
+          vercel_token="${VERCEL_TOKEN_PRIMARY:-${VERCEL_TOKEN_FALLBACK:-}}"
+          database_url="${DEVBOX_DATABASE_URL:-${DATABASE_URL_FALLBACK:-${NEON_DATABASE_URL_FALLBACK:-}}}"
+
+          [[ -n "$vercel_token" ]] || missing+=(VERCEL_TOKEN)
+          [[ -n "$database_url" ]] || missing+=(DEVBOX_DATABASE_URL)
+          [[ ${#DEVBOX_CONTROL_PLANE_TOKEN} -ge 32 ]] || missing+=(DEVBOX_CONTROL_PLANE_TOKEN)
+          [[ ${#DEVBOX_CONTROL_ADMIN_TOKEN} -ge 32 ]] || missing+=(DEVBOX_CONTROL_ADMIN_TOKEN)
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'V020_PRODUCTION_BLOCKED_EXTERNAL missing-github-secrets=%s\n' "$(IFS=,; echo "${missing[*]}")"
+            exit 1
+          fi
+
+          {
+            echo "VERCEL_TOKEN=$vercel_token"
+            echo "DATABASE_URL=$database_url"
+          } >> "$GITHUB_ENV"
+          echo 'V020_PRODUCTION_SECRET_GATE_PASS values=masked'
+
+      - name: Source ve cloud kontratını tekrar doğrula
+        run: |
+          pnpm spec:verify
+          pnpm evolution:verify
+          pnpm cloud:verify
+          pnpm typecheck
+          node --check scripts/v020-production-promote.mjs
+
+      - name: DevAPI ve DevBox production promote
+        id: promote
+        run: node scripts/v020-production-promote.mjs
+
+      - name: Promotion özeti
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## DevBox v0.1.20 production promotion'
+            echo
+            echo "- Source SHA: \`${GITHUB_SHA}\`"
+            echo "- DevAPI deployment: \`${{ steps.promote.outputs.devapi_deployment_url || 'BLOCKED' }}\`"
+            echo "- DevAPI public-state HTTP: \`${{ steps.promote.outputs.devapi_public_state_status || 'BLOCKED' }}\`"
+            echo "- DevBox deployment: \`${{ steps.promote.outputs.devbox_deployment_url || 'BLOCKED' }}\`"
+            echo '- Production evidence yalnız desktop snapshot + ACK canary gerçek PASS olduktan sonra PASS yapılacaktır.'
+          } >> "$GITHUB_STEP_SUMMARY"
