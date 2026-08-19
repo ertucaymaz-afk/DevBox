@@ -2,13 +2,14 @@ import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 
 execFileSync(process.execPath, ["scripts/verify-api-evolution-v11.mjs"], { stdio: "inherit" });
-const [pkgRaw, readme, cloudVerify, publicState, devboxIndex, devboxApp, devapiIndex] = await Promise.all([
+const [pkgRaw, readme, cloudVerify, publicState, devboxIndex, devboxApp, devboxProxy, devapiIndex] = await Promise.all([
   readFile("package.json", "utf8"),
   readFile("README.md", "utf8"),
   readFile("scripts/verify-cloud-ecosystem.mjs", "utf8"),
   readFile("cloud/devapi-control/api/v1/public-state.mjs", "utf8"),
   readFile("cloud/devbox-site/index.html", "utf8"),
   readFile("cloud/devbox-site/app.js", "utf8"),
+  readFile("cloud/devbox-site/api/public-state.mjs", "utf8"),
   readFile("cloud/devapi-control/index.html", "utf8")
 ]);
 const pkg = JSON.parse(pkgRaw);
@@ -28,6 +29,11 @@ need(cloudVerify,"CLOUD_ECOSYSTEM_VERIFY_PASS","cloud-gate");
 need(publicState,"sanitizeSnapshot","public-state-sanitized");
 forbid(publicState,"latest_snapshot,","public-state-raw-snapshot");
 need(devboxIndex,"Kanıt üreten","product-site-truth");
-need(devboxApp,"/api/v1/public-state","product-site-link");
+need(devboxApp,'const ENDPOINT = "/api/public-state"',"product-site-same-origin-link");
+need(devboxApp,"sanitized-proxy","product-site-proxy-trust");
+forbid(devboxApp,'const ENDPOINT = "https://',"product-site-direct-cross-origin-endpoint");
+need(devboxProxy,"DEVAPI_PUBLIC_URL","product-site-runtime-upstream");
+need(devboxProxy,"/api/v1/public-state","product-site-upstream-contract");
+need(devboxProxy,"x-devbox-public-state","product-site-upstream-sanitization");
 need(devapiIndex,"DevAPI Control Plane","devapi-site-title");
-console.log("API_EVOLUTION_V12_VERIFY_PASS inherited=v11 cloudEcosystem=pass readme=truthful publicState=sanitized forwardCompatible=true");
+console.log("API_EVOLUTION_V12_VERIFY_PASS inherited=v11 cloudEcosystem=pass readme=truthful publicState=sanitized productSiteProxy=same-origin forwardCompatible=true");
