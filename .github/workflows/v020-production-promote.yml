@@ -47,21 +47,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: pnpm 11.19.0 kur
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.19.0
-          run_install: false
-
-      - name: Node.js 24 kullan
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Kilitli bağımlılıkları kur
-        run: pnpm install --frozen-lockfile
-
       - name: Production secret gerçeklik kapısı
         shell: bash
         run: |
@@ -87,6 +72,21 @@ jobs:
           } >> "$GITHUB_ENV"
           echo 'V020_PRODUCTION_SECRET_GATE_PASS values=masked'
 
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Node.js 24 kullan
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Kilitli bağımlılıkları kur
+        run: pnpm install --frozen-lockfile
+
       - name: Source ve cloud kontratını tekrar doğrula
         run: |
           pnpm spec:verify
@@ -110,5 +110,6 @@ jobs:
             echo "- DevAPI deployment: \`${{ steps.promote.outputs.devapi_deployment_url || 'BLOCKED' }}\`"
             echo "- DevAPI public-state HTTP: \`${{ steps.promote.outputs.devapi_public_state_status || 'BLOCKED' }}\`"
             echo "- DevBox deployment: \`${{ steps.promote.outputs.devbox_deployment_url || 'BLOCKED' }}\`"
+            echo "- DevBox public-state proxy HTTP: \`${{ steps.promote.outputs.devbox_public_state_status || 'BLOCKED' }}\`"
             echo '- Production evidence yalnız desktop snapshot + ACK canary gerçek PASS olduktan sonra PASS yapılacaktır.'
           } >> "$GITHUB_STEP_SUMMARY"
