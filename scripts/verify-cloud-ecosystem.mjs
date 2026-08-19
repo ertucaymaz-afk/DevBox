@@ -59,6 +59,8 @@ requireText("devapiPublic", "sanitizeSnapshot", "public-sanitizer");
 requireText("devapiPublic", "x-devbox-public-state", "public-sanitize-header");
 requireText("devapiPublic", "stale", "public-freshness");
 requireText("devapiPublic", "etag", "public-etag");
+requireText("devapiPublic", "listProjects(2)", "public-project-selection-bounded");
+requireText("devapiPublic", "PUBLIC_PROJECT_AMBIGUOUS", "public-project-selection-fail-closed");
 forbidText("devapiPublic", "latest_snapshot,", "public-raw-snapshot");
 forbidText("devapiPublic", "row?.project_name", "public-project-name-leak");
 requireText("devapiPublic", 'name: "DevBox project"', "public-project-name-sanitized");
