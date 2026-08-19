@@ -1,4 +1,248 @@
 <!doctype html>
-<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ff6a00"><title>DevAPI · Autonomous Engineering Platform</title><meta name="description" content="DevAPI autonomous engineering ve continuous API evolution platformu. Gerçek task, evidence, worktree, review ve release sınırları."><style>
-:root{--o:#ff6a00;--o2:#ff7a1a;--f:#ff4d00;--w:#fff;--warm:#fffaf5;--s:#f5f6f8;--b:#e7e9ed;--g:#17191d;--m:#68717d}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--g);background:radial-gradient(circle at 80% 0,#fff0e5 0,transparent 34%),linear-gradient(180deg,var(--w),var(--warm))}a{color:inherit;text-decoration:none}.wrap{max-width:1180px;margin:auto;padding:0 28px}.top{height:74px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(23,25,29,.08)}.brand{display:flex;gap:12px;align-items:center;font-weight:850}.logo{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,var(--o),var(--f));color:#fff;display:grid;place-items:center;box-shadow:0 10px 28px #ff6a0033}.nav{display:flex;gap:18px;color:#4b5159;font-size:14px}.pill{border:1px solid #ffd1ae;background:#fff7f0;color:#b44000;padding:8px 12px;border-radius:999px;font-weight:700}.hero{padding:92px 0 54px;display:grid;grid-template-columns:1.18fr .82fr;gap:54px;align-items:center}.eyebrow{color:var(--o);font-size:12px;letter-spacing:.16em;font-weight:900}.hero h1{font-size:clamp(44px,6vw,78px);line-height:.98;letter-spacing:-.055em;margin:18px 0 24px}.hero h1 em{font-style:normal;color:var(--o)}.hero p{font-size:19px;color:#58606a;max-width:720px}.actions{display:flex;gap:12px;margin-top:30px}.btn{padding:14px 19px;border-radius:14px;border:1px solid var(--b);background:#fff;font-weight:800}.btn.primary{background:linear-gradient(135deg,var(--o),var(--f));color:#fff;border:0;box-shadow:0 14px 34px #ff6a0033}.truth{border:1px solid var(--b);border-radius:28px;padding:24px;background:#ffffffe6;box-shadow:0 24px 80px #2b1b100f;backdrop-filter:blur(16px)}.truth header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.state{font-weight:900;color:#8f480e;background:#fff2e8;border:1px solid #ffd2b2;padding:7px 10px;border-radius:10px}.row{display:grid;grid-template-columns:1fr auto;gap:16px;padding:14px 0;border-top:1px solid #eceef1}.row small{color:var(--m)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:22px 0 80px}.card{border:1px solid var(--b);background:#fff;border-radius:20px;padding:22px}.card b{display:block;font-size:18px;margin:8px 0}.card span{color:var(--m)}footer{border-top:1px solid var(--b);padding:28px 0 40px;color:var(--m);font-size:13px}@media(max-width:850px){.nav{display:none}.hero{grid-template-columns:1fr;padding-top:60px}.grid{grid-template-columns:1fr}.wrap{padding:0 18px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-</style></head><body><div class="wrap"><header class="top"><a class="brand" href="#"><span class="logo">D/</span><span>DevAPI</span></a><nav class="nav" aria-label="Ürün alanları"><span>Runtime</span><span>Docs</span><span>Status</span><span>Console</span></nav><span class="pill">SOURCE_READY · DEPLOY NOT RUN</span></header><main><section class="hero"><div><span class="eyebrow">AUTONOMOUS ENGINEERING · TRUTH FIRST</span><h1>API’yi yazan değil, <em>kanıtlayan</em> mühendislik katmanı.</h1><p>DevAPI; görev alımı, risk sınıflandırması, research, repository intelligence, worktree izolasyonu, patch, test, bağımsız review ve evidence akışını tek kontrol düzleminde birleştirir.</p><div class="actions"><a class="btn primary" href="#capabilities">Mimarini incele</a><a class="btn" href="https://github.com/ertucaymaz-afk/DevBox" rel="noreferrer">Source ↗</a></div></div><aside class="truth"><header><strong>Current truth</strong><span class="state">SOURCE_READY</span></header><div class="row"><div><b>Worker / Worktree</b><br><small>CI evidence mevcut</small></div><strong>VERIFIED</strong></div><div class="row"><div><b>Browser</b><br><small>Read-only CI runtime</small></div><strong>VERIFIED</strong></div><div class="row"><div><b>Model Agent</b><br><small>Gerçek provider smoke gerektirir</small></div><strong>NOT_RUN</strong></div><div class="row"><div><b>Production</b><br><small>Preview/canary evidence yok</small></div><strong>NOT_RUN</strong></div></aside></section><section id="capabilities" class="grid"><article class="card"><span>01 · PLAN</span><b>Task → Planner → DAG</b><p>Risk, budget, approvals ve verification planı tek task kimliği altında.</p></article><article class="card"><span>02 · BUILD</span><b>Worktree → Patch → Test</b><p>Single-writer, SHA doğrulama, fail-closed shell ve izole çalışma alanı.</p></article><article class="card"><span>03 · PROVE</span><b>Review → Security → Evidence</b><p>Source state ile runtime/release state birbirine karıştırılmaz.</p></article></section></main><footer>DevAPI Main Product · Domain candidate henüz canonical değildir · Production state ilan edilmemiştir.</footer></div></body></html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ff6a00">
+  <meta name="color-scheme" content="light">
+  <title>DevAPI · Otonom API Mühendisliği, Gerçek Kanıt ve Sürekli Evrim</title>
+  <meta name="description" content="DevAPI'nin ne yaptığını, bugün hangi seviyede olduğunu, hangi yeteneklerin gerçekten doğrulandığını, nelerin hâlâ engelli olduğunu ve gelişim sürecini herkesin anlayacağı Türkçe anlatan ana ürün sitesi.">
+  <meta name="robots" content="index,follow">
+  <meta property="og:title" content="DevAPI · Otonom API Mühendisliği">
+  <meta property="og:description" content="Task, worktree, güvenlik, test, review ve evidence zincirini gerçek durum etiketleriyle izleyin.">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell nav">
+      <a class="brand" href="#top" aria-label="DevAPI ana sayfa">
+        <span class="brand-mark" aria-hidden="true">D/</span>
+        <span class="brand-copy"><small>Autonomous Engineering</small><strong>DevAPI</strong></span>
+      </a>
+      <button class="menu-toggle" type="button" aria-label="Menüyü aç veya kapat" aria-expanded="false" data-menu-toggle><span></span></button>
+      <nav class="nav-links" aria-label="Ana bölümler" data-nav-links>
+        <a href="#nedir">Nedir?</a>
+        <a href="#seviye">Seviye</a>
+        <a href="#akis">Nasıl çalışır?</a>
+        <a href="#ogrenme">Ne öğreniyor?</a>
+        <a href="#evrim">Evrim</a>
+        <a href="#kanit">Kanıt</a>
+      </nav>
+      <span class="top-state"><i aria-hidden="true"></i>SOURCE_READY · PRODUCTION NOT_RUN</span>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="shell hero-grid">
+        <div class="reveal" data-reveal>
+          <span class="kicker"><span class="kicker-dot" aria-hidden="true"></span>TRUTH-FIRST · DEVAPI v6 SOURCE ITERATION</span>
+          <h1>API geliştirmeyi <span class="accent">kanıtlanabilir</span> bir mühendislik sürecine dönüştürüyor.</h1>
+          <p class="hero-lead">DevAPI, bir isteği yalnızca “kod yaz” komutu olarak görmez. Görevi sınıflandırır, güvenli bir çalışma alanı hazırlar, değişikliği sınırlar, test eder, bağımsız incelemeye yollar ve her adımın gerçekten gerçekleştiğini evidence ile kayda bağlamak üzere tasarlanır.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#seviye">Şu an hangi seviyede?</a>
+            <a class="btn" href="#akis">Bir görev nasıl ilerliyor?</a>
+            <a class="btn" href="https://github.com/ertucaymaz-afk/DevBox" rel="noreferrer">GitHub source ↗</a>
+          </div>
+          <div class="hero-footnote" data-truth-notice>
+            <span><i aria-hidden="true"></i>Yeşil etiket yalnız kanıtlanan scope içindir</span>
+            <span><i aria-hidden="true"></i>Model runtime ve production ayrı doğrulanır</span>
+            <span><i aria-hidden="true"></i>Fake telemetry yok</span>
+          </div>
+        </div>
+
+        <aside class="truth-console float-card reveal delay-1" data-reveal aria-label="DevAPI güncel gerçek durum özeti">
+          <div class="console-top">
+            <div class="console-title">
+              <span class="icon-wrap" aria-hidden="true"><svg class="icon"><use href="icons.svg#activity"></use></svg></span>
+              <div><small>19 Ağustos 2026 · doğrulanmış baseline</small><strong>Şu anki gerçek durum</strong></div>
+            </div>
+            <span class="status-chip status-source">SOURCE_READY</span>
+          </div>
+          <div class="truth-list">
+            <div class="truth-row"><div><b>Worker + Worktree</b><small>İzole dosya değişikliği, lease ve test akışı</small></div><span class="truth-value ok">RUNTIME_VERIFIED</span></div>
+            <div class="truth-row"><div><b>Bounded Coding Executor</b><small>1 dosyalık gerçek patch + test smoke</small></div><span class="truth-value ok">RUNTIME_VERIFIED</span></div>
+            <div class="truth-row"><div><b>Model Planner / Reviewer</b><small>Gerçek provider credential henüz CI'da yok</small></div><span class="truth-value blocked">BLOCKED_EXTERNAL</span></div>
+            <div class="truth-row"><div><b>Kalıcı Agent DB</b><small>Parent Neon migration uygulanmadı</small></div><span class="truth-value blocked">BLOCKED_EXTERNAL</span></div>
+            <div class="truth-row"><div><b>5 Vercel sitesi</b><small>Source hazır, gerçek production deployment yok</small></div><span class="truth-value notrun">NOT_RUN</span></div>
+          </div>
+          <p class="console-note"><strong>Kısaca:</strong> DevAPI'nin güvenli kod yürütme altyapısının önemli bölümü gerçek CI'da çalışıyor. Fakat gerçek model kararları, kalıcı DB döngüsü ve production henüz doğrulanmadı. Bu ayrım özellikle korunuyor.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="nedir" class="section">
+      <div class="shell">
+        <div class="section-head reveal" data-reveal>
+          <div><span class="section-tag">01 · DEVAPI NEDİR?</span><h2>Tek cümlede değil, gerçek iş akışıyla anlat.</h2></div>
+          <p>Teknik bilgisi olmayan biri için DevAPI, “AI kod yazıyor” kutusu değildir. Güvenli bir mühendislik hattıdır. Her aşamanın ne yaptığını ve neden gerektiğini aşağıda sade biçimde görebilirsin.</p>
+        </div>
+        <div class="bento">
+          <article class="panel span-4 reveal" data-reveal><span class="number">01</span><div class="panel-icon"><svg class="icon"><use href="icons.svg#workflow"></use></svg></div><h3>Görevi anlar ve sınırlar</h3><p>İstenen işi risk, kapsam, dosya sınırı, test ihtiyacı ve bütçe açısından tanımlar. Amaç “her yere dokunmak” değil, gereken yere kontrollü dokunmaktır.</p><div class="panel-meta"><span class="mini-chip green">Task state verified</span><span class="mini-chip">Risk R0-R4</span></div></article>
+          <article class="panel span-4 reveal delay-1" data-reveal><span class="number">02</span><div class="panel-icon"><svg class="icon"><use href="icons.svg#git-branch"></use></svg></div><h3>İzole çalışma alanı açar</h3><p>Worktree ve single-writer lease ile ana çalışma ağacını doğrudan kirletmeden değişiklik hazırlar. Aynı dosyaya iki worker yazmaya çalışırsa conflict queue devreye girer.</p><div class="panel-meta"><span class="mini-chip green">Worktree verified</span><span class="mini-chip green">Lease verified</span></div></article>
+          <article class="panel span-4 reveal delay-2" data-reveal><span class="number">03</span><div class="panel-icon"><svg class="icon"><use href="icons.svg#shield-check"></use></svg></div><h3>Komutları güvenlik politikasından geçirir</h3><p>Shell Policy v3, komutun hangi executable ve alt komutla çalıştığını denetler. Push, publish, ağ araçları ve sistem mutasyonları varsayılan olarak engellenir.</p><div class="panel-meta"><span class="mini-chip green">shell=false</span><span class="mini-chip green">Network default off</span></div></article>
+          <article class="panel span-6 reveal" data-reveal><span class="number">04</span><div class="panel-icon"><svg class="icon"><use href="icons.svg#activity"></use></svg></div><h3>Patch üretir, sonra gerçekten test eder</h3><p>Bounded Coding Executor izin verilen path içinde değişiklik üretir, önceki SHA'yı doğrular, patch boyutu ve dosya sayısı bütçesini uygular ve onaylı test komutunu çalıştırır. v5 CI smoke'unda bir gerçek dosya değişikliği ve bir test kanıtlandı.</p><div class="panel-meta"><span class="mini-chip orange">Coding executor runtime verified</span><span class="mini-chip">Model runtime değil</span></div></article>
+          <article class="panel span-6 reveal delay-1" data-reveal><span class="number">05</span><div class="panel-icon"><svg class="icon"><use href="icons.svg#brain-circuit"></use></svg></div><h3>Kararı ve kanıtı birbirinden ayırır</h3><p>Plan, patch, test, security, review ve release evidence tipleri ayrı tutulur. Bir testin geçmesi production'ın geçtiği anlamına gelmez. Bir model cevabı da tek başına “doğru” kabul edilmez.</p><div class="panel-meta"><span class="mini-chip green">17 evidence types</span><span class="mini-chip">Fail-closed state</span></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="seviye" class="section-tight">
+      <div class="shell">
+        <div class="maturity reveal" data-reveal>
+          <div class="maturity-top"><div><h3>DevAPI olgunluk merdiveni</h3><p>Bu puanlama değil. Hangi mühendislik katının gerçekten tamamlandığını gösteren iç aşama modeli.</p></div><span class="current-stage">CURRENT · AŞAMA 2</span></div>
+          <div class="stage-rail" aria-label="DevAPI olgunluk aşamaları">
+            <div class="stage done"><small>Aşama 1</small><b>Kaynak ve güvenlik temeli</b><span>Task state, worker, shell policy, security matrix</span></div>
+            <div class="stage current"><small>Aşama 2</small><b>Sınırlandırılmış otonom yürütme</b><span>Worktree, lease, bounded patch, test evidence</span></div>
+            <div class="stage blocked"><small>Aşama 3</small><b>Kalıcı model + DB döngüsü</b><span>OpenAI provider ve parent DB credential bekliyor</span></div>
+            <div class="stage"><small>Aşama 4</small><b>Bağımsız E2E review</b><span>Persisted task → coder → reviewer tam döngüsü</span></div>
+            <div class="stage"><small>Aşama 5</small><b>Preview + Canary</b><span>Gerçek deploy, HTTP, browser ve gözlem kapıları</span></div>
+            <div class="stage"><small>Aşama 6</small><b>KNOWN_GOOD</b><span>Observation window sonrası güvenilir üretim sürümü</span></div>
+          </div>
+          <div class="truth-banner"><svg class="icon"><use href="icons.svg#shield-check"></use></svg><p><strong>Neden yüzde vermiyoruz?</strong> “%78 hazır” gibi sayıların nesnel bir karşılığı yoksa yalnızca dekor olur. DevAPI bunun yerine hangi basamağın hangi gerçek kanıtla tamamlandığını gösterir. İnsanların dashboard'lara yeşil boya sürme alışkanlığı zaten yeterince güçlü.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="akis" class="section">
+      <div class="shell">
+        <div class="section-head reveal" data-reveal>
+          <div><span class="section-tag">02 · BİR GÖREV NASIL ÇALIŞIR?</span><h2>“Şunu düzelt” dediğinde arka tarafta ne olmalı?</h2></div>
+          <p>Hedef, tek bir AI cevabı üretmek değil. İsteği güvenli bir görev zincirine çevirmek. Aşağıdaki akışta yeşiller gerçek runtime baseline, turuncu geliştirme katı, kırmızılar dış bağımlılık bekliyor.</p>
+        </div>
+        <div class="process-grid">
+          <div class="process-map reveal" data-reveal>
+            <div class="flow">
+              <div class="flow-step done"><span class="flow-index">01</span><div><b>Task oluştur</b><small>İstek, source ref ve risk sınıfı ile tanımlanır.</small></div><span class="flow-state">VERIFIED</span></div>
+              <div class="flow-step blocked"><span class="flow-index">02</span><div><b>Gerçek Planner</b><small>Provider üzerinden gerçek plan üretmeli, response evidence saklanmalı.</small></div><span class="flow-state">BLOCKED_EXTERNAL</span></div>
+              <div class="flow-step blocked"><span class="flow-index">03</span><div><b>Persisted approval</b><small>Kalıcı DB üzerinde task ile bağlı insan onayı.</small></div><span class="flow-state">DB BLOCKED</span></div>
+              <div class="flow-step done"><span class="flow-index">04</span><div><b>Worktree + file lease</b><small>İzole workspace ve aynı dosya için single-writer kuralı.</small></div><span class="flow-state">VERIFIED</span></div>
+              <div class="flow-step current"><span class="flow-index">05</span><div><b>Coding Agent executor</b><small>Bounded patch, SHA guard, scope ve budget gerçek smoke ile çalışıyor.</small></div><span class="flow-state">BOUNDED VERIFIED</span></div>
+              <div class="flow-step done"><span class="flow-index">06</span><div><b>Test + security</b><small>Onaylı shell testleri ve attack matrix.</small></div><span class="flow-state">VERIFIED</span></div>
+              <div class="flow-step blocked"><span class="flow-index">07</span><div><b>Independent Reviewer</b><small>Coder'dan ayrı gerçek model oturumu ile inceleme.</small></div><span class="flow-state">BLOCKED_EXTERNAL</span></div>
+              <div class="flow-step"><span class="flow-index">08</span><div><b>Preview → Canary → Production</b><small>Gerçek deploy, HTTP ve observation evidence olmadan yükselmez.</small></div><span class="flow-state">NOT_RUN</span></div>
+            </div>
+          </div>
+          <aside class="explain-card reveal delay-1" data-reveal>
+            <h3>Teknik bilmeyen biri için</h3>
+            <p>DevAPI'nin hedefi, deneyimli bir yazılım ekibindeki görev dağılımını ve kontrol noktalarını makine tarafından izlenebilir hale getirmektir.</p>
+            <div class="explain-list">
+              <div class="explain-item"><b>Planner = işi parçalayan mühendis</b><span>Ne yapılacağını ve hangi testlerin gerektiğini planlar.</span></div>
+              <div class="explain-item"><b>Coding Agent = uygulayan geliştirici</b><span>Yalnız izin verilen dosyalarda değişiklik yapar.</span></div>
+              <div class="explain-item"><b>Reviewer = ayrı göz</b><span>Aynı oturum kendi yaptığı işi kendi kendine onaylamaz.</span></div>
+              <div class="explain-item"><b>Evidence = makbuz</b><span>“Yaptım” cümlesi yerine hangi dosya, hangi test, hangi SHA sorularına cevap verir.</span></div>
+              <div class="explain-item"><b>Canary = kontrollü gerçek dünya denemesi</b><span>Tüm trafiği riske atmadan küçük kapsamda gözlem yapılır.</span></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="ogrenme" class="section">
+      <div class="shell">
+        <div class="section-head reveal" data-reveal>
+          <div><span class="section-tag">03 · NE ÖĞRENİYOR?</span><h2>“Kendini geliştiriyor” cümlesini parçalarına ayır.</h2></div>
+          <p>DevAPI'nin kendine ne kattığını anlatırken hayal satmıyoruz. Bugün kanıtlanan hafıza/evidence kabiliyetleri ile gelecekte planlanan öğrenme mekanizmaları ayrıdır.</p>
+        </div>
+        <div class="learn-grid">
+          <article class="learn-card reveal" data-reveal><h3>Evidence hafızası</h3><p>Plan, approval, workspace, lease, patch, shell, test, review, security ve release dahil 17 evidence tipi source tarafında tanımlı. Bu, bir görevin neden geçtiğini veya kaldığını izlemek için temel sağlar.</p><span class="label ready">SOURCE_READY / CI VERIFIED</span></article>
+          <article class="learn-card reveal delay-1" data-reveal><h3>Failure Memory</h3><p>Aynı hataya tekrar tekrar aynı çözümü denememek için başarısız adayları, failing gate'i ve gelecekteki constraint'i saklayacak katman. Henüz gerçek persisted runtime yok.</p><span class="label notrun">NOT_RUN</span></article>
+          <article class="learn-card reveal" data-reveal><h3>Repository Knowledge Graph</h3><p>Dosya, endpoint, test, DB tablosu ve workflow ilişkilerini kaynak SHA'ya göre haritalama hedefi. Şu anda repository inventory var; tam graph engine henüz yok.</p><span class="label notrun">NOT_RUN</span></article>
+          <article class="learn-card reveal delay-1" data-reveal><h3>Finding + Candidate Engine</h3><p>Bir problemi fingerprint ile tanıyıp kök neden, çözüm adayı ve risk sınıfına dönüştürecek sürekli gelişim döngüsü. İlk persisted E2E task tamamlanmadan aktive edilmeyecek.</p><span class="label notrun">NOT_RUN</span></article>
+          <div class="learning-warning reveal" data-reveal><svg class="icon"><use href="icons.svg#brain-circuit"></use></svg><div><b>Bugünkü gerçek: DevAPI henüz “her işlemde kendi modelini eğiten” bir sistem değil.</b><p>Şu anda güvenli execution ve evidence temeli doğrulanıyor. Kalıcı öğrenme iddiası için DB persistence, failure memory, finding engine ve tekrar kullanılabilir geçmiş karar kanıtları gerekir. Bunlar oluşmadan “kendi kendine öğreniyor” etiketi kullanılmaz.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="evrim" class="section evolution">
+      <div class="shell">
+        <div class="section-head reveal" data-reveal>
+          <div><span class="section-tag">04 · GELİŞİM / EVRİM</span><h2>Her tur sisteme ne ekledi?</h2></div>
+          <p>Sürüm numarası tek başına gelişim değildir. Burada her turun gerçek mühendislik kazanımını ve hâlâ kapanmayan sınırını birlikte gösteriyoruz.</p>
+        </div>
+        <div class="timeline">
+          <article class="release-card past reveal" data-reveal><div class="release"><b>v4</b><span>REGRESSION BASELINE</span></div><ul><li>Cross-process same-host file lease</li><li>TTL stale recovery + heartbeat</li><li>10 command / 5 path security matrix</li><li>Read-only Chrome + SSRF guard</li></ul></article>
+          <article class="release-card current reveal delay-1" data-reveal><div class="release"><b>v5</b><span>EXACT-HEAD PASS</span></div><ul><li>Bounded Coding Executor v1</li><li>Shell Policy DSL v3</li><li>17 evidence type</li><li>5 ayrı .vercel.app source lane</li><li>Production state skip protection</li></ul></article>
+          <article class="release-card next reveal delay-2" data-reveal><div class="release"><b>v6</b><span>IN PROGRESS</span></div><ul><li>Persisted E2E coding task</li><li>Real Planner / Reviewer / web.search</li><li>Parent DB runtime closure</li><li>Process-tree cancellation</li><li>5/5 Vercel production evidence</li></ul></article>
+        </div>
+        <div id="kanit" class="evidence-box reveal" data-reveal data-evidence-box>
+          <div class="evidence-head"><strong>Son tamamlanmış v5 evidence paketi</strong><span>FAKE PASS YOK · EXACT SOURCE</span></div>
+          <div class="evidence-grid">
+            <div class="evidence-item"><small>Source head</small><code>05e05e5362d23d45e5dbae36a2223f6a1de74876</code></div>
+            <div class="evidence-item"><small>Workflow run</small><code>32257488498</code></div>
+            <div class="evidence-item"><small>Job</small><code>96082516180</code></div>
+            <div class="evidence-item"><small>Artifact</small><code>9366878739</code></div>
+            <div class="evidence-item"><small>Artifact files</small><code>17</code></div>
+            <div class="evidence-item"><small>ZIP bytes</small><code>17300</code></div>
+            <div class="evidence-item"><small>Routes</small><code>13 routes / 21 operations</code></div>
+            <div class="evidence-item"><small>SHA-256</small><code>fe5f432af69a32b621b3a0f869a13c4f1fd07ecc0bfb512d3637560e3d1cf457</code></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="shell">
+        <div class="section-head reveal" data-reveal>
+          <div><span class="section-tag">05 · UI / TOOL PROVENANCE</span><h2>Premium görünüm, dependency çöplüğü olmadan.</h2></div>
+          <p>GitHub ve resmi dokümantasyon kaynakları incelendi. Statik ana yüzeyde gereksiz uzak runtime paketi taşımak yerine, lisansı ve kaynağı belli yerel asset + browser-native animasyon yaklaşımı seçildi.</p>
+        </div>
+        <div class="tool-grid">
+          <article class="tool-card reveal" data-reveal><h3>Lucide</h3><p>Activity, shield, branch, database, workflow, brain ve rocket ikonları exact upstream commit'ten yerel SVG sprite olarak alındı.</p><span class="tool-state integrated">INTEGRATED_LOCAL</span><div class="tool-meta">ISC · commit <code>59978cec…</code> · remote runtime yok</div></article>
+          <article class="tool-card reveal delay-1" data-reveal><h3>Motion</h3><p>Transform/opacity, hardware-accelerated hareket ve reduced-motion yaklaşımı resmi Motion dokümantasyonundan incelendi. Runtime bundle henüz package admission olmadan eklenmedi.</p><span class="tool-state reference">SOURCE_REVIEWED</span><div class="tool-meta">MIT · docs v13.0.0 · commit <code>bbabb006…</code></div></article>
+          <article class="tool-card reveal delay-2" data-reveal><h3>Magic UI</h3><p>Animated border, glow, reveal ve premium marketing yüzeyi yaklaşımı tasarım referansı olarak incelendi. React bileşen paketi statik siteye körlemesine taşınmadı.</p><span class="tool-state reference">SOURCE_REVIEWED</span><div class="tool-meta">MIT · commit <code>2d671cc6…</code> · code bundle copied=false</div></article>
+          <article class="tool-card reveal delay-3" data-reveal><h3>shadcn/ui</h3><p>Accessible kart, badge, buton ve bilgi hiyerarşisi yaklaşımı referans alındı. Framework bağımlılığı olmadan aynı kullanılabilirlik ilkeleri uygulandı.</p><span class="tool-state reference">SOURCE_REVIEWED</span><div class="tool-meta">MIT · commit <code>25be24cc…</code> · runtime dependency=false</div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-tight">
+      <div class="shell">
+        <div class="section-head reveal" data-reveal>
+          <div><span class="section-tag">06 · 5 FİZİKSEL SİTE</span><h2>Tek sayfa makyajı değil, ayrı ürün yüzeyleri.</h2></div>
+          <p>Bu adresler source candidate'tır. Gerçek Vercel project/deployment + HTTP doğrulaması yapılmadan canonical veya canlı etiketi almaz.</p>
+        </div>
+        <div class="site-lane">
+          <article class="site-card reveal" data-reveal><svg class="icon"><use href="icons.svg#rocket"></use></svg><b>Ana ürün sitesi</b><code>yaaertu-devapi.vercel.app</code><span>CANDIDATE · NOT_RUN</span></article>
+          <article class="site-card reveal delay-1" data-reveal><svg class="icon"><use href="icons.svg#activity"></use></svg><b>Runtime / API</b><code>yaaertu-devapi-api.vercel.app</code><span>CANDIDATE · NOT_RUN</span></article>
+          <article class="site-card reveal delay-2" data-reveal><svg class="icon"><use href="icons.svg#workflow"></use></svg><b>Dokümantasyon</b><code>yaaertu-devapi-docs.vercel.app</code><span>CANDIDATE · NOT_RUN</span></article>
+          <article class="site-card reveal delay-3" data-reveal><svg class="icon"><use href="icons.svg#shield-check"></use></svg><b>Status</b><code>yaaertu-devapi-status.vercel.app</code><span>CANDIDATE · NOT_RUN</span></article>
+          <article class="site-card reveal" data-reveal><svg class="icon"><use href="icons.svg#database"></use></svg><b>Console / Agent Center</b><code>yaaertu-devapi-console.vercel.app</code><span>CANDIDATE · NOT_RUN</span></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section faq" aria-labelledby="faq-title">
+      <div class="shell faq">
+        <div class="faq-intro reveal" data-reveal><span class="section-tag">07 · BASİT ANLATIM</span><h2 id="faq-title">En çok karışan şeyler.</h2><p>DevAPI teknik bir proje, ama sitesinin yalnız mühendislerin anlayacağı bir duvar olması gerekmiyor.</p></div>
+        <div class="faq-list reveal delay-1" data-reveal>
+          <details open><summary>DevAPI şu an gerçekten kod değiştirebiliyor mu?</summary><p>Evet, bounded executor scope'unda gerçek izole workspace üzerinde dosya patch'i ve test smoke'u kanıtlandı. Fakat bu henüz gerçek OpenAI modelinin kendi kararıyla yaptığı uçtan uca kodlama anlamına gelmiyor. Model runtime credential bekliyor.</p></details>
+          <details><summary>“RUNTIME_VERIFIED” her şey çalışıyor demek mi?</summary><p>Hayır. Etiket hangi bileşenin hangi scope'ta doğrulandığını ifade eder. Worker runtime verified olabilirken Planner aynı anda BLOCKED_EXTERNAL olabilir.</p></details>
+          <details><summary>DevAPI kendi kendine öğreniyor mu?</summary><p>Bugün için kalıcı self-learning iddiası yok. Evidence modeli hazır, ancak Failure Memory, Finding Engine ve persisted E2E öğrenme döngüsü henüz NOT_RUN. Bu mekanizmalar gerçek çalışmadan “öğreniyor” denmeyecek.</p></details>
+          <details><summary>Neden production sitesi hâlâ NOT_RUN?</summary><p>Source dosyalarının hazır olması deploy kanıtı değildir. Vercel project/deployment ID, doğru scope, HTTPS/HTTP 200, içerik kimliği ve source SHA doğrulaması gerekiyor.</p></details>
+          <details><summary>Neden agent doğrudan git push yapmıyor?</summary><p>Çünkü güvenli otonomi, “her izni ver” demek değildir. Worker seviyesinde git push, publish ve keyfi ağ erişimi bilinçli olarak engelleniyor. Promotion ayrı kontrollü workflow ile yapılır.</p></details>
+          <details><summary>Bir sonraki gerçek büyük eşik nedir?</summary><p>OpenAI provider ve parent DB credential'larını güvenli CI secret olarak bağlayıp ilk persisted task → plan → approval → coder → test → ayrı reviewer → evidence döngüsünü gerçekten tamamlamak.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-tight">
+      <div class="shell">
+        <div class="cta reveal" data-reveal>
+          <div><h2>DevAPI'nin hedefi daha çok yeşil rozet değil, daha çok doğrulanabilir gerçeklik.</h2><p>Bugünkü güçlü yanı güvenli execution ve evidence temeli. Bir sonraki eşik gerçek provider + kalıcı DB + bağımsız review zinciri. Production ise ancak 5/5 Vercel ve HTTP kanıtından sonra production sayılacak.</p></div>
+          <a class="btn btn-primary" href="https://github.com/ertucaymaz-afk/DevBox/pull/44" rel="noreferrer">PR #44 source ↗</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell">
+      <div class="footer-grid"><div class="footer-brand">DevAPI <small>Autonomous Agent + Continuous Evolution · Türkçe ürün ve gerçeklik yüzeyi</small></div><div class="footer-links"><a href="#nedir">Ürün</a><a href="#seviye">Olgunluk</a><a href="#ogrenme">Öğrenme</a><a href="#kanit">Evidence</a><a href="https://github.com/ertucaymaz-afk/DevBox" rel="noreferrer">GitHub</a></div></div>
+      <div class="footer-truth">Production ilan edilmemiştir. Candidate .vercel.app adresleri canlı/canonical kabul edilmez. Bu sayfadaki v5 run/job/artifact bilgileri tamamlanmış exact-head CI baseline'ına aittir; v6 geliştirme turu ayrı source iteration olarak ilerler.</div>
+    </div>
+  </footer>
+</body>
+</html>
