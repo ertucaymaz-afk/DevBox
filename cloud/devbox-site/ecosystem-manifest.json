@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "canonicalOrigin": "https://devbox.vercel.app",
+  "scope": ["devbox", "devapi"],
   "truthPolicy": {
     "fakeReady": false,
     "productionStateRequiresLiveEvidence": true,
@@ -8,6 +9,42 @@
     "publicStateHeader": "x-devbox-public-state",
     "publicStateTrustedValue": "sanitized-proxy",
     "visualPassRequiresBrowserEvidence": true
+  },
+  "designSystem": {
+    "id": "orange-white-premium-v1",
+    "defaultMode": "light",
+    "supportedModes": ["system", "light", "dark"],
+    "brandIdentity": "orange-white",
+    "bluePurplePrimary": false,
+    "colors": {
+      "primaryOrange": "#FF6A00",
+      "premiumOrange": "#FF7A1A",
+      "softOrange": "#FF9A52",
+      "flameAccent": "#FF4D00",
+      "pureWhite": "#FFFFFF",
+      "softWhite": "#FAFAFA",
+      "surface": "#F5F6F8",
+      "border": "#E7E9ED",
+      "graphite": "#17191D",
+      "mutedGraphite": "#3C424A",
+      "secondaryText": "#68717D"
+    },
+    "motion": {
+      "reducedMotionRequired": true,
+      "preferredProperties": ["transform", "opacity"],
+      "fakeProgress": false
+    }
+  },
+  "iconSystem": {
+    "primary": "Lucide",
+    "upstreamTag": "1.27.0",
+    "delivery": "curated-local-svg-sprite",
+    "sprite": "/ecosystem-icons.svg",
+    "manifest": "/ecosystem-icon-manifest.json",
+    "iconCount": 12,
+    "wholePackageBundling": false,
+    "runtimeDependency": false,
+    "integrationState": "SOURCE_PINNED"
   },
   "products": [
     {
@@ -21,12 +58,6 @@
       "name": "DevAPI",
       "kind": "cloud-control-plane",
       "production": "https://devapi-virid.vercel.app"
-    },
-    {
-      "id": "hotapi",
-      "name": "HotAPI",
-      "kind": "api-productization-platform",
-      "production": "https://hotapi-six-gamma.vercel.app"
     }
   ],
   "surfaces": [
@@ -43,12 +74,14 @@
     { "id": "diagnostics", "path": "/devapi-diagnostics", "title": "Diagnostics", "type": "devapi" }
   ],
   "researchSources": [
-    { "name": "Magic UI", "repository": "magicuidesign/magicui", "license": "MIT", "usage": "interaction-pattern-research", "runtimeDependency": false },
-    { "name": "shadcn/ui", "repository": "shadcn-ui/ui", "license": "MIT", "usage": "component-architecture-research", "runtimeDependency": false },
-    { "name": "Lucide", "repository": "lucide-icons/lucide", "license": "ISC; Feather-derived icon subset MIT", "usage": "primary-semantic-icon-reference", "runtimeDependency": false, "note": "Curated SVG use only on the static portal; do not vendor the whole icon set." },
-    { "name": "Tabler Icons", "repository": "tabler/tabler-icons", "license": "MIT", "usage": "secondary-icon-coverage-candidate", "runtimeDependency": false, "note": "Use only selected local SVGs if Lucide coverage is insufficient." },
-    { "name": "Motion", "repository": "motiondivision/motion", "license": "MIT", "usage": "animation-performance-reference", "runtimeDependency": false },
-    { "name": "Kibo UI", "repository": "shadcnblocks/kibo", "license": "MIT", "usage": "accessible-composition-reference", "runtimeDependency": false },
-    { "name": "Microsoft Playwright", "repository": "microsoft/playwright", "license": "Apache-2.0", "usage": "44-case-browser-visual-evidence", "runtimeDependency": false, "ciOnly": true, "exactPackage": "@playwright/test@1.62.1" }
+    { "name": "Magic UI", "repository": "magicuidesign/magicui", "license": "MIT", "usage": "interaction-pattern-research", "runtimeDependency": false, "integrationState": "REVIEWED" },
+    { "name": "shadcn/ui", "repository": "shadcn-ui/ui", "license": "MIT", "usage": "component-architecture-research", "runtimeDependency": false, "integrationState": "REVIEWED" },
+    { "name": "Lucide", "repository": "lucide-icons/lucide", "license": "ISC; Feather-derived icon subset MIT", "usage": "primary-curated-semantic-icon-source", "runtimeDependency": false, "exactTag": "1.27.0", "integrationState": "SOURCE_PINNED", "note": "Twelve selected icons are shipped as a local SVG sprite; the full library is not bundled." },
+    { "name": "Tabler Icons", "repository": "tabler/tabler-icons", "license": "MIT", "usage": "secondary-icon-coverage-candidate", "runtimeDependency": false, "integrationState": "DISCOVERED", "note": "Use only when the pinned Lucide subset does not cover a semantic need." },
+    { "name": "Motion", "repository": "motiondivision/motion", "license": "MIT", "usage": "animation-performance-reference", "runtimeDependency": false, "integrationState": "REVIEWED" },
+    { "name": "Kibo UI", "repository": "shadcnblocks/kibo", "license": "MIT", "usage": "accessible-composition-reference", "runtimeDependency": false, "integrationState": "REVIEWED" },
+    { "name": "Microsoft Playwright", "repository": "microsoft/playwright", "license": "Apache-2.0", "usage": "44-case-browser-visual-evidence", "runtimeDependency": false, "ciOnly": true, "exactPackage": "@playwright/test@1.62.1", "integrationState": "INTEGRATED_CI" },
+    { "name": "axe-core", "repository": "dequelabs/axe-core", "license": "MPL-2.0", "usage": "accessibility-ci-candidate", "runtimeDependency": false, "ciOnly": true, "exactVersionResearched": "4.12.1", "integrationState": "DISCOVERED" },
+    { "name": "Lighthouse", "repository": "GoogleChrome/lighthouse", "license": "Apache-2.0", "usage": "performance-accessibility-seo-baseline-candidate", "runtimeDependency": false, "ciOnly": true, "integrationState": "DISCOVERED" }
   ]
 }
