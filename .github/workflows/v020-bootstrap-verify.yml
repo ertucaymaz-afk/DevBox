@@ -58,7 +58,22 @@ jobs:
           }
           if (-not $source.Contains('RedirectStandardInput = $true')) { throw 'V020_BOOTSTRAP_STDIN_SECRET_WRITE_MISSING' }
           if (-not $source.Contains('value=masked')) { throw 'V020_BOOTSTRAP_MASKED_EVIDENCE_MISSING' }
-          Write-Host 'V020_BOOTSTRAP_SECRET_GUARD_PASS values=not-embedded stdin=true'
+          foreach ($required in @(
+            'Assert-VercelProjectAccess',
+            'https://api.vercel.com/v9/projects/',
+            'VERCEL_PREFLIGHT_PASS',
+            'Assert-PostgresConnectionUri',
+            'DATABASE_PREFLIGHT_PASS',
+            'git/ref/heads/$Ref',
+            "workflow', 'view', 'v020-production-promote.yml",
+            'RELEASE_TARGET_PREFLIGHT_PASS'
+          )) {
+            if (-not $source.Contains($required)) { throw "V020_BOOTSTRAP_PREFLIGHT_MISSING:$required" }
+          }
+          foreach ($forbidden in @('Write-Host $Token','Write-Output $Token','Write-Host $databasePlain')) {
+            if ($source.Contains($forbidden)) { throw "V020_BOOTSTRAP_PREFLIGHT_LEAK_PATTERN:$forbidden" }
+          }
+          Write-Host 'V020_BOOTSTRAP_SECRET_GUARD_PASS values=not-embedded stdin=true preflight=release-target+vercel+database-uri'
 
       - name: Local desktop config boundary guard
         shell: pwsh

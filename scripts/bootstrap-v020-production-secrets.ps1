@@ -3,6 +3,8 @@ param(
   [string]$Repository = 'ertucaymaz-afk/DevBox',
   [string]$Ref = 'codex/v0.1.20-vercel-production-modernization',
   [string]$ControlPlaneUrl = 'https://devapi-virid.vercel.app',
+  [string]$VercelTeamId = 'team_PNUxk74M7XR8MFlKl676ZHlv',
+  [string]$DevApiProjectId = 'prj_mJCrN5G6w4R32axSWYSLSuuAdmBz',
   [SecureString]$VercelToken,
   [SecureString]$DatabaseUrl,
   [switch]$NoLocalDesktopConfig,
@@ -34,6 +36,29 @@ function Get-CanonicalHttpsOrigin([string]$Value) {
     throw 'CONTROL_PLANE_URL_MUST_BE_HTTPS_ORIGIN'
   }
   return $uri.GetLeftPart([UriPartial]::Authority)
+}
+
+function Assert-VercelProjectAccess([string]$Token) {
+  if ([string]::IsNullOrWhiteSpace($Token)) { throw 'VERCEL_TOKEN_INVALID_OR_EMPTY' }
+  $project = $null
+  $encodedProject = [Uri]::EscapeDataString($DevApiProjectId)
+  $encodedTeam = [Uri]::EscapeDataString($VercelTeamId)
+  try {
+    $project = Invoke-RestMethod -Method Get -Uri "https://api.vercel.com/v9/projects/${encodedProject}?teamId=${encodedTeam}" -Headers @{ Authorization = "Bearer $Token" } -TimeoutSec 15 -ErrorAction Stop
+  } catch {
+    throw 'VERCEL_TOKEN_PROJECT_ACCESS_FAILED'
+  }
+  if ([string]$project.id -ne $DevApiProjectId) { throw 'VERCEL_PROJECT_SCOPE_MISMATCH' }
+  Write-Host "VERCEL_PREFLIGHT_PASS project=$DevApiProjectId team=$VercelTeamId token=masked"
+}
+
+function Assert-PostgresConnectionUri([string]$Value) {
+  $uri = $null
+  if (-not [Uri]::TryCreate($Value, [UriKind]::Absolute, [ref]$uri)) { throw 'DATABASE_URL_INVALID' }
+  if ($uri.Scheme -notin @('postgres', 'postgresql')) { throw 'DATABASE_URL_MUST_BE_POSTGRESQL' }
+  if ([string]::IsNullOrWhiteSpace($uri.Host)) { throw 'DATABASE_URL_HOST_MISSING' }
+  if ([string]::IsNullOrWhiteSpace($uri.UserInfo)) { throw 'DATABASE_URL_CREDENTIALS_MISSING' }
+  Write-Host "DATABASE_PREFLIGHT_PASS scheme=$($uri.Scheme) host=masked credentials=masked"
 }
 
 function Invoke-Gh([string[]]$Arguments, [switch]$Capture) {
@@ -100,6 +125,8 @@ namespace DevBox {
 
 if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'REPOSITORY_FORMAT_INVALID' }
 if ($Ref -notmatch '^[A-Za-z0-9._/-]+$') { throw 'REF_FORMAT_INVALID' }
+if ($VercelTeamId -notmatch '^team_[A-Za-z0-9]+$') { throw 'VERCEL_TEAM_ID_INVALID' }
+if ($DevApiProjectId -notmatch '^prj_[A-Za-z0-9]+$') { throw 'DEVAPI_PROJECT_ID_INVALID' }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
   throw 'GITHUB_CLI_REQUIRED: https://cli.github.com/'
 }
@@ -108,6 +135,9 @@ $controlPlaneOrigin = Get-CanonicalHttpsOrigin $ControlPlaneUrl
 Write-Host "DEVBOX_V020_SECRET_BOOTSTRAP repository=$Repository ref=$Ref controlPlane=$controlPlaneOrigin"
 Invoke-Gh -Arguments @('auth', 'status', '--hostname', 'github.com')
 Invoke-Gh -Arguments @('repo', 'view', $Repository, '--json', 'nameWithOwner') | Out-Null
+Invoke-Gh -Arguments @('api', "repos/$Repository/git/ref/heads/$Ref", '--jq', '.ref') | Out-Null
+Invoke-Gh -Arguments @('workflow', 'view', 'v020-production-promote.yml', '--repo', $Repository) | Out-Null
+Write-Host "RELEASE_TARGET_PREFLIGHT_PASS ref=$Ref workflow=v020-production-promote.yml"
 
 if ($null -eq $VercelToken) {
   $VercelToken = Read-Host 'Vercel access token' -AsSecureString
@@ -119,7 +149,8 @@ if ($null -eq $DatabaseUrl) {
 $vercelPlain = Get-PlainText $VercelToken
 $databasePlain = Get-PlainText $DatabaseUrl
 if ($vercelPlain.Length -lt 8) { throw 'VERCEL_TOKEN_INVALID_OR_EMPTY' }
-if ($databasePlain -notmatch '^postgres(?:ql)?://') { throw 'DATABASE_URL_MUST_BE_POSTGRESQL' }
+Assert-PostgresConnectionUri $databasePlain
+Assert-VercelProjectAccess $vercelPlain
 
 $controlPlaneToken = New-UrlSafeSecret 48
 $adminToken = New-UrlSafeSecret 48
