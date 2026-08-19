@@ -24,8 +24,15 @@ need(snapshotApi, "SNAPSHOT_PRODUCT_INVALID", "snapshot-product-validation");
 need(db, 'AS "productVersion"', "project-index-product-version");
 need(db, 'AS "cloudProtocol"', "project-index-cloud-protocol");
 need(db, 'AS "evolutionEnabled"', "project-index-evolution-enabled");
+need(db, 'AS "evolutionRunning"', "project-index-evolution-running");
 need(canary, 'product.version !== VERSION', "canary-exact-version-selection");
 need(canary, 'DESKTOP_SELECTION_AMBIGUOUS', "canary-ambiguous-fail-closed");
+need(canary, 'if (asBoolean(item.evolutionRunning)) return false;', "canary-busy-project-filter");
+need(canary, 'BASELINE_NOT_IDLE', "canary-baseline-idle-gate");
+need(canary, 'DESKTOP_BECAME_BUSY_BEFORE_RUN', "canary-pre-run-idle-recheck");
+need(canary, 'DESKTOP_INSTANCE_CHANGED_BEFORE_RUN', "canary-pre-run-instance-recheck");
+need(canary, 'idle_isolation=PASS', "canary-idle-isolation-output");
+need(canary, 'idleIsolation: "PASS"', "canary-idle-isolation-evidence");
 need(canary, 'COMMAND_WRONG_DESKTOP_ACK', "canary-instance-bound-ack");
 need(canary, 'COMMAND_SEQUENCE_NOT_MONOTONIC', "canary-sequence-gate");
 need(canary, 'waitSnapshot(projectId, enableAppliedAt', "canary-enable-applied-time-boundary");
@@ -50,4 +57,4 @@ forbid(runtimeScan, "row?.message", "runtime-evidence-message-content-forbidden"
 forbid(runtimeScan, "DEVBOX_CONTROL_ADMIN_TOKEN", "runtime-admin-secret-unneeded");
 forbid(runtimeScan, "DEVBOX_CONTROL_PLANE_TOKEN", "runtime-desktop-secret-unneeded");
 
-console.log(`V020_DESKTOP_CANARY_VERIFY_PASS version=${version} desktopIdentity=explicit adminOnly=true selfAck=false appliedTimeBound=true idempotencyFaultInjection=true runtimeScan=deployment-scoped-secret-minimal`);
+console.log(`V020_DESKTOP_CANARY_VERIFY_PASS version=${version} desktopIdentity=explicit adminOnly=true selfAck=false idleIsolation=required appliedTimeBound=true idempotencyFaultInjection=true runtimeScan=deployment-scoped-secret-minimal`);
