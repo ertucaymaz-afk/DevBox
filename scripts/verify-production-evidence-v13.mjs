@@ -1,0 +1,13 @@
+import { readFile } from "node:fs/promises";
+const [pkgRaw,evidenceRaw,linksRaw]=await Promise.all([readFile("package.json","utf8"),readFile("cloud/production-evidence.json","utf8"),readFile("cloud/product-links.json","utf8")]);
+const pkg=JSON.parse(pkgRaw);const evidence=JSON.parse(evidenceRaw);const links=JSON.parse(linksRaw);
+const fail=(id,detail)=>{throw new Error(`DEVBOX_PRODUCTION_V13_FAIL:${id}:${detail??""}`);};
+if(evidence.productVersion!==pkg.version)fail("version",`${evidence.productVersion}!=${pkg.version}`);
+if(evidence.release?.productionEvidence!=="PASS")fail("production-evidence",evidence.release?.productionEvidence);
+const devapi=evidence.vercel?.devapi??{};const devbox=evidence.vercel?.devbox??{};const canary=evidence.canary??{};
+if(devapi.state!=="PASS"||devapi.rootHttpStatus!==200||devapi.healthHttpStatus!==200||devapi.publicStateHttpStatus!==200)fail("devapi-production",devapi.state);
+if(!devapi.latestDeploymentId||!devapi.rollbackCandidateId||!devapi.canonicalUrl)fail("devapi-evidence","deployment/url/rollback missing");
+if(devbox.state!=="PASS"||devbox.rootHttpStatus!==200||!devbox.projectId||!devbox.latestDeploymentId||!devbox.rollbackCandidateId||!devbox.canonicalUrl)fail("devbox-production",devbox.state);
+for(const key of ["desktopSnapshot","publicStateSanitization","setEnabledAck","runAck","cancelAck","commandIdempotency","commandSequence","crossSiteLinks","runtimeErrorScan"])if(canary[key]!=="PASS")fail(`canary-${key}`,canary[key]);
+if(links.devapi?.canonicalUrl!==devapi.canonicalUrl||links.devbox?.canonicalUrl!==devbox.canonicalUrl)fail("canonical-link-drift","links/evidence mismatch");
+console.log(`DEVBOX_PRODUCTION_V13_PASS version=${pkg.version} devapi=${devapi.latestDeploymentId} devbox=${devbox.latestDeploymentId}`);
