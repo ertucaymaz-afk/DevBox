@@ -60,6 +60,8 @@ requireText("devapiPublic", "x-devbox-public-state", "public-sanitize-header");
 requireText("devapiPublic", "stale", "public-freshness");
 requireText("devapiPublic", "etag", "public-etag");
 forbidText("devapiPublic", "latest_snapshot,", "public-raw-snapshot");
+forbidText("devapiPublic", "row?.project_name", "public-project-name-leak");
+requireText("devapiPublic", 'name: "DevBox project"', "public-project-name-sanitized");
 forbidText("devapiPublic", "requireAdminAuth", "public-admin-auth-import");
 forbidText("devapiPublic", "requireDesktopAuth", "public-desktop-auth-import");
 for (const secret of ["DEVBOX_CONTROL_ADMIN_TOKEN", "DEVBOX_CONTROL_PLANE_TOKEN", "DATABASE_URL"]) {

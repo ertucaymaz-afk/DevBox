@@ -23,7 +23,7 @@ function sanitizeSnapshot(row) {
     product: { name: "DevBox", version: VERSION },
     devapi: { state: "READY", controlPlaneVersion: VERSION },
     project: {
-      name: text(row?.project_name, 180) ?? "DevBox project",
+      name: "DevBox project",
       ref: createHash("sha256").update(String(row?.project_id ?? "unknown")).digest("hex").slice(0, 12)
     },
     evolution: {
