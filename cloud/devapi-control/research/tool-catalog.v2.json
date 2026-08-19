@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 2,
+  "product": "DevAPI",
+  "capturedAt": "2026-08-19T11:25:00.000Z",
+  "policy": {
+    "discoveredIsIntegrated": false,
+    "sourceReviewedIsSupplyChainVerified": false,
+    "exactVersionRequiredBeforeInstall": true,
+    "exactCommitRequiredWhenAvailable": true,
+    "licenseReviewRequired": true,
+    "securityReviewRequired": true,
+    "transitiveLockRequired": true,
+    "advisoryAuditRequired": true
+  },
+  "items": [
+    {
+      "name": "OpenAI Agents SDK for TypeScript",
+      "source": "https://github.com/openai/openai-agents-js",
+      "sourceType": "official-repo",
+      "observedRelease": "v0.14.3",
+      "observedCommit": "94a3edc3e5318fdbc4ceb045df4dad934ca4ab2b",
+      "package": "@openai/agents@0.14.3",
+      "packageBlobSha": "d943cf61c06655fdada00ba09ecea543b81ccbe7",
+      "license": "MIT",
+      "peer": { "zod": "^4.0.0" },
+      "capabilities": ["agent-loop", "tools", "handoffs", "guardrails", "sessions", "tracing", "human-approval", "sandbox-agents"],
+      "decision": "PRIMARY_AGENT_RUNTIME",
+      "integrationState": "SOURCE_REVIEWED",
+      "supplyChainState": "TRANSITIVE_LOCK_NOT_RUN",
+      "runtimeState": "NOT_RUN",
+      "note": "Exact release/package metadata reconciled; package intentionally not installed until lock/advisory gate passes."
+    },
+    {
+      "name": "Zod",
+      "source": "https://github.com/colinhacks/zod",
+      "sourceType": "official-repo",
+      "observedRelease": "v4.4.3",
+      "observedCommit": "1fb56a5c18c27102dbc92260a4007c7732a0ccca",
+      "decision": "AGENTS_SDK_SCHEMA_PEER",
+      "integrationState": "SOURCE_REVIEWED",
+      "note": "DevBox root already pins zod 4.4.3; DevAPI Agents SDK package integration remains separate and not completed."
+    },
+    {
+      "name": "Spectral",
+      "source": "https://github.com/stoplightio/spectral",
+      "sourceType": "official-repo",
+      "observedRelease": "v6.16.2",
+      "observedCommit": null,
+      "commitReconciliation": "NOT_RUN",
+      "license": "Apache-2.0",
+      "capabilities": ["openapi-lint", "custom-rules", "sarif"],
+      "decision": "PRIMARY_OPENAPI_STYLE_GATE",
+      "integrationState": "SOURCE_REVIEWED",
+      "note": "Current release rechecked; exact commit/package/transitive dependency gate remains before integration."
+    },
+    {
+      "name": "oasdiff",
+      "source": "https://github.com/oasdiff/oasdiff",
+      "sourceType": "official-repo",
+      "observedRelease": "v1.26.1",
+      "observedCommitShort": "47e76df",
+      "fullCommitReconciliation": "NOT_RUN",
+      "license": "Apache-2.0",
+      "securityNote": "v1.26.1 is documented upstream as a security patch for git revision option parsing.",
+      "capabilities": ["openapi-diff", "breaking-changes", "changelog"],
+      "decision": "PRIMARY_BREAKING_CHANGE_GATE",
+      "integrationState": "SOURCE_REVIEWED",
+      "note": "Binary/package SHA and full commit must be pinned before use."
+    },
+    {
+      "name": "Schemathesis",
+      "source": "https://github.com/schemathesis/schemathesis",
+      "sourceType": "official-repo",
+      "observedRelease": "v4.24.3",
+      "observedCommitShort": "613ce31",
+      "fullCommitReconciliation": "NOT_RUN",
+      "capabilities": ["property-testing", "negative-testing", "fuzzing", "stateful-api-testing"],
+      "decision": "PRIMARY_API_GENERATIVE_TEST_GATE",
+      "integrationState": "SOURCE_REVIEWED",
+      "note": "Python/runtime dependency and license/advisory gate remain before integration."
+    }
+  ]
+}
