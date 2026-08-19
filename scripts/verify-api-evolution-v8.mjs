@@ -5,7 +5,7 @@ execFileSync(process.execPath, ["scripts/verify-api-evolution-v7.mjs"], { stdio:
 
 const files = {
   package: "package.json",
-  contracts: "src/shared/contracts.ts",
+  contracts: "src/shared/devapi-control-contracts.ts",
   service: "src/main/services/api-evolution-service.ts",
   findings: "src/main/services/evolution-finding-service.ts",
   releaseGate: "src/main/services/release-gate-service.ts",
@@ -32,7 +32,8 @@ function check(name, condition, detail = "") {
 
 check("version-minimum", /^0\.1\.(?:1[5-9]|[2-9]\d|\d{3,})$/u.test(pkg.version));
 check("evolution-script-forward-compatible", /verify-api-evolution-v(?:8|9|10|11|12|13|14|15|16|17|18|19|20)\.mjs/u.test(String(pkg.scripts?.["evolution:verify"] ?? "")));
-check("finding-schema", hasAll(content.contracts, ["EvolutionFindingSeveritySchema", "EvolutionFindingOwnerSchema", "EvolutionFindingStatusSchema", "fingerprint", "occurrences"]));
+check("finding-schema", hasAll(content.contracts, ["FindingSeveritySchema", "FindingOwnerSchema", "FindingStatusSchema", "EvolutionFindingSchema", "fingerprint", "occurrences", ".strict()"]));
+check("finding-owner-count-schema", hasAll(content.contracts, ["FindingOwnerCountsSchema", "core:", "agent:", "api:", "release:", "typescript:", "workspace:", "cloud:", "ui:", "security:", "project:", "integration:"]));
 check("finding-lifecycle", hasAll(content.findings, ["OPEN", "RESOLVED", "REJECTED", "transition", "record"]));
 check("release-gate-service", hasAll(content.releaseGate, ["PREFLIGHT", "FULL", "blocking", "headBefore", "headAfter"]));
 check("release-gate-git-fingerprint", hasAll(content.releaseGate, ["workingTreeFingerprint", "repositoryFingerprint", "GIT_STATE_CHANGED_DURING_GATE"]));
@@ -72,8 +73,7 @@ check("cloud-server-command-allowlist", hasAll(cloudCommands, ["evolution.setEna
 check("cloud-server-project-discovery", cloudProjects.includes("requireAdminAuth") && cloudProjects.includes("listProjects") && cloudProjects.includes("generatedAt"));
 check("cloud-health-coarse-only", cloudHealth.includes("version:") && cloudHealth.includes("state:") && cloudHealth.includes("time:") && !cloudHealth.includes("configured") && !cloudHealth.includes("desktopAuth:") && !cloudHealth.includes("adminAuth:"));
 check("cloud-dashboard-project-discovery", hasAll(cloudApp, ["discoverProjects", "/api/v1/projects", "projectPicker", "renderCommands", "apply_status"]));
-const cloudIndexLower = cloudIndex.toLocaleLowerCase("en-US");
-check("cloud-dashboard-command-lifecycle", hasAll(cloudIndex, ["COMMAND AUDIT", "PENDING → RETRYING → APPLIED / FAILED"]) && cloudIndexLower.includes("desktop ack"));
+check("cloud-dashboard-command-lifecycle", hasAll(cloudApp, ["apply_status", "apply_detail", "applied_at", "applied_instance_id", "status.toLowerCase()", "Cloud kuyruğunda masaüstü ACK bekleniyor."]) && hasAll(cloudIndex, ["COMMAND AUDIT", "PENDING → RETRYING → APPLIED / FAILED", "Cloud kuyruğu ↔ Desktop ACK"]));
 check("cloud-vercel-csp", cloudVercel.includes("Content-Security-Policy") && cloudVercel.includes("frame-ancestors 'none'") && cloudVercel.includes("connect-src 'self'"));
 check("cloud-neon-pinned", cloudPackage.includes('"@neondatabase/serverless": "1.1.0"'));
 check("cloud-deployment-contract", hasAll(cloudReadme, ["cloud/devapi-control", "DATABASE_URL", "DEVBOX_CONTROL_PLANE_TOKEN", "DEVBOX_CONTROL_ADMIN_TOKEN", "PENDING", "RETRYING", "APPLIED", "FAILED"]));
