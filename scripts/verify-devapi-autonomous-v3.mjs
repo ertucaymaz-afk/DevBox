@@ -1,6 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { taskBudget } from "../cloud/devapi-control/agent/orchestrator.mjs";
+import { reviewerConfiguration } from "../cloud/devapi-control/agent/reviewer.mjs";
 
 function assert(condition, code) { if (!condition) throw new Error(code); }
 function readJson(file) { return readFile(file, "utf8").then(JSON.parse); }
@@ -11,6 +12,15 @@ assert(pkg.dependencies?.["@openai/agents"] === "0.14.3", "DEVAPI_V3_AGENTS_EXAC
 assert(pkg.dependencies?.zod === "4.4.3", "DEVAPI_V3_ZOD_EXACT_PIN");
 assert(manifest.runtime.version === "0.14.3", "DEVAPI_V3_MANIFEST_AGENT_VERSION");
 assert(manifest.schemaRuntime.version === "4.4.3", "DEVAPI_V3_MANIFEST_ZOD_VERSION");
+assert(manifest.truth.supplyChainVerified === true && manifest.truth.lockCommitted === true, "DEVAPI_V3_SUPPLY_CHAIN_MANIFEST_TRUTH");
+
+const runtimeSource = await readFile("cloud/devapi-control/agent/runtime.mjs", "utf8");
+assert(runtimeSource.includes('const DEFAULT_MODEL = "gpt-5.6"'), "DEVAPI_V3_PLANNER_MODEL_DEFAULT");
+const reviewerSource = await readFile("cloud/devapi-control/agent/reviewer.mjs", "utf8");
+for (const token of ["DevAPI Independent Reviewer","outputType: ReviewSchema","REQUEST_CHANGES","REJECT","riskDelta","hidden chain-of-thought"]) assert(reviewerSource.includes(token), `DEVAPI_V3_REVIEWER_CONTRACT:${token}`);
+const reviewerConfig = await reviewerConfiguration();
+assert(reviewerConfig.role === "independent-reviewer" && reviewerConfig.sourceState === "SOURCE_READY", "DEVAPI_V3_REVIEWER_SOURCE_STATE");
+assert(reviewerConfig.runtimeState !== "RUNTIME_VERIFIED", "DEVAPI_V3_REVIEWER_FAKE_STATIC_RUNTIME");
 
 const budget = taskBudget();
 assert(budget.maxTurns === 6 && budget.maxChangedFiles === 12 && budget.maxPatchBytes === 131072, "DEVAPI_V3_BUDGET_DEFAULTS");
@@ -43,8 +53,18 @@ assert(["RUNTIME_VERIFIED","BLOCKED_EXTERNAL"].includes(provider.state), "DEVAPI
 assert(provider.secretValue === null, "DEVAPI_V3_PROVIDER_SECRET_EXPOSED");
 if (provider.state === "RUNTIME_VERIFIED") {
   assert(provider.runtimeVerified === true && provider.responseId, "DEVAPI_V3_PROVIDER_EVIDENCE_INCOMPLETE");
+  assert(provider.model === "gpt-5.6" || typeof provider.model === "string", "DEVAPI_V3_PROVIDER_MODEL_MISSING");
 } else {
   assert(provider.runtimeVerified === false && provider.blocker, "DEVAPI_V3_PROVIDER_BLOCKER_INCOMPLETE");
+}
+
+const reviewer = await readJson("outputs/devapi-reviewer-smoke.json");
+assert(["RUNTIME_VERIFIED","BLOCKED_EXTERNAL"].includes(reviewer.state), "DEVAPI_V3_REVIEWER_STATE_INVALID");
+assert(reviewer.secretValue === null, "DEVAPI_V3_REVIEWER_SECRET_EXPOSED");
+if (reviewer.state === "RUNTIME_VERIFIED") {
+  assert(reviewer.runtimeVerified === true && reviewer.responseId && reviewer.decision, "DEVAPI_V3_REVIEWER_EVIDENCE_INCOMPLETE");
+} else {
+  assert(reviewer.runtimeVerified === false && reviewer.blocker, "DEVAPI_V3_REVIEWER_BLOCKER_INCOMPLETE");
 }
 
 const db = await readJson("outputs/devapi-db-runtime-smoke.json");
@@ -61,4 +81,4 @@ assert(supply.state === "SUPPLY_CHAIN_VERIFIED", "DEVAPI_V3_SUPPLY_CHAIN_NOT_VER
 assert(supply.direct?.agents?.version === "0.14.3" && supply.direct?.zod?.version === "4.4.3", "DEVAPI_V3_SUPPLY_CHAIN_VERSION_DRIFT");
 assert(supply.audit.high === 0 && supply.audit.critical === 0, "DEVAPI_V3_SUPPLY_CHAIN_AUDIT_BLOCKER");
 
-console.log(`DEVAPI_AUTONOMOUS_V3_VERIFY_PASS routes=${sourceRoutes.length} sites=5 supplyChain=verified provider=${provider.state.toLowerCase()} db=${db.state.toLowerCase()} approvals=source-ready orchestrator=source-ready errorEnvelope=v2`);
+console.log(`DEVAPI_AUTONOMOUS_V3_VERIFY_PASS routes=${sourceRoutes.length} sites=5 supplyChain=verified plannerModel=gpt-5.6 provider=${provider.state.toLowerCase()} reviewer=${reviewer.state.toLowerCase()} db=${db.state.toLowerCase()} approvals=source-ready orchestrator=source-ready errorEnvelope=v2`);
