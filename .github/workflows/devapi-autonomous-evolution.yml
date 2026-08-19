@@ -1,4 +1,4 @@
-name: DevAPI autonomous evolution v5
+name: DevAPI autonomous evolution v6
 
 on:
   push:
@@ -21,11 +21,13 @@ on:
       - scripts/devapi-vercel-credential-state.mjs
       - scripts/devapi-agents-supply-chain.mjs
       - scripts/verify-devapi-sites-v1.mjs
+      - scripts/verify-devapi-main-site-v1.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
       - scripts/verify-devapi-autonomous-v3.mjs
       - scripts/verify-devapi-autonomous-v4.mjs
       - scripts/verify-devapi-autonomous-v5.mjs
+      - scripts/verify-devapi-autonomous-v6.mjs
       - scripts/verify-devapi-worker-security.mjs
       - scripts/verify-devapi-tool-catalog-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
@@ -47,7 +49,7 @@ concurrency:
 
 jobs:
   verify:
-    name: dependency + worker + coder + lease + security + browser + provider + db + sites truth gate
+    name: dependency + worker + coder + lease + security + browser + main-site + provider + db + sites truth gate
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -120,9 +122,11 @@ jobs:
             scripts/devapi-db-runtime-smoke.mjs \
             scripts/devapi-vercel-credential-state.mjs \
             scripts/verify-devapi-sites-v1.mjs \
+            scripts/verify-devapi-main-site-v1.mjs \
             scripts/verify-devapi-autonomous-v3.mjs \
             scripts/verify-devapi-autonomous-v4.mjs \
-            scripts/verify-devapi-autonomous-v5.mjs; do node --check "$file"; done
+            scripts/verify-devapi-autonomous-v5.mjs \
+            scripts/verify-devapi-autonomous-v6.mjs; do node --check "$file"; done
 
       - name: Build repository inventory
         run: node scripts/build-devapi-repo-inventory.mjs
@@ -163,6 +167,9 @@ jobs:
       - name: Five-site vercel-app source truth gate
         run: node scripts/verify-devapi-sites-v1.mjs
 
+      - name: Main product site UI and truth gate
+        run: node scripts/verify-devapi-main-site-v1.mjs
+
       - name: Research catalog truth gate
         run: node scripts/verify-devapi-tool-catalog-v2.mjs
 
@@ -178,8 +185,11 @@ jobs:
       - name: Autonomous v4 regression
         run: node scripts/verify-devapi-autonomous-v4.mjs
 
-      - name: Autonomous v5 verification
+      - name: Autonomous v5 regression
         run: node scripts/verify-devapi-autonomous-v5.mjs
+
+      - name: Autonomous v6 verification
+        run: node scripts/verify-devapi-autonomous-v6.mjs
 
       - name: Existing cloud regression
         run: node scripts/verify-cloud-ecosystem.mjs
@@ -187,10 +197,10 @@ jobs:
       - name: Diff hygiene
         run: git diff --check
 
-      - name: Upload v5 evidence
+      - name: Upload v6 evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: DevAPI-Autonomous-Evolution-v5-Evidence
+          name: DevAPI-Autonomous-Evolution-v6-Evidence
           path: |
             outputs/devapi-repo-inventory.json
             outputs/devapi-worker-smoke.json
@@ -209,5 +219,6 @@ jobs:
             cloud/devapi-control/agent/dependency-manifest.json
             cloud/devapi-control/research/tool-catalog.v2.json
             cloud/devapi-sites/sites.manifest.json
+            cloud/devapi-sites/main/ui-provenance.json
           if-no-files-found: error
           retention-days: 14
