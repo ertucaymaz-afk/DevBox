@@ -81,7 +81,6 @@ import type {
 import { DEVBOX_DAY_THEME, DEVBOX_OBSIDIAN_THEME } from "../shared/theme-presets";
 import {
   AutomationWorkspace,
-  CatalogWorkspace,
   IntegrationWorkspace,
   TerminalWorkspace,
   WorktreeWorkspace
@@ -92,6 +91,7 @@ import { WhatsNewWorkspace } from "./WhatsNewWorkspace";
 import { CanvasInspector } from "./CanvasInspector";
 import { DevApiControlWorkspace } from "./DevApiControlWorkspace";
 import { RemixRotaWorkspace } from "./RemixRotaWorkspace";
+import { CatalogWorkspaceV2 } from "./CatalogWorkspaceV2";
 
 type View = "thread" | "files" | "git" | "runs" | "sites" | "capabilities" | "settings" | "terminal" | "worktrees" | "devapi" | "music" | "automations" | "integrations" | "skills" | "pullRequests" | "whatsNew";
 type PromptState = {
@@ -1312,7 +1312,7 @@ export function App(): ReactNode {
             {view === "music" && <RemixRotaWorkspace />}
             {view === "automations" && <AutomationWorkspace project={selfDevelopmentProject ?? selectedProject} />}
             {view === "integrations" && <IntegrationWorkspace project={selectedProject} />}
-            {view === "skills" && <CatalogWorkspace />}
+            {view === "skills" && <CatalogWorkspaceV2 />}
             {view === "pullRequests" && <IntegrationWorkspace project={selectedProject} scope="github" />}
             {view === "whatsNew" && <WhatsNewWorkspace />}
             {view === "settings" && <SettingsWorkspaceV2 settings={appSettings} onSettings={(next) => { setAppSettings(next); setPermission(next.permissionProfile); }} onClose={() => setView(thread ? "thread" : selectedProject ? "files" : "thread")} />}
