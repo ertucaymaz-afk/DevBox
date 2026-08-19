@@ -1,8 +1,8 @@
 {
   "name": "devapi-desktop",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
-  "description": "DevAPI autonomous engineering control center for Windows",
+  "description": "DevAPI autonomous engineering desktop agent workspace for Windows",
   "author": "Yaaertu",
   "license": "Apache-2.0",
   "main": "main.cjs",
