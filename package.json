@@ -34,6 +34,7 @@
     "test:soak": "pnpm build:main && node scripts/soak-smoke.mjs",
     "truth:audit": "node scripts/verify-product-truth.mjs",
     "web:verify": "node scripts/verify-web-ecosystem.mjs",
+    "web:visual:verify": "node scripts/verify-web-visual.mjs",
     "cloud:verify": "node scripts/verify-cloud-ecosystem.mjs",
     "production:promoter:verify": "pnpm source:hygiene && node scripts/verify-v020-production-promoter.mjs",
     "production:canary:verify": "node scripts/verify-v020-desktop-canary.mjs",
