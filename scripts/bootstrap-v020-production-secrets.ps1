@@ -2,8 +2,10 @@
 param(
   [string]$Repository = 'ertucaymaz-afk/DevBox',
   [string]$Ref = 'codex/v0.1.20-vercel-production-modernization',
+  [string]$ControlPlaneUrl = 'https://devapi-virid.vercel.app',
   [SecureString]$VercelToken,
   [SecureString]$DatabaseUrl,
+  [switch]$NoLocalDesktopConfig,
   [switch]$NoTrigger
 )
 
@@ -23,6 +25,15 @@ function New-UrlSafeSecret([int]$Bytes = 48) {
   try { $rng.GetBytes($buffer) }
   finally { $rng.Dispose() }
   return [Convert]::ToBase64String($buffer).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+function Get-CanonicalHttpsOrigin([string]$Value) {
+  $uri = $null
+  if (-not [Uri]::TryCreate($Value, [UriKind]::Absolute, [ref]$uri)) { throw 'CONTROL_PLANE_URL_INVALID' }
+  if ($uri.Scheme -ne 'https' -or -not [string]::IsNullOrEmpty($uri.UserInfo) -or $uri.Query -or $uri.Fragment -or $uri.AbsolutePath -ne '/') {
+    throw 'CONTROL_PLANE_URL_MUST_BE_HTTPS_ORIGIN'
+  }
+  return $uri.GetLeftPart([UriPartial]::Authority)
 }
 
 function Invoke-Gh([string[]]$Arguments, [switch]$Capture) {
@@ -67,13 +78,34 @@ function Set-GhSecret([string]$Name, [string]$Value) {
   Write-Host "SECRET_SET_PASS name=$Name value=masked"
 }
 
+function Broadcast-EnvironmentChange {
+  if (-not ('DevBox.NativeEnvironmentBroadcast' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace DevBox {
+  public static class NativeEnvironmentBroadcast {
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern IntPtr SendMessageTimeout(
+      IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam,
+      uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+  }
+}
+'@
+  }
+  $result = [UIntPtr]::Zero
+  [void][DevBox.NativeEnvironmentBroadcast]::SendMessageTimeout(
+    [IntPtr]0xffff, 0x001A, [UIntPtr]::Zero, 'Environment', 0x0002, 5000, [ref]$result)
+}
+
 if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'REPOSITORY_FORMAT_INVALID' }
 if ($Ref -notmatch '^[A-Za-z0-9._/-]+$') { throw 'REF_FORMAT_INVALID' }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
   throw 'GITHUB_CLI_REQUIRED: https://cli.github.com/'
 }
+$controlPlaneOrigin = Get-CanonicalHttpsOrigin $ControlPlaneUrl
 
-Write-Host "DEVBOX_V020_SECRET_BOOTSTRAP repository=$Repository ref=$Ref"
+Write-Host "DEVBOX_V020_SECRET_BOOTSTRAP repository=$Repository ref=$Ref controlPlane=$controlPlaneOrigin"
 Invoke-Gh -Arguments @('auth', 'status', '--hostname', 'github.com')
 Invoke-Gh -Arguments @('repo', 'view', $Repository, '--json', 'nameWithOwner') | Out-Null
 
@@ -107,6 +139,17 @@ try {
   }
   Write-Host 'DEVBOX_V020_SECRET_BOOTSTRAP_PASS secrets=4 values=masked'
 
+  if (-not $NoLocalDesktopConfig) {
+    [Environment]::SetEnvironmentVariable('DEVBOX_CONTROL_PLANE_URL', $controlPlaneOrigin, [EnvironmentVariableTarget]::User)
+    [Environment]::SetEnvironmentVariable('DEVBOX_CONTROL_PLANE_TOKEN', $controlPlaneToken, [EnvironmentVariableTarget]::User)
+    $env:DEVBOX_CONTROL_PLANE_URL = $controlPlaneOrigin
+    $env:DEVBOX_CONTROL_PLANE_TOKEN = $controlPlaneToken
+    Broadcast-EnvironmentChange
+    Write-Host "LOCAL_DESKTOP_CONTROL_PLANE_PASS scope=user url=$controlPlaneOrigin token=masked adminTokenPersisted=false restartNewProcess=true"
+  } else {
+    Write-Host 'LOCAL_DESKTOP_CONTROL_PLANE_SKIPPED reason=NoLocalDesktopConfig'
+  }
+
   if (-not $NoTrigger) {
     Write-Host 'Promotion workflow tetikleniyor...'
     & gh workflow run 'v020-production-promote.yml' --repo $Repository --ref $Ref
@@ -118,7 +161,7 @@ try {
       if ($null -eq $run -or -not $run.databaseId) { throw 'PROMOTION_RUN_NOT_FOUND' }
       Invoke-Gh -Arguments @('run', 'rerun', [string]$run.databaseId, '--repo', $Repository, '--failed')
     }
-    Write-Host 'PROMOTION_TRIGGER_PASS secrets=masked'
+    Write-Host 'PROMOTION_TRIGGER_PASS secrets=masked desktopConfig=user'
   }
 }
 finally {
