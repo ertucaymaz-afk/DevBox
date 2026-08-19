@@ -94,6 +94,7 @@ function eligibleProject(item) {
   if (String(item.productVersion ?? "") !== VERSION) return false;
   if (Number(item.cloudProtocol) !== PROTOCOL) return false;
   if (ageSeconds(item.capturedAt) > maxAgeSeconds) return false;
+  if (asBoolean(item.evolutionRunning)) return false;
   return true;
 }
 async function waitForDesktop() {
@@ -105,12 +106,17 @@ async function waitForDesktop() {
     if (requestedProjectId) {
       const selected = eligible.find((item) => String(item.projectId) === requestedProjectId);
       if (selected) return selected;
-      last = `requested=${requestedProjectId} eligible=${eligible.map((item) => item.projectId).join(",") || "none"}`;
+      const requested = items.find((item) => String(item?.projectId ?? "") === requestedProjectId);
+      const running = requested ? String(requested.evolutionRunning ?? "unknown") : "missing";
+      last = `requested=${requestedProjectId} running=${running} eligible=${eligible.map((item) => item.projectId).join(",") || "none"}`;
     } else if (eligible.length === 1) {
       return eligible[0];
     } else if (eligible.length > 1) {
       fail("DESKTOP_SELECTION_AMBIGUOUS", eligible.map((item) => item.projectId).join(","));
-    } else last = "no-fresh-v0.1.20-desktop";
+    } else {
+      const freshV020 = items.filter((item) => item && typeof item === "object" && String(item.productName ?? "") === "DevBox" && String(item.productVersion ?? "") === VERSION && Number(item.cloudProtocol) === PROTOCOL && ageSeconds(item.capturedAt) <= maxAgeSeconds);
+      last = freshV020.some((item) => item.evolutionRunning === true || item.evolutionRunning === "true") ? "fresh-v0.1.20-desktop-busy" : "no-fresh-v0.1.20-desktop";
+    }
     await sleep(10_000);
   }
   fail("DESKTOP_NOT_READY", last);
@@ -210,8 +216,9 @@ const baselineState = await state(projectId);
 const baseline = snapshotIdentity(baselineState);
 if (baseline.projectId !== projectId) fail("PROJECT_ID_DRIFT", `${projectId}:${baseline.projectId}`);
 if (ageSeconds(baseline.capturedAt) > maxAgeSeconds) fail("BASELINE_STALE", baseline.capturedAt);
+if (baseline.isRunning) fail("BASELINE_NOT_IDLE", projectId);
 
-console.log(`V020_DESKTOP_SELECTED project=${projectId} instance=${baseline.instanceId} version=${VERSION} capturedAt=${baseline.capturedAt}`);
+console.log(`V020_DESKTOP_SELECTED project=${projectId} instance=${baseline.instanceId} version=${VERSION} capturedAt=${baseline.capturedAt} idle=true`);
 
 const proof = [];
 let enabledForCanary = baseline.enabled;
@@ -223,8 +230,12 @@ try {
   const enableAck = await waitApplied(projectId, enable, baseline.instanceId);
   proof.push(enable);
   const enableAppliedAt = normalizeCommand((enableAck.state.commands ?? []).find((item) => String(item.id) === enable.id)).appliedAt;
-  const enabledSnapshot = await waitSnapshot(projectId, enableAppliedAt, (identity) => identity.enabled === true, "enabled-true");
+  const enabledSnapshot = await waitSnapshot(projectId, enableAppliedAt, (identity) => identity.enabled === true && identity.isRunning === false, "enabled-true-idle");
   enabledForCanary = true;
+
+  const preRunState = snapshotIdentity(await state(projectId));
+  if (preRunState.instanceId !== baseline.instanceId) fail("DESKTOP_INSTANCE_CHANGED_BEFORE_RUN", `${baseline.instanceId}:${preRunState.instanceId}`);
+  if (preRunState.isRunning) fail("DESKTOP_BECAME_BUSY_BEFORE_RUN", projectId);
 
   const run = await createCommand(projectId, "evolution.run", {});
   runMayBeActive = true;
@@ -237,7 +248,7 @@ try {
   proof.push(cancel);
   runMayBeActive = false;
   const cancelAppliedAt = normalizeCommand((cancelAck.state.commands ?? []).find((item) => String(item.id) === cancel.id)).appliedAt;
-  const cancelledSnapshot = await waitSnapshot(projectId, cancelAppliedAt, (identity) => identity.isRunning === false, "cancelled-idle", 150);
+  await waitSnapshot(projectId, cancelAppliedAt, (identity) => identity.isRunning === false, "cancelled-idle", 150);
 
   let restore = null;
   if (!baseline.enabled) {
@@ -272,6 +283,7 @@ try {
       projectId,
       instanceId: baseline.instanceId,
       baselineCapturedAt: baseline.capturedAt,
+      baselineIdle: true,
       product: { name: "DevBox", version: VERSION, cloudProtocol: PROTOCOL },
       originalEvolutionEnabled: baseline.enabled,
       restoredEvolutionEnabled: enabledForCanary
@@ -279,6 +291,7 @@ try {
     canary: {
       desktopSnapshot: "PASS",
       publicStateSanitization: "PASS",
+      idleIsolation: "PASS",
       setEnabledAck: "PASS",
       runAck: "PASS",
       cancelAck: "PASS",
@@ -295,6 +308,7 @@ try {
       `instance_id=${baseline.instanceId}`,
       "desktop_snapshot=PASS",
       "public_state_sanitization=PASS",
+      "idle_isolation=PASS",
       "set_enabled_ack=PASS",
       "run_ack=PASS",
       "cancel_ack=PASS",
@@ -303,7 +317,7 @@ try {
     ].join("\n") + "\n", { flag: "a" });
   }
   successful = true;
-  console.log(`V020_DESKTOP_CANARY_PASS project=${projectId} instance=${baseline.instanceId} commands=${proof.length} publicState=sanitized secrets=0-in-artifact`);
+  console.log(`V020_DESKTOP_CANARY_PASS project=${projectId} instance=${baseline.instanceId} commands=${proof.length} publicState=sanitized idleIsolation=pass secrets=0-in-artifact`);
 } finally {
   if (!successful) {
     console.error(`V020_DESKTOP_CANARY_CLEANUP_START project=${projectId} runMayBeActive=${runMayBeActive} enabledForCanary=${enabledForCanary}`);
