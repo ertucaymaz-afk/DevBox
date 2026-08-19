@@ -33,7 +33,7 @@ if(!pageHtml.includes('src="/ecosystem-theme.js"'))fail("WEB_ECOSYSTEM_THEME_SCR
 if(!pageHtml.includes('src="/ecosystem-page.js"'))fail("WEB_ECOSYSTEM_PAGE_SCRIPT_MISSING");
 if(!css.includes("@media(prefers-reduced-motion:reduce)"))fail("WEB_ECOSYSTEM_REDUCED_MOTION_MISSING");
 if(!css.includes("eco-command"))fail("WEB_ECOSYSTEM_COMMAND_PALETTE_STYLE_MISSING");
-if(!orange.includes("#ff6a00")||!orange.includes("#fff")||!orange.includes("orange-white")){if(!orange.toLowerCase().includes("#ff6a00")||!orange.toLowerCase().includes("#fff"))fail("WEB_ECOSYSTEM_ORANGE_WHITE_TOKENS_MISSING")}
+if(!orange.toLowerCase().includes("#ff6a00")||!orange.toLowerCase().includes("#fff"))fail("WEB_ECOSYSTEM_ORANGE_WHITE_TOKENS_MISSING");
 if(!orange.includes('html[data-eco-theme="dark"]'))fail("WEB_ECOSYSTEM_DARK_THEME_MISSING");
 if(!orange.includes("@media(prefers-reduced-motion:reduce)"))fail("WEB_ECOSYSTEM_ORANGE_REDUCED_MOTION_MISSING");
 if(!theme.includes("devbox.ecoTheme")||!theme.includes('"system","light","dark"'))fail("WEB_ECOSYSTEM_THEME_CONTROLLER_INVALID");
@@ -69,14 +69,14 @@ if(!nav.includes("SOURCE VERIFIED"))fail("WEB_ECOSYSTEM_SOURCE_TRUTH_LABEL_MISSI
 if(!nav.includes("PRODUCTION · BLOCKED/UNAVAILABLE"))fail("WEB_ECOSYSTEM_PRODUCTION_FAIL_CLOSED_LABEL_MISSING");
 
 if(manifest?.iconSystem?.primary!=="Lucide"||manifest?.iconSystem?.upstreamTag!=="1.27.0"||manifest?.iconSystem?.iconCount!==expectedIcons.length||manifest?.iconSystem?.wholePackageBundling!==false)fail("WEB_ECOSYSTEM_ICON_SYSTEM_INVALID");
-if(iconManifest?.library!=="Lucide"||iconManifest?.upstreamTag!=="1.27.0"||iconManifest?.runtimeDependency!==false||iconManifest?.delivery!=="curated-local-svg-sprite")fail("WEB_ECOSYSTEM_ICON_PROVENANCE_INVALID");
+if(iconManifest?.library!=="Lucide"||iconManifest?.upstreamTag!=="1.27.0"||iconManifest?.libraryLicense!=="ISC"||iconManifest?.runtimeDependency!==false||iconManifest?.delivery!=="curated-local-svg-sprite")fail("WEB_ECOSYSTEM_ICON_PROVENANCE_INVALID");
 const icons=Array.isArray(iconManifest.icons)?iconManifest.icons:[];
 if(icons.length!==expectedIcons.length)fail("WEB_ECOSYSTEM_ICON_COUNT",String(icons.length));
-for(const id of expectedIcons){if(!sprite.includes(`id="i-${id}"`))fail("WEB_ECOSYSTEM_ICON_SPRITE_MISSING",id);const record=icons.find(item=>item?.id===id);if(!record)fail("WEB_ECOSYSTEM_ICON_MANIFEST_MISSING",id);if(!/^[a-f0-9]{64}$/i.test(String(record.sha256||"")))fail("WEB_ECOSYSTEM_ICON_DIGEST_INVALID",id)}
+for(const id of expectedIcons){if(!sprite.includes(`id="i-${id}"`))fail("WEB_ECOSYSTEM_ICON_SPRITE_MISSING",id);const record=icons.find(item=>item?.id===id);if(!record)fail("WEB_ECOSYSTEM_ICON_MANIFEST_MISSING",id);if(record.license!=="ISC")fail("WEB_ECOSYSTEM_ICON_LICENSE_INVALID",id);if(!/^[a-f0-9]{64}$/i.test(String(record.sha256||"")))fail("WEB_ECOSYSTEM_ICON_DIGEST_INVALID",id)}
 if(!nav.includes("/ecosystem-icons.svg#i-")||!pageJs.includes("/ecosystem-icons.svg#i-"))fail("WEB_ECOSYSTEM_ICON_RUNTIME_USAGE_MISSING");
 
 const research=Array.isArray(manifest.researchSources)?manifest.researchSources:[];
-const expectedResearch=new Map([["Magic UI","MIT"],["shadcn/ui","MIT"],["Lucide","ISC; Feather-derived icon subset MIT"],["Tabler Icons","MIT"],["Motion","MIT"],["Kibo UI","MIT"],["Microsoft Playwright","Apache-2.0"],["axe-core","MPL-2.0"],["Lighthouse","Apache-2.0"]]);
+const expectedResearch=new Map([["Magic UI","MIT"],["shadcn/ui","MIT"],["Lucide","ISC"],["Tabler Icons","MIT"],["Motion","MIT"],["Kibo UI","MIT"],["Microsoft Playwright","Apache-2.0"],["axe-core","MPL-2.0"],["Lighthouse","Apache-2.0"]]);
 for(const [name,license] of expectedResearch){const entry=research.find(item=>item?.name===name);if(!entry||entry.license!==license)fail("WEB_ECOSYSTEM_RESEARCH_SOURCE_MISSING",name)}
 const playwright=research.find(item=>item?.name==="Microsoft Playwright");if(playwright?.ciOnly!==true||playwright?.exactPackage!=="@playwright/test@1.62.1")fail("WEB_ECOSYSTEM_PLAYWRIGHT_PROVENANCE_INVALID");
 const lucide=research.find(item=>item?.name==="Lucide");if(lucide?.runtimeDependency!==false||lucide?.exactTag!=="1.27.0"||lucide?.integrationState!=="SOURCE_PINNED")fail("WEB_ECOSYSTEM_LUCIDE_PIN_INVALID");
