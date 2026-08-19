@@ -1,0 +1,131 @@
+name: DevAPI Desktop Windows x64
+
+on:
+  push:
+    branches:
+      - codex/devapi-autonomous-evolution-v1
+    paths:
+      - desktop/devapi/**
+      - cloud/devapi-sites/**
+      - .github/workflows/devapi-desktop-windows.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devapi-desktop-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build DevAPI-Setup.exe
+    runs-on: windows-2025
+    timeout-minutes: 35
+    steps:
+      - name: Exact source checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Source syntax gate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --check desktop/devapi/main.cjs
+          node --check desktop/devapi/preload.cjs
+          node --check desktop/devapi/renderer/app.js
+          $manifest = Get-Content cloud/devapi-sites/sites.manifest.json -Raw | ConvertFrom-Json
+          if ($manifest.requiredSuffix -ne '.vercel.app') { throw 'DEVAPI_DESKTOP_SITE_SUFFIX_INVALID' }
+          if ($manifest.canonicalDomainsVerified -ne $false) { throw 'DEVAPI_DESKTOP_CANONICAL_TRUTH_DRIFT' }
+          Write-Host 'DEVAPI_DESKTOP_SOURCE_PASS surfaces=5 truth=fail-closed suffix=.vercel.app'
+
+      - name: Stage five bundled DevAPI surfaces
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $target = 'desktop/devapi/resources/devapi-sites'
+          if (Test-Path $target) { Remove-Item $target -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path 'desktop/devapi/resources' | Out-Null
+          Copy-Item 'cloud/devapi-sites' $target -Recurse -Force
+          $required = @('main','runtime','docs','status','console')
+          foreach ($name in $required) {
+            $index = Join-Path $target "$name/index.html"
+            if (-not (Test-Path $index)) { throw "DEVAPI_DESKTOP_SURFACE_MISSING:$name" }
+          }
+          Write-Host 'DEVAPI_DESKTOP_SURFACES_STAGED count=5'
+
+      - name: Build unsigned NSIS x64 installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location desktop/devapi
+          try {
+            npx --yes electron-builder@26.15.3 --config electron-builder.yml --win nsis --x64
+          } finally {
+            Pop-Location
+          }
+
+      - name: Packaged app launch smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $app = Join-Path $PWD 'release-devapi/win-unpacked/DevAPI.exe'
+          if (-not (Test-Path $app)) { throw 'DEVAPI_DESKTOP_UNPACKED_EXE_MISSING' }
+          $process = Start-Process -FilePath $app -ArgumentList '--disable-gpu' -PassThru
+          Start-Sleep -Seconds 6
+          if ($process.HasExited) { throw "DEVAPI_DESKTOP_LAUNCH_FAILED exit=$($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'DEVAPI_DESKTOP_LAUNCH_PASS process=started'
+
+      - name: Installer integrity evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path outputs | Out-Null
+          $exe = Get-ChildItem release-devapi -Filter 'DevAPI-Setup-*.exe' | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          if (-not $exe) { throw 'DEVAPI_DESKTOP_INSTALLER_MISSING' }
+          $stream = [System.IO.File]::OpenRead($exe.FullName)
+          try {
+            $b0 = $stream.ReadByte(); $b1 = $stream.ReadByte()
+          } finally { $stream.Dispose() }
+          if ($b0 -ne 0x4D -or $b1 -ne 0x5A) { throw 'DEVAPI_DESKTOP_PE_HEADER_INVALID' }
+          $sha = (Get-FileHash -Algorithm SHA256 $exe.FullName).Hash.ToLowerInvariant()
+          $sourceSha = '${{ github.sha }}'
+          $evidence = [ordered]@{
+            schemaVersion = 1
+            state = 'PACKAGED_VERIFIED'
+            product = 'DevAPI'
+            platform = 'windows'
+            arch = 'x64'
+            installer = $exe.Name
+            bytes = $exe.Length
+            sha256 = $sha
+            peHeader = 'MZ'
+            signed = $false
+            sourceSha = $sourceSha
+            electron = '43.4.0'
+            electronBuilder = '26.15.3'
+            surfaces = 5
+            productionRuntime = 'BLOCKED_EXTERNAL'
+            generatedAt = (Get-Date).ToUniversalTime().ToString('o')
+          }
+          $evidence | ConvertTo-Json -Depth 5 | Set-Content outputs/devapi-desktop-windows.json -Encoding utf8
+          Copy-Item $exe.FullName "outputs/$($exe.Name)"
+          Write-Host "DEVAPI_DESKTOP_WINDOWS_PASS installer=$($exe.Name) bytes=$($exe.Length) sha256=$sha pe=MZ signed=false surfaces=5"
+
+      - name: Upload DevAPI Windows installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DevAPI-Windows-x64
+          path: |
+            outputs/DevAPI-Setup-*.exe
+            outputs/devapi-desktop-windows.json
+          if-no-files-found: error
+          retention-days: 14
