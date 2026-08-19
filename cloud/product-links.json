@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "productVersion": "0.1.20",
+  "github": "https://github.com/ertucaymaz-afk/DevBox",
+  "devapi": {
+    "canonicalUrl": "https://devapi-virid.vercel.app",
+    "state": "BLOCKED_STALE_PRODUCTION"
+  },
+  "devbox": {
+    "requestedCanonicalUrl": "https://devbox.vercel.app",
+    "canonicalUrl": null,
+    "state": "BLOCKED_PROJECT_OWNERSHIP"
+  }
+}
