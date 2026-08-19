@@ -26,9 +26,9 @@ concurrency:
 
 jobs:
   build:
-    name: Build DevAPI-Setup.exe
+    name: Build and health-verify DevAPI-Setup.exe
     runs-on: windows-2025
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Exact source checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -41,34 +41,84 @@ jobs:
         with:
           node-version: 24
 
-      - name: Source syntax gate
+      - name: Source syntax and policy gate
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           node --check desktop/devapi/main.cjs
           node --check desktop/devapi/preload.cjs
           node --check desktop/devapi/renderer/app.js
+          if (-not (Test-Path 'desktop/devapi/build/icon.svg')) { throw 'DEVAPI_DESKTOP_ICON_MISSING' }
+          $package = Get-Content desktop/devapi/package.json -Raw | ConvertFrom-Json
+          if ($package.version -ne '0.6.1') { throw "DEVAPI_DESKTOP_VERSION_UNEXPECTED:$($package.version)" }
           $manifest = Get-Content cloud/devapi-sites/sites.manifest.json -Raw | ConvertFrom-Json
           if ($manifest.domainPolicy.requiredSuffix -ne '.vercel.app') { throw 'DEVAPI_DESKTOP_SITE_SUFFIX_INVALID' }
           if ($manifest.domainPolicy.customComDomains -ne $false) { throw 'DEVAPI_DESKTOP_CUSTOM_DOMAIN_POLICY_INVALID' }
           if ($manifest.canonicalDomainsVerified -ne $false) { throw 'DEVAPI_DESKTOP_CANONICAL_TRUTH_DRIFT' }
           if (@($manifest.projects).Count -ne 5) { throw 'DEVAPI_DESKTOP_SURFACE_MANIFEST_COUNT_INVALID' }
-          Write-Host 'DEVAPI_DESKTOP_SOURCE_PASS surfaces=5 truth=fail-closed suffix=.vercel.app'
+          Write-Host 'DEVAPI_DESKTOP_SOURCE_PASS version=0.6.1 surfaces=5 protocol=devapi icon=custom truth=fail-closed suffix=.vercel.app'
 
       - name: Stage five bundled DevAPI surfaces
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $target = 'desktop/devapi/resources/devapi-sites'
-          if (Test-Path $target) { Remove-Item $target -Recurse -Force }
-          New-Item -ItemType Directory -Force -Path 'desktop/devapi/resources' | Out-Null
-          Copy-Item 'cloud/devapi-sites' $target -Recurse -Force
+          if (Test-Path 'desktop/devapi/resources') { Remove-Item 'desktop/devapi/resources' -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          Copy-Item 'cloud/devapi-sites/*' $target -Recurse -Force
           $required = @('main','runtime','docs','status','console')
           foreach ($name in $required) {
             $index = Join-Path $target "$name/index.html"
             if (-not (Test-Path $index)) { throw "DEVAPI_DESKTOP_SURFACE_MISSING:$name" }
           }
           Write-Host 'DEVAPI_DESKTOP_SURFACES_STAGED count=5'
+
+      - name: Generate runtime integrity manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceSha = '${{ github.event.pull_request.head.sha || github.sha }}'
+          $entries = [System.Collections.Generic.List[object]]::new()
+          $appFiles = @(
+            'main.cjs',
+            'preload.cjs',
+            'renderer/app.js',
+            'renderer/index.html',
+            'renderer/styles.css',
+            'build/icon.svg',
+            'package.json'
+          )
+          foreach ($relative in $appFiles) {
+            $full = Join-Path 'desktop/devapi' $relative
+            if (-not (Test-Path $full)) { throw "DEVAPI_DESKTOP_INTEGRITY_SOURCE_MISSING:$relative" }
+            $item = Get-Item $full
+            $entries.Add([ordered]@{
+              scope = 'app'
+              path = ($relative -replace '\\','/')
+              bytes = $item.Length
+              sha256 = (Get-FileHash -Algorithm SHA256 $full).Hash.ToLowerInvariant()
+            })
+          }
+          $resourceRoot = (Resolve-Path 'desktop/devapi/resources').Path
+          Get-ChildItem 'desktop/devapi/resources/devapi-sites' -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $relative = [System.IO.Path]::GetRelativePath($resourceRoot, $_.FullName) -replace '\\','/'
+            $entries.Add([ordered]@{
+              scope = 'resources'
+              path = $relative
+              bytes = $_.Length
+              sha256 = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
+            })
+          }
+          if ($entries.Count -lt 12) { throw "DEVAPI_DESKTOP_INTEGRITY_ENTRY_COUNT_LOW:$($entries.Count)" }
+          $integrity = [ordered]@{
+            schemaVersion = 1
+            sourceSha = $sourceSha
+            algorithm = 'sha256'
+            generatedAt = (Get-Date).ToUniversalTime().ToString('o')
+            entries = $entries
+          }
+          $integrity | ConvertTo-Json -Depth 8 | Set-Content 'desktop/devapi/resources/integrity.json' -Encoding utf8
+          Write-Host "DEVAPI_DESKTOP_INTEGRITY_MANIFEST_PASS entries=$($entries.Count) sourceSha=$sourceSha"
 
       - name: Build unsigned NSIS x64 installer
         shell: pwsh
@@ -81,17 +131,61 @@ jobs:
             Pop-Location
           }
 
-      - name: Packaged app launch smoke
+      - name: Packaged app health smoke
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path outputs | Out-Null
           $app = Join-Path $PWD 'release-devapi/win-unpacked/DevAPI.exe'
           if (-not (Test-Path $app)) { throw 'DEVAPI_DESKTOP_UNPACKED_EXE_MISSING' }
+          $smoke = Join-Path $PWD 'outputs/devapi-packaged-health.json'
+          $env:DEVAPI_SMOKE_OUTPUT = $smoke
           $process = Start-Process -FilePath $app -ArgumentList '--disable-gpu' -PassThru
-          Start-Sleep -Seconds 6
-          if ($process.HasExited) { throw "DEVAPI_DESKTOP_LAUNCH_FAILED exit=$($process.ExitCode)" }
-          Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-          Write-Host 'DEVAPI_DESKTOP_LAUNCH_PASS process=started'
+          try {
+            for ($i = 0; $i -lt 30 -and -not (Test-Path $smoke); $i++) { Start-Sleep -Milliseconds 500 }
+            if ($process.HasExited) { throw "DEVAPI_DESKTOP_LAUNCH_FAILED exit=$($process.ExitCode)" }
+            if (-not (Test-Path $smoke)) { throw 'DEVAPI_DESKTOP_HEALTH_EVIDENCE_MISSING' }
+            $health = Get-Content $smoke -Raw | ConvertFrom-Json
+            if ($health.state -ne 'PACKAGED_RUNTIME_VERIFIED') { throw "DEVAPI_DESKTOP_HEALTH_FAILED:$($health.state)" }
+            if ($health.health.state -ne 'HEALTHY') { throw "DEVAPI_DESKTOP_HEALTH_STATE_INVALID:$($health.health.state)" }
+            if ($health.health.integrity.state -ne 'VERIFIED') { throw "DEVAPI_DESKTOP_INTEGRITY_RUNTIME_FAILED:$($health.health.integrity.state)" }
+            if ([int]$health.health.integrity.entries -lt 12) { throw 'DEVAPI_DESKTOP_INTEGRITY_RUNTIME_ENTRY_COUNT_LOW' }
+            Write-Host "DEVAPI_DESKTOP_PACKAGED_HEALTH_PASS checks=$(@($health.health.checks).Count) integrity=$($health.health.integrity.verified)/$($health.health.integrity.entries)"
+          } finally {
+            Remove-Item Env:DEVAPI_SMOKE_OUTPUT -ErrorAction SilentlyContinue
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+          }
+
+      - name: Silent installer and installed-app smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem release-devapi -Filter 'DevAPI-Setup-*.exe' | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          if (-not $installer) { throw 'DEVAPI_DESKTOP_INSTALLER_MISSING' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'DevAPI-Installed'
+          if (Test-Path $installDir) { Remove-Item $installDir -Recurse -Force }
+          $install = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "DEVAPI_DESKTOP_SILENT_INSTALL_FAILED:$($install.ExitCode)" }
+          $installedApp = Join-Path $installDir 'DevAPI.exe'
+          if (-not (Test-Path $installedApp)) { throw 'DEVAPI_DESKTOP_INSTALLED_EXE_MISSING' }
+          $smoke = Join-Path $PWD 'outputs/devapi-installed-health.json'
+          $env:DEVAPI_SMOKE_OUTPUT = $smoke
+          $process = Start-Process -FilePath $installedApp -ArgumentList '--disable-gpu' -PassThru
+          try {
+            for ($i = 0; $i -lt 30 -and -not (Test-Path $smoke); $i++) { Start-Sleep -Milliseconds 500 }
+            if ($process.HasExited) { throw "DEVAPI_DESKTOP_INSTALLED_LAUNCH_FAILED:$($process.ExitCode)" }
+            if (-not (Test-Path $smoke)) { throw 'DEVAPI_DESKTOP_INSTALLED_HEALTH_MISSING' }
+            $health = Get-Content $smoke -Raw | ConvertFrom-Json
+            if ($health.state -ne 'PACKAGED_RUNTIME_VERIFIED' -or $health.health.state -ne 'HEALTHY') { throw 'DEVAPI_DESKTOP_INSTALLED_HEALTH_FAILED' }
+          } finally {
+            Remove-Item Env:DEVAPI_SMOKE_OUTPUT -ErrorAction SilentlyContinue
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+          }
+          $uninstaller = Get-ChildItem $installDir -Filter 'Uninstall*.exe' | Select-Object -First 1
+          if (-not $uninstaller) { throw 'DEVAPI_DESKTOP_UNINSTALLER_MISSING' }
+          $uninstall = Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "DEVAPI_DESKTOP_SILENT_UNINSTALL_FAILED:$($uninstall.ExitCode)" }
+          Write-Host 'DEVAPI_DESKTOP_INSTALL_CYCLE_PASS install=pass launch=pass health=pass uninstall=pass'
 
       - name: Installer integrity evidence
         shell: pwsh
@@ -106,28 +200,42 @@ jobs:
           } finally { $stream.Dispose() }
           if ($b0 -ne 0x4D -or $b1 -ne 0x5A) { throw 'DEVAPI_DESKTOP_PE_HEADER_INVALID' }
           $sha = (Get-FileHash -Algorithm SHA256 $exe.FullName).Hash.ToLowerInvariant()
+          $signature = Get-AuthenticodeSignature $exe.FullName
           $sourceSha = '${{ github.event.pull_request.head.sha || github.sha }}'
+          $packagedHealth = Get-Content outputs/devapi-packaged-health.json -Raw | ConvertFrom-Json
+          $installedHealth = Get-Content outputs/devapi-installed-health.json -Raw | ConvertFrom-Json
           $evidence = [ordered]@{
-            schemaVersion = 1
+            schemaVersion = 2
             state = 'PACKAGED_VERIFIED'
             product = 'DevAPI'
+            version = '0.6.1'
             platform = 'windows'
             arch = 'x64'
             installer = $exe.Name
             bytes = $exe.Length
             sha256 = $sha
             peHeader = 'MZ'
-            signed = $false
+            authenticodeStatus = $signature.Status.ToString()
+            signed = ($signature.Status.ToString() -eq 'Valid')
             sourceSha = $sourceSha
             electron = '43.4.0'
             electronBuilder = '26.15.3'
+            icon = 'custom-svg'
+            protocol = 'devapi'
             surfaces = 5
+            packageHealth = $packagedHealth.state
+            installedHealth = $installedHealth.state
+            integrityEntries = [int]$packagedHealth.health.integrity.entries
+            integrityVerified = [int]$packagedHealth.health.integrity.verified
+            silentInstall = 'PASS'
+            installedLaunch = 'PASS'
+            silentUninstall = 'PASS'
             productionRuntime = 'BLOCKED_EXTERNAL'
             generatedAt = (Get-Date).ToUniversalTime().ToString('o')
           }
-          $evidence | ConvertTo-Json -Depth 5 | Set-Content outputs/devapi-desktop-windows.json -Encoding utf8
+          $evidence | ConvertTo-Json -Depth 6 | Set-Content outputs/devapi-desktop-windows.json -Encoding utf8
           Copy-Item $exe.FullName "outputs/$($exe.Name)"
-          Write-Host "DEVAPI_DESKTOP_WINDOWS_PASS installer=$($exe.Name) bytes=$($exe.Length) sha256=$sha pe=MZ signed=false surfaces=5"
+          Write-Host "DEVAPI_DESKTOP_WINDOWS_HEALTHY_PASS installer=$($exe.Name) bytes=$($exe.Length) sha256=$sha pe=MZ auth=$($signature.Status) health=pass installCycle=pass integrity=$($evidence.integrityVerified)/$($evidence.integrityEntries)"
 
       - name: Upload DevAPI Windows installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -136,5 +244,7 @@ jobs:
           path: |
             outputs/DevAPI-Setup-*.exe
             outputs/devapi-desktop-windows.json
+            outputs/devapi-packaged-health.json
+            outputs/devapi-installed-health.json
           if-no-files-found: error
           retention-days: 14
