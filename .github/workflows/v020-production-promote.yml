@@ -9,6 +9,7 @@ on:
       - .github/workflows/v020-production-promote.yml
       - scripts/v020-production-promote.mjs
       - scripts/verify-v020-production-promoter.mjs
+      - scripts/verify-production-evidence-v13.mjs
       - package.json
   pull_request:
     branches: [main]
@@ -16,6 +17,7 @@ on:
       - .github/workflows/v020-production-promote.yml
       - scripts/v020-production-promote.mjs
       - scripts/verify-v020-production-promoter.mjs
+      - scripts/verify-production-evidence-v13.mjs
       - package.json
 
 permissions:
@@ -103,6 +105,78 @@ jobs:
       - name: DevAPI ve DevBox production promote
         id: promote
         run: node scripts/v020-production-promote.mjs
+
+      - name: Secret-free promotion evidence JSON üret
+        if: steps.promote.outcome == 'success'
+        env:
+          OUT_DEVAPI_PROJECT_ID: ${{ steps.promote.outputs.devapi_project_id }}
+          OUT_DEVAPI_DEPLOYMENT_ID: ${{ steps.promote.outputs.devapi_deployment_id }}
+          OUT_DEVAPI_DEPLOYMENT_URL: ${{ steps.promote.outputs.devapi_deployment_url }}
+          OUT_DEVAPI_PUBLIC_STATE_STATUS: ${{ steps.promote.outputs.devapi_public_state_status }}
+          OUT_DEVBOX_PROJECT_ID: ${{ steps.promote.outputs.devbox_project_id }}
+          OUT_DEVBOX_DEPLOYMENT_ID: ${{ steps.promote.outputs.devbox_deployment_id }}
+          OUT_DEVBOX_DEPLOYMENT_URL: ${{ steps.promote.outputs.devbox_deployment_url }}
+          OUT_DEVBOX_PRODUCT_URL: ${{ steps.promote.outputs.devbox_product_url }}
+          OUT_DEVBOX_PUBLIC_STATE_STATUS: ${{ steps.promote.outputs.devbox_public_state_status }}
+          OUT_CROSS_SITE_LINKS: ${{ steps.promote.outputs.cross_site_links }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdirSync, writeFileSync } from 'node:fs';
+          const required = [
+            'OUT_DEVAPI_PROJECT_ID','OUT_DEVAPI_DEPLOYMENT_ID','OUT_DEVAPI_DEPLOYMENT_URL','OUT_DEVAPI_PUBLIC_STATE_STATUS',
+            'OUT_DEVBOX_PROJECT_ID','OUT_DEVBOX_DEPLOYMENT_ID','OUT_DEVBOX_DEPLOYMENT_URL','OUT_DEVBOX_PRODUCT_URL',
+            'OUT_DEVBOX_PUBLIC_STATE_STATUS','OUT_CROSS_SITE_LINKS'
+          ];
+          for (const name of required) if (!process.env[name]) throw new Error(`PROMOTION_EVIDENCE_OUTPUT_MISSING:${name}`);
+          const report = {
+            schemaVersion: 1,
+            productVersion: '0.1.20',
+            capturedAt: new Date().toISOString(),
+            sourceSha: process.env.GITHUB_SHA,
+            workflowRunId: Number(process.env.GITHUB_RUN_ID),
+            state: 'PARTIAL_PASS_CANARY_PENDING',
+            vercel: {
+              teamId: process.env.VERCEL_ORG_ID,
+              devapi: {
+                projectId: process.env.OUT_DEVAPI_PROJECT_ID,
+                deploymentId: process.env.OUT_DEVAPI_DEPLOYMENT_ID,
+                deploymentUrl: process.env.OUT_DEVAPI_DEPLOYMENT_URL,
+                canonicalUrl: process.env.DEVAPI_CANONICAL_URL,
+                publicStateHttpStatus: Number(process.env.OUT_DEVAPI_PUBLIC_STATE_STATUS)
+              },
+              devbox: {
+                projectId: process.env.OUT_DEVBOX_PROJECT_ID,
+                deploymentId: process.env.OUT_DEVBOX_DEPLOYMENT_ID,
+                deploymentUrl: process.env.OUT_DEVBOX_DEPLOYMENT_URL,
+                productUrl: process.env.OUT_DEVBOX_PRODUCT_URL,
+                publicStateHttpStatus: Number(process.env.OUT_DEVBOX_PUBLIC_STATE_STATUS)
+              }
+            },
+            canary: {
+              publicStateSanitization: 'PASS',
+              crossSiteLinks: process.env.OUT_CROSS_SITE_LINKS,
+              desktopSnapshot: 'PENDING',
+              setEnabledAck: 'PENDING',
+              runAck: 'PENDING',
+              cancelAck: 'PENDING',
+              commandIdempotency: 'PENDING',
+              commandSequence: 'PENDING',
+              runtimeErrorScan: 'PENDING'
+            }
+          };
+          mkdirSync('outputs', { recursive: true });
+          writeFileSync('outputs/v020-production-promotion.json', `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+          console.log('V020_PROMOTION_EVIDENCE_JSON_PASS secrets=0 state=PARTIAL_PASS_CANARY_PENDING');
+          NODE
+
+      - name: Promotion evidence artifact yükle
+        if: steps.promote.outcome == 'success'
+        uses: actions/upload-artifact@v6
+        with:
+          name: DevBox-v0.1.20-Production-Promotion-Evidence
+          path: outputs/v020-production-promotion.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Promotion özeti
         if: always()
