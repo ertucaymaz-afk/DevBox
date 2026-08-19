@@ -23,11 +23,11 @@ const TOOLS = Object.freeze([
   {
     toolId: "web.search",
     namespace: "web.search",
-    description: "Güncel web araştırması için evidence sözleşmesi. Runtime arama sağlayıcısı henüz bağlanmadı.",
+    description: "OpenAI Responses API web_search üzerinden primary-source-first web araştırma executor'ı. API anahtarı yoksa fail-closed BLOCKED_EXTERNAL kalır.",
     riskClass: "R0",
     requiresApproval: false,
-    state: "UNAVAILABLE",
-    implementation: null
+    state: "SOURCE_READY",
+    implementation: "openai-responses-web-search"
   },
   {
     toolId: "browser.inspect",
