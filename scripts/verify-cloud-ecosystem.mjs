@@ -15,6 +15,8 @@ const files = {
   devboxPackage: "cloud/devbox-site/package.json",
   devboxIndex: "cloud/devbox-site/index.html",
   devboxApp: "cloud/devbox-site/app.js",
+  devboxProxy: "cloud/devbox-site/api/public-state.mjs",
+  devboxLinksApi: "cloud/devbox-site/api/product-links.mjs",
   devboxCss: "cloud/devbox-site/styles.css",
   devboxVercel: "cloud/devbox-site/vercel.json",
   links: "cloud/product-links.json",
@@ -44,7 +46,9 @@ if (devapiPackage.version !== version) throw new Error("CLOUD_VERIFY_FAIL:devapi
 if (devboxPackage.version !== version) throw new Error("CLOUD_VERIFY_FAIL:devbox-version-drift");
 if (links.productVersion !== version) throw new Error("CLOUD_VERIFY_FAIL:links-version-drift");
 if (evidence.productVersion !== version) throw new Error("CLOUD_VERIFY_FAIL:evidence-version-drift");
-for (const file of [files.devapiHealth, files.devapiPublic, files.devapiLinksApi, files.devapiLinksClient, files.devapiApp, files.devboxApp]) execFileSync(process.execPath, ["--check", file], { stdio: "inherit" });
+for (const file of [files.devapiHealth, files.devapiPublic, files.devapiLinksApi, files.devapiLinksClient, files.devapiApp, files.devboxApp, files.devboxProxy, files.devboxLinksApi]) {
+  execFileSync(process.execPath, ["--check", file], { stdio: "inherit" });
+}
 const requireText = (key, needle, id) => { if (!content[key].includes(needle)) throw new Error(`CLOUD_VERIFY_FAIL:${id}`); };
 const forbidText = (key, needle, id) => { if (content[key].includes(needle)) throw new Error(`CLOUD_VERIFY_FAIL:${id}`); };
 requireText("devapiHealth", `const VERSION = "${version}"`, "health-version");
@@ -59,6 +63,8 @@ forbidText("devapiPublic", "requireDesktopAuth", "public-desktop-auth-import");
 for (const secret of ["DEVBOX_CONTROL_ADMIN_TOKEN", "DEVBOX_CONTROL_PLANE_TOKEN", "DATABASE_URL"]) {
   forbidText("devboxApp", secret, `site-secret-${secret}`);
   forbidText("devapiLinksClient", secret, `link-client-secret-${secret}`);
+  forbidText("devboxLinksApi", secret, `devbox-link-api-secret-${secret}`);
+  forbidText("devboxProxy", secret, `devbox-proxy-secret-${secret}`);
 }
 requireText("devapiLinksApi", "DEVAPI_CANONICAL_URL", "link-api-devapi-public-config");
 requireText("devapiLinksApi", "DEVBOX_PRODUCT_URL", "link-api-devbox-public-config");
@@ -67,14 +73,22 @@ requireText("devapiLinksClient", "/api/v1/product-links", "link-client-endpoint"
 requireText("devapiLinksClient", "AbortSignal.timeout(5_000)", "link-client-timeout");
 requireText("devapiLinksClient", "production pending", "link-client-fail-closed");
 requireText("devapiIndex", "/product-links.js", "link-client-loaded");
-requireText("devboxApp", "/api/v1/public-state", "site-live-endpoint");
+requireText("devboxApp", 'const ENDPOINT = "/api/public-state"', "site-same-origin-endpoint");
+requireText("devboxApp", "/api/product-links", "site-runtime-link-endpoint");
+requireText("devboxApp", "sanitized-proxy", "site-proxy-trust-marker");
 requireText("devboxApp", "AbortSignal.timeout(5000)", "site-timeout");
 requireText("devboxApp", "visibilitychange", "site-hidden-polling-stop");
 requireText("devboxApp", "IntersectionObserver", "site-progressive-animation");
+requireText("devboxProxy", "DEVAPI_PUBLIC_URL", "site-proxy-runtime-origin");
+requireText("devboxProxy", "/api/v1/public-state", "site-proxy-upstream-contract");
+requireText("devboxProxy", "x-devbox-public-state", "site-proxy-upstream-sanitize-check");
+requireText("devboxProxy", "AbortSignal.timeout(5_000)", "site-proxy-timeout");
+requireText("devboxLinksApi", "DEVAPI_PUBLIC_URL", "site-link-runtime-origin");
 requireText("devapiApp", "visibilitychange", "devapi-hidden-polling-stop");
 requireText("devboxCss", "prefers-reduced-motion", "site-reduced-motion");
 requireText("devapiCss", "prefers-reduced-motion", "devapi-reduced-motion");
 requireText("devboxVercel", "Content-Security-Policy", "site-csp");
+requireText("devboxVercel", "connect-src 'self'", "site-csp-same-origin-only");
 requireText("devapiVercel", "Content-Security-Policy", "devapi-csp");
 requireText("devboxIndex", "NO FAKE READY", "site-truth-contract");
 requireText("devboxIndex", "DevAPI Cloud Control", "site-cross-link-label");
@@ -82,7 +96,6 @@ requireText("devapiIndex", "DevAPI Control Plane", "devapi-title");
 const devapiLink = canonicalUrl(links.devapi?.canonicalUrl, "devapi-canonical-config");
 const evidenceDevapiLink = canonicalUrl(evidence.vercel?.devapi?.canonicalUrl, "devapi-canonical-evidence");
 if (devapiLink !== evidenceDevapiLink) throw new Error("CLOUD_VERIFY_FAIL:devapi-canonical-drift");
-if (!content.devboxApp.includes(devapiLink)) throw new Error("CLOUD_VERIFY_FAIL:devbox-devapi-link-drift");
 const devboxLink = canonicalUrl(links.devbox?.canonicalUrl, "devbox-canonical-config", false);
 const evidenceDevboxLink = canonicalUrl(evidence.vercel?.devbox?.canonicalUrl, "devbox-canonical-evidence", false);
 if (devboxLink !== evidenceDevboxLink) throw new Error("CLOUD_VERIFY_FAIL:devbox-canonical-drift");
@@ -95,4 +108,4 @@ if (links.devbox?.state === "PASS") {
 if (evidence.release?.productionEvidence === "PASS") {
   execFileSync(process.execPath, ["scripts/verify-production-evidence-v13.mjs"], { stdio: "inherit" });
 }
-console.log(`DEVBOX_CLOUD_ECOSYSTEM_VERIFY_PASS version=${version} publicState=sanitized sites=2 syntax=pass securityHeaders=pass polling=bounded crossLinks=runtime-configured canonicalConfig=evidence`);
+console.log(`DEVBOX_CLOUD_ECOSYSTEM_VERIFY_PASS version=${version} publicState=sanitized sites=2 syntax=pass securityHeaders=pass polling=bounded crossLinks=runtime-configured devboxProxy=same-origin canonicalConfig=evidence`);
