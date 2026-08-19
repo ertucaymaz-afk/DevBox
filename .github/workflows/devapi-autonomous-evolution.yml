@@ -1,4 +1,4 @@
-name: DevAPI autonomous evolution v1
+name: DevAPI autonomous evolution v2
 
 on:
   push:
@@ -7,7 +7,9 @@ on:
     paths:
       - cloud/devapi-control/**
       - scripts/build-devapi-repo-inventory.mjs
+      - scripts/devapi-agent-worker-smoke.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
+      - scripts/verify-devapi-autonomous-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
   pull_request:
     branches:
@@ -15,7 +17,9 @@ on:
     paths:
       - cloud/devapi-control/**
       - scripts/build-devapi-repo-inventory.mjs
+      - scripts/devapi-agent-worker-smoke.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
+      - scripts/verify-devapi-autonomous-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
 
 permissions:
@@ -27,9 +31,9 @@ concurrency:
 
 jobs:
   verify:
-    name: truth-first agent + repo + contract gate
+    name: task + worker + agent + contract truth gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Exact source checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -47,12 +51,20 @@ jobs:
           set -euo pipefail
           node --check cloud/devapi-control/agent/tool-registry.mjs
           node --check cloud/devapi-control/agent/task-policy.mjs
+          node --check cloud/devapi-control/agent/task-state.mjs
+          node --check cloud/devapi-control/agent/runtime.mjs
           node --check cloud/devapi-control/research/evidence.mjs
           node --check cloud/devapi-control/lib/openai-web-research.mjs
+          node --check cloud/devapi-control/lib/agent-store.mjs
+          node --check cloud/devapi-control/worker/workspace.mjs
           node --check cloud/devapi-control/api/v1/agent-capabilities.mjs
           node --check cloud/devapi-control/api/v1/agent-research.mjs
+          node --check cloud/devapi-control/api/v1/agent-runtime.mjs
+          node --check cloud/devapi-control/api/v1/agent-tasks.mjs
           node --check scripts/build-devapi-repo-inventory.mjs
+          node --check scripts/devapi-agent-worker-smoke.mjs
           node --check scripts/verify-devapi-autonomous-v1.mjs
+          node --check scripts/verify-devapi-autonomous-v2.mjs
 
       - name: Build real repository inventory
         shell: bash
@@ -61,11 +73,24 @@ jobs:
           node scripts/build-devapi-repo-inventory.mjs
           test -s outputs/devapi-repo-inventory.json
 
-      - name: Autonomous foundation verification
+      - name: Execute real isolated worker smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/devapi-agent-worker-smoke.mjs
+          test -s outputs/devapi-worker-smoke.json
+
+      - name: Autonomous v1 regression verification
         shell: bash
         run: |
           set -euo pipefail
           node scripts/verify-devapi-autonomous-v1.mjs
+
+      - name: Autonomous v2 task and worker verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-devapi-autonomous-v2.mjs
 
       - name: Existing cloud regression gate
         shell: bash
@@ -79,10 +104,13 @@ jobs:
           set -euo pipefail
           git diff --check
 
-      - name: Upload source evidence
+      - name: Upload source and worker evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: DevAPI-Autonomous-Evolution-v1-Evidence
-          path: outputs/devapi-repo-inventory.json
+          name: DevAPI-Autonomous-Evolution-v2-Evidence
+          path: |
+            outputs/devapi-repo-inventory.json
+            outputs/devapi-worker-smoke.json
+            cloud/devapi-control/agent/dependency-manifest.json
           if-no-files-found: error
           retention-days: 14
