@@ -9,6 +9,7 @@ on:
       - scripts/build-devapi-repo-inventory.mjs
       - scripts/devapi-agent-worker-smoke.mjs
       - scripts/devapi-worktree-smoke.mjs
+      - scripts/devapi-browser-smoke.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
       - scripts/verify-devapi-worker-security.mjs
@@ -21,6 +22,7 @@ on:
       - scripts/build-devapi-repo-inventory.mjs
       - scripts/devapi-agent-worker-smoke.mjs
       - scripts/devapi-worktree-smoke.mjs
+      - scripts/devapi-browser-smoke.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
       - scripts/verify-devapi-worker-security.mjs
@@ -35,7 +37,7 @@ concurrency:
 
 jobs:
   verify:
-    name: task + worker + worktree + agent + contract + security truth gate
+    name: task + worker + worktree + browser + agent + contract + security truth gate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -64,6 +66,7 @@ jobs:
           node --check cloud/devapi-control/worker/approval.mjs
           node --check cloud/devapi-control/worker/workspace.mjs
           node --check cloud/devapi-control/worker/git-worktree.mjs
+          node --check cloud/devapi-control/browser/system-chrome.mjs
           node --check cloud/devapi-control/api/v1/agent-capabilities.mjs
           node --check cloud/devapi-control/api/v1/agent-research.mjs
           node --check cloud/devapi-control/api/v1/agent-runtime.mjs
@@ -71,6 +74,7 @@ jobs:
           node --check scripts/build-devapi-repo-inventory.mjs
           node --check scripts/devapi-agent-worker-smoke.mjs
           node --check scripts/devapi-worktree-smoke.mjs
+          node --check scripts/devapi-browser-smoke.mjs
           node --check scripts/verify-devapi-autonomous-v1.mjs
           node --check scripts/verify-devapi-autonomous-v2.mjs
           node --check scripts/verify-devapi-worker-security.mjs
@@ -97,7 +101,14 @@ jobs:
           test -s outputs/devapi-worktree-smoke.json
           git worktree list --porcelain
 
-      - name: Worker security gate
+      - name: Execute real browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/devapi-browser-smoke.mjs
+          test -s outputs/devapi-browser-smoke.json
+
+      - name: Worker and browser security gate
         shell: bash
         run: |
           set -euo pipefail
@@ -127,7 +138,7 @@ jobs:
           set -euo pipefail
           git diff --check
 
-      - name: Upload source and worker evidence
+      - name: Upload source and runtime evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: DevAPI-Autonomous-Evolution-v2-Evidence
@@ -135,6 +146,7 @@ jobs:
             outputs/devapi-repo-inventory.json
             outputs/devapi-worker-smoke.json
             outputs/devapi-worktree-smoke.json
+            outputs/devapi-browser-smoke.json
             cloud/devapi-control/agent/dependency-manifest.json
           if-no-files-found: error
           retention-days: 14
