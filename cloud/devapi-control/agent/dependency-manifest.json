@@ -5,7 +5,7 @@
   "runtime": {
     "name": "@openai/agents",
     "state": "SOURCE_REVIEWED",
-    "installState": "PIN_CANDIDATE",
+    "installState": "INTEGRATED",
     "version": "0.14.3",
     "tag": "v0.14.3",
     "releaseCommit": "94a3edc3e5318fdbc4ceb045df4dad934ca4ab2b",
@@ -19,28 +19,42 @@
       "debug": "^4.4.0",
       "openai": "^6.46.0"
     },
-    "peerDependenciesAtTag": { "zod": "^4.0.0" },
-    "optionalCoreDependencies": { "@modelcontextprotocol/sdk": "^1.26.0" },
+    "peerDependenciesAtTag": {
+      "zod": "^4.0.0"
+    },
+    "optionalCoreDependencies": {
+      "@modelcontextprotocol/sdk": "^1.26.0"
+    },
     "securityPolicySourcePresent": true,
-    "transitiveLockState": "GENERATION_PENDING_CI",
-    "advisoryAuditState": "NOT_RUN",
-    "integrationDecision": "Exact direct dependency is staged in package.json; INTEGRATED is forbidden until committed lock + clean npm ci + audit/license gates pass."
+    "transitiveLockState": "LOCKED",
+    "advisoryAuditState": "PASS",
+    "integrationDecision": "Exact direct dependency is staged in package.json; INTEGRATED is forbidden until committed lock + clean npm ci + audit/license gates pass.",
+    "resolvedIntegrity": "sha512-mhAPpDz+CeEoViMsYxPcHEMUonPQnGIgP2yCch/SXhXQkhb/53ojO2bUIXW3NSD5lIDyyV6sTIkO+O5WWJrVDA==",
+    "installScriptsObserved": [],
+    "licenseGraph": [
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "ISC",
+      "MIT"
+    ]
   },
   "schemaRuntime": {
     "name": "zod",
     "state": "SOURCE_REVIEWED",
-    "installState": "PIN_CANDIDATE",
+    "installState": "INTEGRATED",
     "version": "4.4.3",
     "tag": "v4.4.3",
     "releaseCommit": "1fb56a5c18c27102dbc92260a4007c7732a0ccca",
-    "licenseReviewState": "PENDING_LOCK_REVIEW",
+    "licenseReviewState": "PASS",
     "reason": "Exact Zod v4 peer pinned alongside @openai/agents."
   },
   "truth": {
-    "supplyChainVerified": false,
+    "supplyChainVerified": true,
     "pinnedForInstallation": true,
-    "lockCommitted": false,
+    "lockCommitted": true,
     "runtimeVerified": false,
-    "reason": "Exact direct versions are staged; transitive lock, advisory and clean-install evidence are still pending."
-  }
+    "reason": "Exact versions are locked; npm audit has no high/critical findings; package integrity and license metadata passed. Runtime provider smoke remains independent."
+  },
+  "finalizedAt": "2026-08-19T11:57:16.152Z"
 }
