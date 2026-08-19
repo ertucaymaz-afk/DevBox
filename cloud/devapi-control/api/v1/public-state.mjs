@@ -23,7 +23,7 @@ function sanitizeSnapshot(row) {
     product: { name: "DevBox", version: VERSION },
     devapi: { state: "READY", controlPlaneVersion: VERSION },
     project: {
-      name: text(row?.project_name, 180) ?? "DevBox project",
+      name: "DevBox project",
       ref: createHash("sha256").update(String(row?.project_id ?? "unknown")).digest("hex").slice(0, 12)
     },
     evolution: {
@@ -91,7 +91,9 @@ export default async function handler(req, res) {
   try {
     let projectId = String(value(req.query?.projectId) ?? "").trim();
     if (!projectId) {
-      const projects = await listProjects(1);
+      const projects = await listProjects(2);
+      if (projects.length === 0) return send(res, 404, { error: "PROJECT_NOT_FOUND" });
+      if (projects.length !== 1) return send(res, 409, { error: "PUBLIC_PROJECT_AMBIGUOUS" });
       projectId = String(projects[0]?.projectId ?? "");
     }
     if (projectId.length < 8 || projectId.length > 128) return send(res, 404, { error: "PROJECT_NOT_FOUND" });

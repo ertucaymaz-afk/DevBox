@@ -56,6 +56,7 @@ function clearSnapshotView({ clearCollections = false } = {}) {
   setText("level", "—");
   setText("stage", "Bağlantı bekleniyor");
   setText("score", "—");
+  setText("evidence", "Evidence state bekleniyor.");
   setText("coreProgress", "—");
   setText("coreDetail", "22 faz / 3362 görev");
   setText("openFindings", "—");
@@ -63,6 +64,8 @@ function clearSnapshotView({ clearCollections = false } = {}) {
   setText("gateState", "—");
   setText("gateTime", "kanıt bekleniyor");
   setText("heartbeat", "—");
+  const heartbeat = $("heartbeat");
+  if (heartbeat) heartbeat.removeAttribute("title");
   setText("instance", "instance: —");
   setText("enabledText", "state bekleniyor");
   renderDomains({});
