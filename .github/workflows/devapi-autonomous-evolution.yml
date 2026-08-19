@@ -8,6 +8,7 @@ on:
       - cloud/devapi-control/**
       - scripts/build-devapi-repo-inventory.mjs
       - scripts/devapi-agent-worker-smoke.mjs
+      - scripts/devapi-worktree-smoke.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
@@ -18,6 +19,7 @@ on:
       - cloud/devapi-control/**
       - scripts/build-devapi-repo-inventory.mjs
       - scripts/devapi-agent-worker-smoke.mjs
+      - scripts/devapi-worktree-smoke.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
@@ -31,7 +33,7 @@ concurrency:
 
 jobs:
   verify:
-    name: task + worker + agent + contract truth gate
+    name: task + worker + worktree + agent + contract truth gate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -39,6 +41,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Node.js 24
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -57,12 +60,14 @@ jobs:
           node --check cloud/devapi-control/lib/openai-web-research.mjs
           node --check cloud/devapi-control/lib/agent-store.mjs
           node --check cloud/devapi-control/worker/workspace.mjs
+          node --check cloud/devapi-control/worker/git-worktree.mjs
           node --check cloud/devapi-control/api/v1/agent-capabilities.mjs
           node --check cloud/devapi-control/api/v1/agent-research.mjs
           node --check cloud/devapi-control/api/v1/agent-runtime.mjs
           node --check cloud/devapi-control/api/v1/agent-tasks.mjs
           node --check scripts/build-devapi-repo-inventory.mjs
           node --check scripts/devapi-agent-worker-smoke.mjs
+          node --check scripts/devapi-worktree-smoke.mjs
           node --check scripts/verify-devapi-autonomous-v1.mjs
           node --check scripts/verify-devapi-autonomous-v2.mjs
 
@@ -79,6 +84,14 @@ jobs:
           set -euo pipefail
           node scripts/devapi-agent-worker-smoke.mjs
           test -s outputs/devapi-worker-smoke.json
+
+      - name: Execute real git worktree smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/devapi-worktree-smoke.mjs
+          test -s outputs/devapi-worktree-smoke.json
+          git worktree list --porcelain
 
       - name: Autonomous v1 regression verification
         shell: bash
@@ -111,6 +124,7 @@ jobs:
           path: |
             outputs/devapi-repo-inventory.json
             outputs/devapi-worker-smoke.json
+            outputs/devapi-worktree-smoke.json
             cloud/devapi-control/agent/dependency-manifest.json
           if-no-files-found: error
           retention-days: 14
