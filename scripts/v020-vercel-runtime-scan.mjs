@@ -36,7 +36,7 @@ function parseLogPayload(text) {
         if (Array.isArray(parsed)) rows.push(...parsed);
         else if (parsed && typeof parsed === "object") rows.push(parsed);
       } catch {
-        fail("LOG_STREAM_INVALID_JSON", value.slice(0, 120));
+        fail("LOG_STREAM_INVALID_JSON", "unparseable-runtime-log-row");
       }
     }
     return rows;
@@ -53,8 +53,7 @@ function safeLog(row) {
     statusCode: Number(row?.responseStatusCode ?? row?.statusCode ?? 0) || null,
     source: String(row?.source ?? "unknown").slice(0, 80),
     requestPath: String(row?.requestPath ?? row?.path ?? "").slice(0, 240),
-    timestampInMs: Number(row?.timestampInMs ?? row?.timestamp ?? 0) || null,
-    message: String(row?.message ?? "").slice(0, 500)
+    timestampInMs: Number(row?.timestampInMs ?? row?.timestamp ?? 0) || null
   };
 }
 
@@ -69,7 +68,7 @@ async function fetchDeploymentLogs(label, projectId, deploymentId) {
       signal: AbortSignal.timeout(20_000)
     });
     const text = await response.text();
-    if (!response.ok) fail("VERCEL_LOG_HTTP", `${label}:${response.status}:${text.slice(0, 200)}`);
+    if (!response.ok) fail("VERCEL_LOG_HTTP", `${label}:${response.status}`);
     const rows = parseLogPayload(text);
     lastCount = rows.length;
     if (rows.length > 0) {
