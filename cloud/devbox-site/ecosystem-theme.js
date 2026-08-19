@@ -25,8 +25,9 @@ function install(){
   if(document.querySelector(".eco-theme-switcher"))return;
   const top=document.querySelector(".eco-topbar-inner");
   const navActions=document.querySelector(".nav-actions");
-  const floating=!top&&Boolean(navActions)&&compact.matches;
-  const host=top||(floating?document.body:navActions);
+  const anchor=top||navActions;
+  const floating=compact.matches&&Boolean(anchor);
+  const host=floating?document.body:anchor;
   if(!host)return;
   host.insertAdjacentHTML("beforeend",markup());
   const switcher=host.querySelector(".eco-theme-switcher:last-of-type");
