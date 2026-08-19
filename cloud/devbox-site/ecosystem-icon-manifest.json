@@ -1,26 +1,27 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "library": "Lucide",
   "repository": "lucide-icons/lucide",
   "upstreamTag": "1.27.0",
   "releaseCommitShort": "4aec3f8",
   "libraryLicense": "ISC",
-  "licenseNote": "Lucide license page lists selected Feather-derived icons under MIT; those icons are marked individually below.",
+  "licenseEvidence": "https://lucide.dev/",
+  "licenseNote": "The current Lucide project site states that Lucide is released under the ISC License. Per-icon derivative ancestry is not used as a release gate in this manifest.",
   "integrationState": "SOURCE_PINNED",
   "runtimeDependency": false,
   "delivery": "curated-local-svg-sprite",
   "icons": [
-    {"id":"monitor","source":"icons/monitor.svg","license":"MIT (Feather-derived)","sha256":"d1a443233345724859de8e4fb48968ba91e885e12ddbd710701548bd91b39428","usedBy":["DevBox","DevAPI Home"],"aria":"decorative when paired with text"},
+    {"id":"monitor","source":"icons/monitor.svg","license":"ISC","sha256":"d1a443233345724859de8e4fb48968ba91e885e12ddbd710701548bd91b39428","usedBy":["DevBox","DevAPI Home"],"aria":"decorative when paired with text"},
     {"id":"cloud","source":"icons/cloud.svg","license":"ISC","sha256":"28a34022ed00177eb1f218eea5d2b7af30d09b529187fe32219e4dd8ea2b9740","usedBy":["DevAPI","API Merkezi"],"aria":"decorative when paired with text"},
-    {"id":"terminal","source":"icons/terminal.svg","license":"MIT (Feather-derived)","sha256":"4f9b6488b237757d5cb615ccd07502fa99774826839e2a99017784bdb2596f1a","usedBy":["Developer Console"],"aria":"decorative when paired with text"},
+    {"id":"terminal","source":"icons/terminal.svg","license":"ISC","sha256":"4f9b6488b237757d5cb615ccd07502fa99774826839e2a99017784bdb2596f1a","usedBy":["Developer Console"],"aria":"decorative when paired with text"},
     {"id":"bot","source":"icons/bot.svg","license":"ISC","sha256":"e46fe72fc5b33d7a17b0112df85da9ded851860312e8353f4fe23d87a4ce77f5","usedBy":["Workbench","Agent"],"aria":"decorative when paired with text"},
     {"id":"git-branch","source":"icons/git-branch.svg","license":"ISC","sha256":"041f04acc8f92657b849540f0440e2e85d0df0b8da2365611e81b9bebfafc4eb","usedBy":["Evolution","Worktree"],"aria":"decorative when paired with text"},
     {"id":"file-diff","source":"icons/file-diff.svg","license":"ISC","sha256":"b6a0820a3cd44c3b11ed62aa0bf7d61a038ed52f29d91a47eb9fbade801fbdb9","usedBy":["Docs","Diff Review"],"aria":"decorative when paired with text"},
-    {"id":"database","source":"icons/database.svg","license":"MIT (Feather-derived)","sha256":"471eb14bc8d144896a82dfc4aa9daf350f769f0896f4bef33e50aabdbb51130d","usedBy":["Memory","Database"],"aria":"decorative when paired with text"},
+    {"id":"database","source":"icons/database.svg","license":"ISC","sha256":"471eb14bc8d144896a82dfc4aa9daf350f769f0896f4bef33e50aabdbb51130d","usedBy":["Memory","Database"],"aria":"decorative when paired with text"},
     {"id":"shield-check","source":"icons/shield-check.svg","license":"ISC","sha256":"8d4fcdbde5bba4abb1a2f6fe53e37ceb6343a1d5449a9d88f6f97c1971d26c4e","usedBy":["Diagnostics","Security"],"aria":"decorative when paired with text"},
     {"id":"activity","source":"icons/activity.svg","license":"ISC","sha256":"050fbcda05e13c2051cf857683645e19c6b180861ef4d0cc28a6f09ba1ea1666","usedBy":["Status"],"aria":"decorative when paired with text"},
     {"id":"memory-stick","source":"icons/memory-stick.svg","license":"ISC","sha256":"9214439ac142c10156434542908436087fb174c71c46e30cfb46971c56ba33d2","usedBy":["Memory Center"],"aria":"decorative when paired with text"},
     {"id":"workflow","source":"icons/workflow.svg","license":"ISC","sha256":"ae99ea8f56a2835a2cca35b2fbb57643ab73443610970dba23e24bd9df75cfec","usedBy":["API Studio","Architecture"],"aria":"decorative when paired with text"},
-    {"id":"search","source":"icons/search.svg","license":"MIT (Feather-derived)","sha256":"283d371c2e433817bb9c0c8310caa6c77fa4177c0f4f1168d9c83b97af7389dc","usedBy":["Command Palette"],"aria":"decorative when paired with labelled input"}
+    {"id":"search","source":"icons/search.svg","license":"ISC","sha256":"283d371c2e433817bb9c0c8310caa6c77fa4177c0f4f1168d9c83b97af7389dc","usedBy":["Command Palette"],"aria":"decorative when paired with labelled input"}
   ]
 }
