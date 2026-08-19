@@ -9,7 +9,9 @@ directories:
   output: ../../release-devapi
   buildResources: build
 files:
+  - bootstrap.cjs
   - main.cjs
+  - agent-runtime.cjs
   - preload.cjs
   - renderer/**/*
   - build/icon.svg
