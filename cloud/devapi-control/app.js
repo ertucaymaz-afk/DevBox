@@ -3,7 +3,8 @@ const state = {
   projectId: sessionStorage.getItem("devbox.projectId") ?? "",
   token: sessionStorage.getItem("devbox.adminToken") ?? "",
   current: null,
-  projects: []
+  projects: [],
+  timer: null
 };
 $("projectId").value = state.projectId;
 $("adminToken").value = state.token;
@@ -26,8 +27,12 @@ function setEmpty(id, message) {
 }
 
 async function api(path, options = {}) {
-  const headers = { ...authHeaders(), ...(options.body ? { "content-type": "application/json" } : {}), ...(options.headers ?? {}) };
-  const response = await fetch(path, { ...options, headers, cache: "no-store" });
+  const headers = {
+    ...authHeaders(),
+    ...(options.body ? { "content-type": "application/json" } : {}),
+    ...(options.headers ?? {})
+  };
+  const response = await fetch(path, { ...options, headers, cache: "no-store", signal: options.signal ?? AbortSignal.timeout(8000) });
   const body = await response.json().catch(() => ({ error: `HTTP_${response.status}` }));
   if (!response.ok) throw new Error(body.error ?? `HTTP_${response.status}`);
   return body;
@@ -36,10 +41,10 @@ async function api(path, options = {}) {
 async function health() {
   const pill = $("health");
   try {
-    const response = await fetch("/api/v1/health", { cache: "no-store" });
-    const data = await response.json();
-    pill.textContent = data.state;
-    pill.className = `pill ${String(data.state).toLowerCase()}`;
+    const response = await fetch("/api/v1/health", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const data = await response.json().catch(() => ({ state: `HTTP_${response.status}` }));
+    pill.textContent = data.state ?? `HTTP_${response.status}`;
+    pill.className = `pill ${String(data.state ?? "failed").toLowerCase()}`;
     if (data.state !== "READY") showNotice("Cloud control plane henüz READY değil. Kalıcı backend veya güvenlik yapılandırması tamamlanmadan sistem hazır görünmez.");
   } catch {
     pill.textContent = "FAILED";
@@ -51,6 +56,7 @@ function syncCredentials() {
   state.token = $("adminToken").value.trim();
   state.projectId = $("projectId").value.trim();
   if (state.token.length >= 32) sessionStorage.setItem("devbox.adminToken", state.token);
+  else sessionStorage.removeItem("devbox.adminToken");
   if (state.projectId.length >= 8) sessionStorage.setItem("devbox.projectId", state.projectId);
 }
 
@@ -76,12 +82,14 @@ async function discoverProjects() {
     if (state.projectId && state.projects.some((item) => item.projectId === state.projectId)) picker.value = state.projectId;
     showNotice(state.projects.length ? "Cloud proje envanteri doğrulandı." : "Henüz cloud snapshot göndermiş bir DevBox projesi yok.", false);
   } catch (error) {
-    showNotice(`Cloud proje envanteri okunamadı: ${error.message}`);
+    showNotice(`Cloud proje envanteri okunamadı: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
 function renderDomains(domains = {}) {
-  $("domains").replaceChildren(...Object.entries(domains).map(([name, raw]) => {
+  const entries = Object.entries(domains);
+  if (!entries.length) return setEmpty("domains", "Domain score kaydı yok.");
+  $("domains").replaceChildren(...entries.map(([name, raw]) => {
     const score = Math.max(0, Math.min(100, Number(raw) || 0));
     const node = document.createElement("div");
     node.className = "domain";
@@ -217,7 +225,7 @@ async function refresh() {
   syncCredentials();
   if (state.projectId.length < 8 || state.token.length < 32) return showNotice("Geçerli projectId ve en az 32 karakterlik admin token gerekli.");
   try { render(await api(`/api/v1/state?projectId=${encodeURIComponent(state.projectId)}`)); }
-  catch (error) { showNotice(`Cloud state okunamadı: ${error.message}`); }
+  catch (error) { showNotice(`Cloud state okunamadı: ${error instanceof Error ? error.message : String(error)}`); }
 }
 async function command(kind,payload={}) {
   syncCredentials();
@@ -228,8 +236,20 @@ async function command(kind,payload={}) {
     showNotice(`Komut #${Number(queued.sequence||0)} cloud kuyruğuna PENDING olarak kaydedildi. Masaüstü ACK gelmeden uygulanmış sayılmayacak.`,false);
     setTimeout(()=>void refresh(),1200);
   } catch(error) {
-    showNotice(`Komut kaydedilemedi: ${error.message}`);
+    showNotice(`Komut kaydedilemedi: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+function scheduleRefresh() {
+  if (state.timer !== null || document.hidden) return;
+  state.timer = window.setInterval(() => {
+    if (state.projectId && state.token) void refresh();
+    void health();
+  }, 30_000);
+}
+function stopRefresh() {
+  if (state.timer !== null) window.clearInterval(state.timer);
+  state.timer = null;
 }
 
 $("connect").addEventListener("click",()=>void refresh());
@@ -251,7 +271,8 @@ $("theme").addEventListener("click",()=>{
   document.body.classList.toggle("light");
   $("theme").textContent=document.body.classList.contains("light")?"☾":"☀";
 });
+document.addEventListener("visibilitychange",()=>document.hidden?stopRefresh():scheduleRefresh());
 
 void health();
 if (state.token) void discoverProjects().then(() => { if (state.projectId) void refresh(); });
-setInterval(()=>{if(state.projectId&&state.token)void refresh();},30_000);
+scheduleRefresh();
