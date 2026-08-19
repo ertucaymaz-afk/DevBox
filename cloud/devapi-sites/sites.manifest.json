@@ -1,19 +1,26 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "product": "DevAPI",
   "state": "SOURCE_READY",
   "deploymentState": "NOT_RUN",
   "canonicalDomainsVerified": false,
+  "domainPolicy": {
+    "platform": "vercel",
+    "requiredSuffix": ".vercel.app",
+    "customComDomains": false,
+    "collisionNote": "devapi.vercel.app is already serving an unrelated Dev News API and must not be treated as a DevAPI canonical domain"
+  },
   "projects": [
-    { "id": "main", "root": "cloud/devapi-sites/main", "role": "Main Product", "slugCandidate": "devapi" },
-    { "id": "runtime", "root": "cloud/devapi-sites/runtime", "role": "API Runtime", "slugCandidate": "devapi-api" },
-    { "id": "docs", "root": "cloud/devapi-sites/docs", "role": "Docs", "slugCandidate": "devapi-docs" },
-    { "id": "status", "root": "cloud/devapi-sites/status", "role": "Status", "slugCandidate": "devapi-status" },
-    { "id": "console", "root": "cloud/devapi-sites/console", "role": "Console", "slugCandidate": "devapi-console" }
+    { "id": "main", "root": "cloud/devapi-sites/main", "role": "Main Product", "slugCandidate": "yaaertu-devapi", "hostCandidate": "yaaertu-devapi.vercel.app" },
+    { "id": "runtime", "root": "cloud/devapi-sites/runtime", "role": "API Runtime", "slugCandidate": "yaaertu-devapi-api", "hostCandidate": "yaaertu-devapi-api.vercel.app" },
+    { "id": "docs", "root": "cloud/devapi-sites/docs", "role": "Docs", "slugCandidate": "yaaertu-devapi-docs", "hostCandidate": "yaaertu-devapi-docs.vercel.app" },
+    { "id": "status", "root": "cloud/devapi-sites/status", "role": "Status", "slugCandidate": "yaaertu-devapi-status", "hostCandidate": "yaaertu-devapi-status.vercel.app" },
+    { "id": "console", "root": "cloud/devapi-sites/console", "role": "Console", "slugCandidate": "yaaertu-devapi-console", "hostCandidate": "yaaertu-devapi-console.vercel.app" }
   ],
   "truth": {
     "sourceReadyDoesNotMeanPreviewVerified": true,
     "previewVerifiedDoesNotMeanProductionVerified": true,
-    "domainCandidatesAreNotCanonical": true
+    "domainCandidatesAreNotCanonical": true,
+    "vercelProjectCreationRequiresAuthenticatedDeployment": true
   }
 }
