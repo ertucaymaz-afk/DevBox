@@ -4,11 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { assertWorkerApproval } from "./approval.mjs";
+import { assertShellPolicy } from "./shell-policy.mjs";
 
 const MAX_OUTPUT = 512 * 1024;
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
-const GIT_READ_ONLY = new Set(["status", "diff", "grep", "rev-parse", "log", "show"]);
-const PACKAGE_SCRIPTS = new Set(["test", "typecheck", "cloud:verify", "source:hygiene", "truth:audit", "evolution:verify"]);
 
 function hash(value) { return createHash("sha256").update(value).digest("hex"); }
 function safeRelative(value) {
@@ -20,7 +19,7 @@ function safeRelative(value) {
 }
 function safeArg(value) {
   const text = String(value ?? "");
-  if (text.includes("\0") || text.length > 2_000) throw new Error("WORKSPACE_ARG_INVALID");
+  if (text.includes("\0") || text.length > 2_000 || /[\r\n]/u.test(text)) throw new Error("WORKSPACE_ARG_INVALID");
   return text;
 }
 function redact(value) {
@@ -28,23 +27,6 @@ function redact(value) {
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}\b/giu, "Bearer [REDACTED]")
     .replace(/\bsk-[A-Za-z0-9_-]{12,}\b/gu, "[REDACTED_OPENAI_KEY]")
     .replace(/\b(?:API_KEY|ACCESS_TOKEN|AUTH_TOKEN|PASSWORD|SECRET)\s*[=:]\s*[^\s]+/giu, (match) => `${match.split(/[=:]/u)[0]}=[REDACTED]`);
-}
-function assertCommandAllowed(executable, argv) {
-  if (executable === "git") {
-    if (!GIT_READ_ONLY.has(argv[0])) throw new Error(`WORKSPACE_COMMAND_SUBCOMMAND_DENIED:git:${argv[0] || "missing"}`);
-    return;
-  }
-  if (executable === "node") {
-    if (argv[0] !== "--check" || !/\.(?:mjs|cjs|js)$/u.test(argv[1] || "")) throw new Error("WORKSPACE_COMMAND_SUBCOMMAND_DENIED:node");
-    return;
-  }
-  if (executable === "pnpm" || executable === "npm") {
-    const direct = argv[0];
-    const script = direct === "run" ? argv[1] : direct;
-    if (!PACKAGE_SCRIPTS.has(script)) throw new Error(`WORKSPACE_COMMAND_SUBCOMMAND_DENIED:${executable}:${script || "missing"}`);
-    return;
-  }
-  throw new Error("WORKSPACE_COMMAND_DENIED");
 }
 
 export class LocalWorkerWorkspace {
@@ -126,12 +108,13 @@ export class LocalWorkerWorkspace {
     const approval = assertWorkerApproval(this.approval, "R2");
     const executable = String(command ?? "");
     const argv = Array.isArray(args) ? args.map(safeArg) : [];
-    assertCommandAllowed(executable, argv);
+    const policy = assertShellPolicy(executable, argv);
     const cwdPath = await this.resolve(cwd);
+    const effectiveTimeout = Math.max(1_000, Math.min(policy.timeoutMs || 120_000, Number(timeoutMs) || 60_000));
     const startedAt = new Date().toISOString();
     const started = Date.now();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Math.max(1_000, Math.min(120_000, Number(timeoutMs) || 60_000)));
+    const timer = setTimeout(() => controller.abort(), effectiveTimeout);
     let stdout = "";
     let stderr = "";
     let truncated = false;
@@ -146,7 +129,8 @@ export class LocalWorkerWorkspace {
         });
         const append = (target, chunk) => {
           const value = chunk.toString("utf8");
-          if (target.length + value.length > MAX_OUTPUT) { truncated = true; return target + value.slice(0, Math.max(0, MAX_OUTPUT - target.length)); }
+          const limit = Math.min(MAX_OUTPUT, policy.maxOutputBytes || MAX_OUTPUT);
+          if (target.length + value.length > limit) { truncated = true; return target + value.slice(0, Math.max(0, limit - target.length)); }
           return target + value;
         };
         child.stdout?.on("data", (chunk) => { stdout = append(stdout, chunk); });
@@ -162,6 +146,11 @@ export class LocalWorkerWorkspace {
         args: argv,
         cwd: safeRelative(cwd),
         approvalId: approval.approvalId,
+        policyVersion: policy.policyVersion,
+        policyDigest: policy.policyDigest,
+        matchedRule: policy.matchedRule,
+        networkAllowed: policy.network,
+        writeScope: policy.writeScope,
         startedAt,
         durationMs: Date.now() - started,
         exitCode: result.code,
