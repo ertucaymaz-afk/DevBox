@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "product": "DevAPI",
-  "capturedAt": "2026-08-19T11:25:00.000Z",
+  "capturedAt": "2026-08-19T12:25:00.000Z",
   "policy": {
     "discoveredIsIntegrated": false,
     "sourceReviewedIsSupplyChainVerified": false,
@@ -25,10 +25,18 @@
       "peer": { "zod": "^4.0.0" },
       "capabilities": ["agent-loop", "tools", "handoffs", "guardrails", "sessions", "tracing", "human-approval", "sandbox-agents"],
       "decision": "PRIMARY_AGENT_RUNTIME",
-      "integrationState": "SOURCE_REVIEWED",
-      "supplyChainState": "TRANSITIVE_LOCK_NOT_RUN",
-      "runtimeState": "NOT_RUN",
-      "note": "Exact release/package metadata reconciled; package intentionally not installed until lock/advisory gate passes."
+      "integrationState": "INTEGRATED",
+      "supplyChainState": "SUPPLY_CHAIN_VERIFIED",
+      "runtimeState": "BLOCKED_EXTERNAL",
+      "blocker": "OPENAI_API_KEY_UNCONFIGURED_IN_TRUSTED_CI",
+      "evidence": {
+        "packages": 103,
+        "auditHigh": 0,
+        "auditCritical": 0,
+        "installScripts": 0,
+        "lockfileVersion": 3
+      },
+      "note": "Exact package is installed under a committed lock and passed the v3/v4 supply-chain gate. Model runtime remains separate and is not promoted without real provider evidence."
     },
     {
       "name": "Zod",
@@ -36,22 +44,28 @@
       "sourceType": "official-repo",
       "observedRelease": "v4.4.3",
       "observedCommit": "1fb56a5c18c27102dbc92260a4007c7732a0ccca",
+      "package": "zod@4.4.3",
       "decision": "AGENTS_SDK_SCHEMA_PEER",
-      "integrationState": "SOURCE_REVIEWED",
-      "note": "DevBox root already pins zod 4.4.3; DevAPI Agents SDK package integration remains separate and not completed."
+      "integrationState": "INTEGRATED",
+      "supplyChainState": "SUPPLY_CHAIN_VERIFIED",
+      "runtimeState": "SOURCE_READY",
+      "note": "Exact DevAPI dependency is covered by the same frozen lock and advisory gate as the Agents SDK runtime."
     },
     {
       "name": "Spectral",
       "source": "https://github.com/stoplightio/spectral",
       "sourceType": "official-repo",
       "observedRelease": "v6.16.2",
-      "observedCommit": null,
-      "commitReconciliation": "NOT_RUN",
+      "observedCommitShort": "f08df7b",
+      "fullCommitReconciliation": "NOT_RUN",
       "license": "Apache-2.0",
+      "nodeCompatibilityObserved": "^16.20 || ^18.18 || >=20.17",
       "capabilities": ["openapi-lint", "custom-rules", "sarif"],
       "decision": "PRIMARY_OPENAPI_STYLE_GATE",
       "integrationState": "SOURCE_REVIEWED",
-      "note": "Current release rechecked; exact commit/package/transitive dependency gate remains before integration."
+      "supplyChainState": "NOT_RUN",
+      "runtimeState": "NOT_RUN",
+      "note": "Official v6.16.2 release and Apache-2.0 license were rechecked. Exact full commit, npm integrity, transitive lock and advisory gate are still required before integration."
     },
     {
       "name": "oasdiff",
@@ -61,11 +75,14 @@
       "observedCommitShort": "47e76df",
       "fullCommitReconciliation": "NOT_RUN",
       "license": "Apache-2.0",
-      "securityNote": "v1.26.1 is documented upstream as a security patch for git revision option parsing.",
+      "securityNote": "Upstream documents v1.26.1 as a security-only patch for git revision option parsing (GHSA-m3wq-w7x2-4q6m).",
+      "linuxAmd64TarGzSha256": "ea0007fe536c7915785f754885d2afdb11352d6a14531950edf9d601a2baa674",
       "capabilities": ["openapi-diff", "breaking-changes", "changelog"],
       "decision": "PRIMARY_BREAKING_CHANGE_GATE",
       "integrationState": "SOURCE_REVIEWED",
-      "note": "Binary/package SHA and full commit must be pinned before use."
+      "supplyChainState": "NOT_RUN",
+      "runtimeState": "NOT_RUN",
+      "note": "The upstream release asset digest is recorded, but full commit reconciliation and controlled binary execution remain required before use."
     },
     {
       "name": "Schemathesis",
@@ -73,11 +90,15 @@
       "sourceType": "official-repo",
       "observedRelease": "v4.24.3",
       "observedCommitShort": "613ce31",
+      "releaseSignatureObserved": "VERIFIED",
       "fullCommitReconciliation": "NOT_RUN",
+      "license": "MIT",
       "capabilities": ["property-testing", "negative-testing", "fuzzing", "stateful-api-testing"],
       "decision": "PRIMARY_API_GENERATIVE_TEST_GATE",
       "integrationState": "SOURCE_REVIEWED",
-      "note": "Python/runtime dependency and license/advisory gate remain before integration."
+      "supplyChainState": "NOT_RUN",
+      "runtimeState": "NOT_RUN",
+      "note": "Official signed v4.24.3 release and MIT license were rechecked. Exact Python environment, full commit pin, dependency lock and advisory gate remain before integration."
     }
   ]
 }
