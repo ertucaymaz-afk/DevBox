@@ -63,18 +63,24 @@ export async function runPlanningAgent({ taskId, request, riskClass, sourceRef, 
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.max(5_000, Math.min(120_000, Number(timeoutMs) || 60_000)));
+  const startedAt = new Date().toISOString();
   try {
     const result = await run(planner, prompt, { signal: controller.signal, maxTurns: 6 });
     const output = String(result?.finalOutput ?? "").trim();
     if (!output) throw new Error("AGENT_EMPTY_OUTPUT");
+    const responseId = String(result?.lastResponseId ?? "").trim() || null;
+    const rawResponseCount = Array.isArray(result?.rawResponses) ? result.rawResponses.length : 0;
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       taskId: id,
       provider: "openai-agents-sdk",
       sdkVersionExpected: SDK_VERSION,
       model: configuredModel(),
       state: "RUNTIME_VERIFIED",
+      responseId,
+      rawResponseCount,
       output: output.slice(0, 24_000),
+      startedAt,
       generatedAt: new Date().toISOString()
     };
   } catch (error) {
