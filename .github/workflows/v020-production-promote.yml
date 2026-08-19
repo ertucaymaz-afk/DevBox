@@ -175,6 +175,7 @@ jobs:
           OUT_CANARY_PROJECT_ID: ${{ steps.canary.outputs.project_id }}
           OUT_DESKTOP_SNAPSHOT: ${{ steps.canary.outputs.desktop_snapshot }}
           OUT_PUBLIC_STATE_SANITIZATION: ${{ steps.canary.outputs.public_state_sanitization }}
+          OUT_IDLE_ISOLATION: ${{ steps.canary.outputs.idle_isolation }}
           OUT_SET_ENABLED_ACK: ${{ steps.canary.outputs.set_enabled_ack }}
           OUT_RUN_ACK: ${{ steps.canary.outputs.run_ack }}
           OUT_CANCEL_ACK: ${{ steps.canary.outputs.cancel_ack }}
@@ -198,7 +199,7 @@ jobs:
           if (process.env.OUT_DEVBOX_DEPLOYMENT_ID === process.env.OUT_DEVBOX_ROLLBACK_ID) throw new Error('PROMOTION_EVIDENCE_DEVBOX_ROLLBACK_EQUALS_LIVE');
 
           const canaryPass = process.env.OUT_CANARY_OUTCOME === 'success' && [
-            'OUT_DESKTOP_SNAPSHOT','OUT_PUBLIC_STATE_SANITIZATION','OUT_SET_ENABLED_ACK','OUT_RUN_ACK','OUT_CANCEL_ACK','OUT_COMMAND_SEQUENCE','OUT_COMMAND_IDEMPOTENCY'
+            'OUT_DESKTOP_SNAPSHOT','OUT_PUBLIC_STATE_SANITIZATION','OUT_IDLE_ISOLATION','OUT_SET_ENABLED_ACK','OUT_RUN_ACK','OUT_CANCEL_ACK','OUT_COMMAND_SEQUENCE','OUT_COMMAND_IDEMPOTENCY'
           ].every((name) => process.env[name] === 'PASS');
           const runtimePass = process.env.OUT_RUNTIME_OUTCOME === 'success' && process.env.OUT_RUNTIME_ERROR_SCAN === 'PASS' && Number(process.env.OUT_RUNTIME_ERROR_CLUSTERS) === 0;
           const releaseCandidate = canaryPass && runtimePass;
@@ -240,6 +241,7 @@ jobs:
             canary: {
               desktopSnapshot: process.env.OUT_DESKTOP_SNAPSHOT || 'BLOCKED',
               publicStateSanitization: process.env.OUT_PUBLIC_STATE_SANITIZATION || 'BLOCKED',
+              idleIsolation: process.env.OUT_IDLE_ISOLATION || 'BLOCKED',
               setEnabledAck: process.env.OUT_SET_ENABLED_ACK || 'BLOCKED',
               runAck: process.env.OUT_RUN_ACK || 'BLOCKED',
               cancelAck: process.env.OUT_CANCEL_ACK || 'BLOCKED',
@@ -250,6 +252,7 @@ jobs:
             },
             proof: {
               cloudCommandIdempotencyFaultInjection: 'PASS',
+              desktopIdleIsolation: process.env.OUT_IDLE_ISOLATION || 'BLOCKED',
               runtimeErrorClusters: Number(process.env.OUT_RUNTIME_ERROR_CLUSTERS || -1),
               canaryStepOutcome: process.env.OUT_CANARY_OUTCOME || 'skipped',
               runtimeStepOutcome: process.env.OUT_RUNTIME_OUTCOME || 'skipped'
@@ -280,6 +283,7 @@ jobs:
           RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
           DESKTOP_SNAPSHOT: ${{ steps.canary.outputs.desktop_snapshot }}
           PUBLIC_STATE_SANITIZATION: ${{ steps.canary.outputs.public_state_sanitization }}
+          IDLE_ISOLATION: ${{ steps.canary.outputs.idle_isolation }}
           SET_ENABLED_ACK: ${{ steps.canary.outputs.set_enabled_ack }}
           RUN_ACK: ${{ steps.canary.outputs.run_ack }}
           CANCEL_ACK: ${{ steps.canary.outputs.cancel_ack }}
@@ -290,10 +294,10 @@ jobs:
           set -euo pipefail
           [[ "$CANARY_OUTCOME" == success ]] || { echo "V020_RELEASE_BLOCKED desktop-canary-outcome=$CANARY_OUTCOME"; exit 1; }
           [[ "$RUNTIME_OUTCOME" == success ]] || { echo "V020_RELEASE_BLOCKED runtime-scan-outcome=$RUNTIME_OUTCOME"; exit 1; }
-          for value in "$DESKTOP_SNAPSHOT" "$PUBLIC_STATE_SANITIZATION" "$SET_ENABLED_ACK" "$RUN_ACK" "$CANCEL_ACK" "$COMMAND_SEQUENCE" "$COMMAND_IDEMPOTENCY" "$RUNTIME_ERROR_SCAN"; do
+          for value in "$DESKTOP_SNAPSHOT" "$PUBLIC_STATE_SANITIZATION" "$IDLE_ISOLATION" "$SET_ENABLED_ACK" "$RUN_ACK" "$CANCEL_ACK" "$COMMAND_SEQUENCE" "$COMMAND_IDEMPOTENCY" "$RUNTIME_ERROR_SCAN"; do
             [[ "$value" == PASS ]] || { echo "V020_RELEASE_BLOCKED evidence-value=${value:-missing}"; exit 1; }
           done
-          echo 'V020_RELEASE_EVIDENCE_CANDIDATE_PASS deployment=verified desktop=real-ack publicState=sanitized runtimeErrors=0'
+          echo 'V020_RELEASE_EVIDENCE_CANDIDATE_PASS deployment=verified desktop=real-ack idleIsolation=pass publicState=sanitized runtimeErrors=0'
 
       - name: Promotion özeti
         if: always()
@@ -315,6 +319,7 @@ jobs:
             echo "- Real desktop canary outcome: \`${{ steps.canary.outcome || 'BLOCKED' }}\`"
             echo "- Desktop snapshot: \`${{ steps.canary.outputs.desktop_snapshot || 'BLOCKED' }}\`"
             echo "- Public-state sanitization: \`${{ steps.canary.outputs.public_state_sanitization || 'BLOCKED' }}\`"
+            echo "- Idle isolation: \`${{ steps.canary.outputs.idle_isolation || 'BLOCKED' }}\`"
             echo "- setEnabled/run/cancel ACK: \`${{ steps.canary.outputs.set_enabled_ack || 'BLOCKED' }}/${{ steps.canary.outputs.run_ack || 'BLOCKED' }}/${{ steps.canary.outputs.cancel_ack || 'BLOCKED' }}\`"
             echo "- Command idempotency/sequence: \`${{ steps.canary.outputs.command_idempotency || 'BLOCKED' }}/${{ steps.canary.outputs.command_sequence || 'BLOCKED' }}\`"
             echo "- Runtime error scan: \`${{ steps.runtime.outputs.runtime_error_scan || 'BLOCKED' }}\`"
