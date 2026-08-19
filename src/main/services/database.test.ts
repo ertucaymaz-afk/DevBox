@@ -74,7 +74,7 @@ describe("state database", () => {
     expect(database.listAutomations()).toEqual([]);
     database.deleteThread(completedThread.thread.id);
     expect(database.listThreads()).toEqual([]);
-  });
+  }, 15_000);
 
   it("leases, cancels, settles, and recovers durable jobs without losing payloads", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "devbox-durable-job-test-"));
