@@ -73,7 +73,8 @@ check("remix-ui-route", app.includes('view === "music"') && app.includes("RemixR
 check("remix-ui-real-bridge", all(musicUi, ["window.devbox.inspectRemixRota", "window.devbox.invokeRemixRota", "window.devbox.onRemixRotaEvent", "player.playTrack", "library.search"]));
 check("remix-ui-no-mock", !musicUi.includes("hardcodedAssistant") && !musicUi.includes("mockRemixRota"));
 
-check("design-v2-theme-presets", all(theme, ['version: 2', 'name: "Porcelain Flame"', 'accent: "#E9442C"', 'name: "Obsidian Flame"', 'accent: "#FF4A2D"']));
+check("theme-storage-schema-compatible", contracts.includes("version: z.literal(1)") && (theme.match(/version: 1/g) ?? []).length >= 2);
+check("design-v2-theme-presets", all(theme, ['name: "Porcelain Flame"', 'accent: "#E9442C"', 'name: "Obsidian Flame"', 'accent: "#FF4A2D"']));
 check("design-v2-semantic-surfaces", all(designSystem, ["--ds-canvas", "--ds-sidebar", "--ds-surface-1", "--ds-surface-2", "--ds-text", "--ds-border", "--ds-accent", '[data-theme-base="dark"]', '[data-theme-base="light"]']));
 check("design-v2-flame-day-not-whitewash", all(designSystem, ["#F8F5F1", "#F3EFEB", "#FFFDFC", "#E9442C"]));
 check("design-v2-core-surfaces", all(designSystem, [".system-bar", ".sidebar", ".composer", ".devapi-control", ".music-now-playing"]));
