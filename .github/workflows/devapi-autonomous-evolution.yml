@@ -1,4 +1,4 @@
-name: DevAPI autonomous evolution v4
+name: DevAPI autonomous evolution v5
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
       - cloud/devapi-sites/**
       - scripts/build-devapi-repo-inventory.mjs
       - scripts/devapi-agent-worker-smoke.mjs
+      - scripts/devapi-coder-smoke.mjs
       - scripts/devapi-worktree-smoke.mjs
       - scripts/devapi-file-lease-child.mjs
       - scripts/devapi-file-lease-smoke.mjs
@@ -24,6 +25,7 @@ on:
       - scripts/verify-devapi-autonomous-v2.mjs
       - scripts/verify-devapi-autonomous-v3.mjs
       - scripts/verify-devapi-autonomous-v4.mjs
+      - scripts/verify-devapi-autonomous-v5.mjs
       - scripts/verify-devapi-worker-security.mjs
       - scripts/verify-devapi-tool-catalog-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
@@ -45,7 +47,7 @@ concurrency:
 
 jobs:
   verify:
-    name: dependency + worker + lease + security + browser + planner + reviewer + db + sites truth gate
+    name: dependency + worker + coder + lease + security + browser + provider + db + sites truth gate
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -91,6 +93,7 @@ jobs:
             cloud/devapi-control/agent/runtime.mjs \
             cloud/devapi-control/agent/reviewer.mjs \
             cloud/devapi-control/agent/orchestrator.mjs \
+            cloud/devapi-control/agent/coder.mjs \
             cloud/devapi-control/lib/openai-web-research.mjs \
             cloud/devapi-control/lib/agent-store.mjs \
             cloud/devapi-control/lib/approval-store.mjs \
@@ -107,6 +110,7 @@ jobs:
             cloud/devapi-control/api/v1/agent-research.mjs \
             cloud/devapi-control/api/v1/agent-runtime.mjs \
             cloud/devapi-control/api/v1/agent-tasks.mjs \
+            scripts/devapi-coder-smoke.mjs \
             scripts/devapi-file-lease-child.mjs \
             scripts/devapi-file-lease-smoke.mjs \
             scripts/devapi-security-v4-smoke.mjs \
@@ -116,13 +120,17 @@ jobs:
             scripts/devapi-vercel-credential-state.mjs \
             scripts/verify-devapi-sites-v1.mjs \
             scripts/verify-devapi-autonomous-v3.mjs \
-            scripts/verify-devapi-autonomous-v4.mjs; do node --check "$file"; done
+            scripts/verify-devapi-autonomous-v4.mjs \
+            scripts/verify-devapi-autonomous-v5.mjs; do node --check "$file"; done
 
       - name: Build repository inventory
         run: node scripts/build-devapi-repo-inventory.mjs
 
       - name: Real isolated worker smoke
         run: node scripts/devapi-agent-worker-smoke.mjs
+
+      - name: Bounded coding executor smoke
+        run: node scripts/devapi-coder-smoke.mjs
 
       - name: Real worktree smoke with lease heartbeat
         run: node scripts/devapi-worktree-smoke.mjs
@@ -151,7 +159,7 @@ jobs:
       - name: Worker/browser security gate
         run: node scripts/verify-devapi-worker-security.mjs
 
-      - name: Five-site source truth gate
+      - name: Five-site vercel-app source truth gate
         run: node scripts/verify-devapi-sites-v1.mjs
 
       - name: Research catalog truth gate
@@ -166,8 +174,11 @@ jobs:
       - name: Autonomous v3 regression
         run: node scripts/verify-devapi-autonomous-v3.mjs
 
-      - name: Autonomous v4 verification
+      - name: Autonomous v4 regression
         run: node scripts/verify-devapi-autonomous-v4.mjs
+
+      - name: Autonomous v5 verification
+        run: node scripts/verify-devapi-autonomous-v5.mjs
 
       - name: Existing cloud regression
         run: node scripts/verify-cloud-ecosystem.mjs
@@ -175,13 +186,14 @@ jobs:
       - name: Diff hygiene
         run: git diff --check
 
-      - name: Upload v4 evidence
+      - name: Upload v5 evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: DevAPI-Autonomous-Evolution-v4-Evidence
+          name: DevAPI-Autonomous-Evolution-v5-Evidence
           path: |
             outputs/devapi-repo-inventory.json
             outputs/devapi-worker-smoke.json
+            outputs/devapi-coder-smoke.json
             outputs/devapi-worktree-smoke.json
             outputs/devapi-file-lease-smoke.json
             outputs/devapi-security-v4-smoke.json
