@@ -30,6 +30,8 @@ type CloudCommandAckStatus = "APPLIED" | "RETRYING" | "FAILED";
 type CloudConfig = { endpoint: URL; token: string };
 type RunSettlement = { settled: true; error: unknown | null };
 
+const PRODUCT_VERSION = "0.1.20";
+const CLOUD_PROTOCOL_VERSION = 1;
 const SYNC_INTERVAL_MS = 30_000;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const CLOUD_COMMAND_MAX_ATTEMPTS = 5;
@@ -142,6 +144,7 @@ export class CloudControlService {
     const gate = this.#releaseGate.latest(projectId);
     return {
       schemaVersion: 1,
+      product: { name: "DevBox", version: PRODUCT_VERSION, cloudProtocol: CLOUD_PROTOCOL_VERSION },
       project: { id: project.id, name: project.name, isGitRepository: project.isGitRepository },
       evolution: {
         enabled: campaign.enabled,
