@@ -1,0 +1,74 @@
+name: DevBox v0.1.20 DevAPI reset completeness
+
+on:
+  push:
+    branches:
+      - codex/v0.1.20-vercel-production-modernization
+    paths:
+      - scripts/patch-v020-devapi-reset-complete.mjs
+      - .github/workflows/v020-devapi-reset-complete.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v020-devapi-reset-complete
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Production branch kaynağını al
+        uses: actions/checkout@v6
+        with:
+          ref: codex/v0.1.20-vercel-production-modernization
+          fetch-depth: 0
+
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Node.js 24 kullan
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Kilitli bağımlılıkları kur
+        run: pnpm install --frozen-lockfile
+
+      - name: Reset patch'ini exact uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/patch-v020-devapi-reset-complete.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'DEVAPI_RESET_PATCH_FAILED' }
+          node --check cloud/devapi-control/app.js
+          if ($LASTEXITCODE -ne 0) { throw 'DEVAPI_APP_SYNTAX_FAILED' }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'DEVAPI_RESET_DIFF_FAILED' }
+
+      - name: Cloud ve ürün kapılarını doğrula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pnpm cloud:verify
+          if ($LASTEXITCODE -ne 0) { throw 'CLOUD_VERIFY_FAILED' }
+          pnpm verify
+          if ($LASTEXITCODE -ne 0) { throw 'PRODUCT_VERIFY_FAILED' }
+
+      - name: Doğrulanmış reset patch'ini branch'e yaz
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git add -- cloud/devapi-control/app.js scripts/verify-cloud-ecosystem.mjs
+          if (-not (git diff --cached --quiet)) {
+            git config user.name 'devbox-ci'
+            git config user.email 'devbox-ci@users.noreply.github.com'
+            git commit -m 'fix(devapi): clear residual stale evidence state'
+            git push origin HEAD:codex/v0.1.20-vercel-production-modernization
+          }
