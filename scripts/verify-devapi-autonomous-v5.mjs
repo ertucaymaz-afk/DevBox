@@ -1,6 +1,14 @@
 import { readFile } from "node:fs/promises";
+import { assertTaskTransition, TASK_STATES } from "../cloud/devapi-control/agent/task-state.mjs";
+import { EVIDENCE_TYPES } from "../cloud/devapi-control/lib/agent-store.mjs";
 
 function assert(condition, code) { if (!condition) throw new Error(code); }
+function expectDenied(from, to, code) {
+  let denied = false;
+  try { assertTaskTransition(from, to); }
+  catch (error) { denied = String(error?.message || "").startsWith(`TASK_STATE_TRANSITION_DENIED:${from}:${to}`); }
+  assert(denied, code);
+}
 
 const coderSource = await readFile("cloud/devapi-control/agent/coder.mjs", "utf8");
 const coderEvidence = JSON.parse(await readFile("outputs/devapi-coder-smoke.json", "utf8"));
@@ -16,6 +24,17 @@ assert(coderEvidence.modelRuntimeVerified === false, "DEVAPI_V5_MODEL_TRUTH");
 assert(coderEvidence.changedFiles === 1 && coderEvidence.tests === 1 && coderEvidence.scopeDenied === true, "DEVAPI_V5_CODER_SMOKE_CONTRACT");
 assert(/^[0-9a-f]{64}$/u.test(coderEvidence.patchDigest), "DEVAPI_V5_PATCH_DIGEST");
 
+for (const state of ["PRODUCTION_PROMOTING", "PRODUCTION_VERIFIED", "KNOWN_GOOD"]) assert(TASK_STATES.includes(state), `DEVAPI_V5_TASK_STATE_MISSING:${state}`);
+assertTaskTransition("CANARY_VERIFIED", "PRODUCTION_PROMOTING");
+assertTaskTransition("PRODUCTION_PROMOTING", "PRODUCTION_VERIFIED");
+assertTaskTransition("PRODUCTION_VERIFIED", "OBSERVING");
+expectDenied("CREATED", "PRODUCTION_VERIFIED", "DEVAPI_V5_TASK_STATE_SKIP_CREATED_PRODUCTION");
+expectDenied("IMPLEMENTING", "KNOWN_GOOD", "DEVAPI_V5_TASK_STATE_SKIP_IMPLEMENTING_KNOWN_GOOD");
+
+for (const type of ["REPO", "RESEARCH", "PLAN", "APPROVAL", "WORKSPACE", "LEASE", "PATCH", "SHELL", "TEST", "REVIEW", "CONTRACT", "SECURITY", "BROWSER", "PREVIEW", "CANARY", "PRODUCTION", "ROLLBACK"]) {
+  assert(EVIDENCE_TYPES.includes(type), `DEVAPI_V5_EVIDENCE_TYPE_MISSING:${type}`);
+}
+
 assert(sites.schemaVersion === 2, "DEVAPI_V5_SITE_MANIFEST_SCHEMA");
 assert(sites.domainPolicy?.requiredSuffix === ".vercel.app", "DEVAPI_V5_SITE_SUFFIX_POLICY");
 assert(sites.domainPolicy?.customComDomains === false, "DEVAPI_V5_SITE_CUSTOM_DOMAIN");
@@ -29,4 +48,4 @@ for (const project of sites.projects) {
 }
 assert(statusHtml.includes("13 route / 21 operation baseline"), "DEVAPI_V5_STATUS_CONTRACT_DRIFT");
 
-console.log(`DEVAPI_AUTONOMOUS_V5_VERIFY_PASS coderRuntime=verified-bounded modelRuntime=not-verified changedFiles=${coderEvidence.changedFiles} sites=${sites.projects.length} suffix=.vercel.app canonical=${sites.canonicalDomainsVerified}`);
+console.log(`DEVAPI_AUTONOMOUS_V5_VERIFY_PASS coderRuntime=verified-bounded modelRuntime=not-verified changedFiles=${coderEvidence.changedFiles} taskProductionStates=verified evidenceTypes=${EVIDENCE_TYPES.length} sites=${sites.projects.length} suffix=.vercel.app canonical=${sites.canonicalDomainsVerified}`);
