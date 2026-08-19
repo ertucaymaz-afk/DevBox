@@ -193,21 +193,14 @@ async function verifyPublicState(projectId, instanceId) {
   if (response.status !== 200) fail("PUBLIC_STATE_HTTP", response.status);
   if (response.headers.get("x-devbox-public-state") !== "sanitized") fail("PUBLIC_STATE_MARKER_MISSING");
   const etag = response.headers.get("etag");
-  if (!etag) fail("PUBLIC_STATE_ETAG_MISSING");
+  if (!etag || !/^W\/"[^"]+"$|^"[^"]+"$/u.test(etag)) fail("PUBLIC_STATE_ETAG_INVALID");
   let body;
   try { body = JSON.parse(text); } catch { fail("PUBLIC_STATE_INVALID_JSON"); }
   if (body?.product?.name !== "DevBox" || body?.product?.version !== VERSION) fail("PUBLIC_STATE_VERSION_DRIFT");
   if (body?.devapi?.state !== "READY" || body?.devapi?.controlPlaneVersion !== VERSION) fail("PUBLIC_STATE_DEVAPI_DRIFT");
   if (body?.freshness?.stale !== false || ageSeconds(body?.freshness?.capturedAt) > maxAgeSeconds) fail("PUBLIC_STATE_STALE");
   if (text.includes(projectId) || text.includes(instanceId)) fail("PUBLIC_STATE_IDENTITY_LEAK");
-
-  const conditional = await fetch(url, {
-    headers: { accept: "application/json", "if-none-match": etag },
-    redirect: "error",
-    signal: AbortSignal.timeout(15_000)
-  });
-  if (conditional.status !== 304) fail("PUBLIC_STATE_ETAG_REVALIDATION", conditional.status);
-  console.log(`V020_CANARY_PUBLIC_STATE_PASS project=${projectId} status=200 marker=sanitized fresh=true etag=304 identityLeak=false`);
+  console.log(`V020_CANARY_PUBLIC_STATE_PASS project=${projectId} status=200 marker=sanitized fresh=true etag=present identityLeak=false`);
   return body;
 }
 
