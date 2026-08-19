@@ -1,1 +1,0 @@
-restore v8 from verified main blob, then apply minimal copy compatibility patch via materializer
