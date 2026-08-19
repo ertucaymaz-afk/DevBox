@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import path from "node:path";
-import { neon } from "@neondatabase/serverless";
 import { appendAgentEvidence, createAgentTask, ensureAgentSchema, getAgentTask, transitionAgentTask } from "../cloud/devapi-control/lib/agent-store.mjs";
 import { createApproval, decideApproval, ensureApprovalSchema, listApprovals } from "../cloud/devapi-control/lib/approval-store.mjs";
 import { ensureMigrationLedger, migrationChecksum, recordMigration } from "../cloud/devapi-control/lib/migration-ledger.mjs";
@@ -11,6 +12,14 @@ await mkdir(path.dirname(output), { recursive: true });
 const databaseUrl = String(process.env.DATABASE_URL || "").trim();
 const sourceSha = String(process.env.DEVAPI_SOURCE_SHA || process.env.GITHUB_SHA || "").trim().toLowerCase();
 let evidence;
+
+async function resolveNeon() {
+  const requireFromDevApi = createRequire(pathToFileURL(path.resolve("cloud/devapi-control/package.json")));
+  const modulePath = requireFromDevApi.resolve("@neondatabase/serverless");
+  const mod = await import(pathToFileURL(modulePath).href);
+  if (typeof mod.neon !== "function") throw new Error("DEVAPI_NEON_MODULE_CONTRACT_INVALID");
+  return mod.neon;
+}
 
 if (!databaseUrl) {
   evidence = {
@@ -25,6 +34,7 @@ if (!databaseUrl) {
   console.log("DEVAPI_DB_RUNTIME_SMOKE_BLOCKED_EXTERNAL credential=DATABASE_URL runtimeVerified=false");
 } else {
   if (!/^[0-9a-f]{40}$/u.test(sourceSha)) throw new Error("DEVAPI_DB_SOURCE_SHA_INVALID");
+  const neon = await resolveNeon();
   const query = neon(databaseUrl);
   await ensureAgentSchema();
   await ensureApprovalSchema();
