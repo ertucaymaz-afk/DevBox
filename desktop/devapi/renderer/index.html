@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self'; style-src 'self'; img-src 'self' file: data:; frame-src file:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';" />
+  <meta name="color-scheme" content="light" />
+  <title>DevAPI Desktop</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><span></span><span></span><span></span></div>
+        <div><strong>DevAPI</strong><small>Autonomous Engineering</small></div>
+      </div>
+
+      <div class="section-label">Yüzeyler</div>
+      <nav id="surfaceNav" class="nav"></nav>
+
+      <div class="section-label">Gerçek durum</div>
+      <div class="truth-card">
+        <div class="truth-row"><span>Worker</span><b class="ok">VERIFIED</b></div>
+        <div class="truth-row"><span>Coding Executor</span><b class="ok">BOUNDED</b></div>
+        <div class="truth-row"><span>Planner</span><b class="wait">BLOCKED</b></div>
+        <div class="truth-row"><span>Reviewer</span><b class="wait">BLOCKED</b></div>
+        <div class="truth-row"><span>Production</span><b class="idle">NOT RUN</b></div>
+      </div>
+
+      <div class="sidebar-foot">
+        <span id="versionText">DevAPI Desktop</span>
+        <small>Truth-first Windows shell</small>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">DEVAPI CONTROL CENTER</p>
+          <h1 id="surfaceTitle">Ana Ürün</h1>
+          <p id="surfaceDescription" class="subtitle">Ürünün ne yaptığını, nelerin gerçekten çalıştığını ve sıradaki gelişim kapılarını tek yerde gösterir.</p>
+        </div>
+        <div class="top-actions">
+          <div id="deploymentBadge" class="status-pill">DEPLOYMENT · NOT RUN</div>
+          <button id="refreshBtn" class="ghost-btn" type="button">Yenile</button>
+        </div>
+      </header>
+
+      <section class="overview-strip">
+        <article>
+          <span>Kaynak durumu</span>
+          <strong>SOURCE VERIFIED</strong>
+          <small>UI + güvenlik + worker gate'leri CI ile doğrulandı.</small>
+        </article>
+        <article>
+          <span>Model runtime</span>
+          <strong class="accent">BLOCKED_EXTERNAL</strong>
+          <small>OPENAI_API_KEY bağlanmadan model ajanı canlı sayılmaz.</small>
+        </article>
+        <article>
+          <span>Vercel</span>
+          <strong id="vercelState">NOT RUN</strong>
+          <small>Candidate adresler ancak gerçek deployment sonrası canonical olur.</small>
+        </article>
+      </section>
+
+      <section class="surface-frame-card">
+        <div class="frame-toolbar">
+          <div class="frame-dots"><i></i><i></i><i></i></div>
+          <div class="frame-location"><span>LOCAL BUNDLE</span><b id="frameLocation">devapi-sites/main/index.html</b></div>
+          <div id="frameState" class="frame-state">READY</div>
+        </div>
+        <iframe id="surfaceFrame" title="DevAPI yüzeyi" sandbox="allow-scripts allow-same-origin"></iframe>
+      </section>
+
+      <section class="explain-grid">
+        <article class="explain-card">
+          <div class="number">01</div>
+          <h2>Bu program ne işe yarıyor?</h2>
+          <p>DevAPI'nin ana ürün sitesi, runtime görünümü, dokümantasyonu, durum merkezi ve Agent Console'u tek Windows uygulamasında toplar. İnternet olmasa bile paketlenmiş arayüzleri açabilir.</p>
+        </article>
+        <article class="explain-card">
+          <div class="number">02</div>
+          <h2>Neden bazı özellikler BLOCKED?</h2>
+          <p>DevAPI çalışmayan bir özelliği çalışıyormuş gibi göstermiyor. Gerçek model, veritabanı veya Vercel kimliği bağlı değilse durum açıkça beklemede kalır.</p>
+        </article>
+        <article class="explain-card">
+          <div class="number">03</div>
+          <h2>Sonraki gerçek kapı nedir?</h2>
+          <p>Planner + Reviewer provider runtime, parent DB doğrulaması ve beş fiziksel .vercel.app deployment tamamlandıktan sonra preview, canary ve production state'leri açılır.</p>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
