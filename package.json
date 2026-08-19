@@ -34,6 +34,7 @@
     "truth:audit": "node scripts/verify-product-truth.mjs",
     "cloud:verify": "node scripts/verify-cloud-ecosystem.mjs",
     "production:promoter:verify": "pnpm source:hygiene && node scripts/verify-v020-production-promoter.mjs",
+    "production:canary:verify": "node scripts/verify-v020-desktop-canary.mjs",
     "production:verify": "node scripts/verify-production-evidence-v13.mjs",
     "start": "electron .",
     "package:dir": "pnpm build && electron-builder --config config/electron-builder.yml --win dir",
@@ -48,7 +49,7 @@
     "release:install-local": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/install-local-release.ps1 -Workspace .",
     "release:deliver": "pnpm release:prepare && pnpm release:verify && pnpm release:sync && pnpm release:source && pnpm release:install-local",
     "release:local": "pnpm production:verify && pnpm package:installer && pnpm release:deliver",
-    "verify": "pnpm source:hygiene && pnpm spec:verify && pnpm evolution:verify && pnpm cloud:verify && pnpm production:promoter:verify && pnpm typecheck && pnpm test && pnpm build",
+    "verify": "pnpm source:hygiene && pnpm spec:verify && pnpm evolution:verify && pnpm cloud:verify && pnpm production:promoter:verify && pnpm production:canary:verify && pnpm typecheck && pnpm test && pnpm build",
     "evolution:verify": "node scripts/verify-api-evolution-v13.mjs"
   },
   "dependencies": {
