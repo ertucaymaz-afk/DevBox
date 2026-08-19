@@ -30,6 +30,24 @@ const TOOLS = Object.freeze([
     implementation: "openai-responses-web-search"
   },
   {
+    toolId: "agent.runtime",
+    namespace: "agent",
+    description: "OpenAI Agents SDK provider adapter'ı. SDK exact dependency henüz install/pin gate'i geçmediği için runtime doğrulanmış sayılmaz.",
+    riskClass: "R1",
+    requiresApproval: false,
+    state: "SOURCE_READY",
+    implementation: "openai-agents-sdk-adapter"
+  },
+  {
+    toolId: "workspace.create",
+    namespace: "workspace",
+    description: "Task başına izole geçici çalışma alanı oluşturma ve containment politikası.",
+    riskClass: "R2",
+    requiresApproval: true,
+    state: "SOURCE_READY",
+    implementation: "local-worker-workspace"
+  },
+  {
     toolId: "browser.inspect",
     namespace: "browser",
     description: "Tarayıcı/DOM/console/network inceleme sözleşmesi. Browser worker henüz bağlanmadı.",
@@ -41,25 +59,25 @@ const TOOLS = Object.freeze([
   {
     toolId: "shell.exec",
     namespace: "shell",
-    description: "İzole sandbox içinde sınırlandırılmış shell yürütme politikası. Sandbox runtime henüz bağlanmadı.",
+    description: "İzole worker workspace içinde allow-listed executable çalıştırma, timeout ve output digest kaydı.",
     riskClass: "R2",
     requiresApproval: true,
-    state: "UNAVAILABLE",
-    implementation: null
+    state: "SOURCE_READY",
+    implementation: "local-worker-workspace"
   },
   {
     toolId: "fs.patch",
     namespace: "repo",
-    description: "Yalnız atanmış worktree içinde patch uygulama politikası. Worktree runtime henüz bağlanmadı.",
+    description: "Workspace confinement, expected SHA ve write read-back ile dosya değişikliği uygulama kaynağı.",
     riskClass: "R2",
     requiresApproval: true,
-    state: "UNAVAILABLE",
-    implementation: null
+    state: "SOURCE_READY",
+    implementation: "local-worker-workspace"
   },
   {
     toolId: "git.worktree.create",
     namespace: "git",
-    description: "Task başına izole worktree oluşturma politikası. Worker runtime henüz bağlanmadı.",
+    description: "Task başına gerçek git worktree oluşturma politikası. Worktree manager sonraki lane'de bağlanacak.",
     riskClass: "R2",
     requiresApproval: true,
     state: "UNAVAILABLE",
