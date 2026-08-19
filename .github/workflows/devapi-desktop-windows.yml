@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Source syntax and policy gate
+      - name: Source syntax, workspace UI and policy gate
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -50,13 +50,22 @@ jobs:
           node --check desktop/devapi/renderer/app.js
           if (-not (Test-Path 'desktop/devapi/build/icon.svg')) { throw 'DEVAPI_DESKTOP_ICON_MISSING' }
           $package = Get-Content desktop/devapi/package.json -Raw | ConvertFrom-Json
-          if ($package.version -ne '0.6.1') { throw "DEVAPI_DESKTOP_VERSION_UNEXPECTED:$($package.version)" }
+          if ($package.version -ne '0.6.2') { throw "DEVAPI_DESKTOP_VERSION_UNEXPECTED:$($package.version)" }
+          $renderer = Get-Content desktop/devapi/renderer/index.html -Raw
+          $rendererJs = Get-Content desktop/devapi/renderer/app.js -Raw
+          $preload = Get-Content desktop/devapi/preload.cjs -Raw
+          if ($renderer -notmatch 'Nasıl yardımcı olabilirim') { throw 'DEVAPI_DESKTOP_AGENT_HOME_MISSING' }
+          if ($renderer -notmatch 'Yeni görev') { throw 'DEVAPI_DESKTOP_NEW_TASK_UI_MISSING' }
+          if ($renderer -notmatch 'Klasör aç') { throw 'DEVAPI_DESKTOP_PROJECT_PICKER_UI_MISSING' }
+          if ($rendererJs -notmatch 'createDraftTask') { throw 'DEVAPI_DESKTOP_TASK_PERSISTENCE_UI_MISSING' }
+          if ($preload -notmatch 'devapi:create-draft-task') { throw 'DEVAPI_DESKTOP_TASK_IPC_MISSING' }
+          if ($preload -notmatch 'devapi:pick-project') { throw 'DEVAPI_DESKTOP_PROJECT_IPC_MISSING' }
           $manifest = Get-Content cloud/devapi-sites/sites.manifest.json -Raw | ConvertFrom-Json
           if ($manifest.domainPolicy.requiredSuffix -ne '.vercel.app') { throw 'DEVAPI_DESKTOP_SITE_SUFFIX_INVALID' }
           if ($manifest.domainPolicy.customComDomains -ne $false) { throw 'DEVAPI_DESKTOP_CUSTOM_DOMAIN_POLICY_INVALID' }
           if ($manifest.canonicalDomainsVerified -ne $false) { throw 'DEVAPI_DESKTOP_CANONICAL_TRUTH_DRIFT' }
           if (@($manifest.projects).Count -ne 5) { throw 'DEVAPI_DESKTOP_SURFACE_MANIFEST_COUNT_INVALID' }
-          Write-Host 'DEVAPI_DESKTOP_SOURCE_PASS version=0.6.1 surfaces=5 protocol=devapi icon=custom truth=fail-closed suffix=.vercel.app'
+          Write-Host 'DEVAPI_DESKTOP_SOURCE_PASS version=0.6.2 surfaces=5 workspace=agent-task projectPicker=real taskPersistence=local protocol=devapi icon=custom truth=fail-closed suffix=.vercel.app'
 
       - name: Stage five bundled DevAPI surfaces
         shell: pwsh
@@ -205,10 +214,10 @@ jobs:
           $packagedHealth = Get-Content outputs/devapi-packaged-health.json -Raw | ConvertFrom-Json
           $installedHealth = Get-Content outputs/devapi-installed-health.json -Raw | ConvertFrom-Json
           $evidence = [ordered]@{
-            schemaVersion = 2
+            schemaVersion = 3
             state = 'PACKAGED_VERIFIED'
             product = 'DevAPI'
-            version = '0.6.1'
+            version = '0.6.2'
             platform = 'windows'
             arch = 'x64'
             installer = $exe.Name
@@ -220,8 +229,12 @@ jobs:
             sourceSha = $sourceSha
             electron = '43.4.0'
             electronBuilder = '26.15.3'
-            icon = 'custom-svg'
+            icon = 'custom-devapi-agent-svg'
             protocol = 'devapi'
+            workspaceUi = 'agent-task'
+            projectPicker = 'real-directory-dialog'
+            localTaskPersistence = 'SOURCE_READY'
+            modelRuntime = 'BLOCKED_EXTERNAL'
             surfaces = 5
             packageHealth = $packagedHealth.state
             installedHealth = $installedHealth.state
@@ -235,7 +248,7 @@ jobs:
           }
           $evidence | ConvertTo-Json -Depth 6 | Set-Content outputs/devapi-desktop-windows.json -Encoding utf8
           Copy-Item $exe.FullName "outputs/$($exe.Name)"
-          Write-Host "DEVAPI_DESKTOP_WINDOWS_HEALTHY_PASS installer=$($exe.Name) bytes=$($exe.Length) sha256=$sha pe=MZ auth=$($signature.Status) health=pass installCycle=pass integrity=$($evidence.integrityVerified)/$($evidence.integrityEntries)"
+          Write-Host "DEVAPI_DESKTOP_WINDOWS_HEALTHY_PASS installer=$($exe.Name) bytes=$($exe.Length) sha256=$sha pe=MZ auth=$($signature.Status) workspace=agent-task health=pass installCycle=pass integrity=$($evidence.integrityVerified)/$($evidence.integrityEntries)"
 
       - name: Upload DevAPI Windows installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
