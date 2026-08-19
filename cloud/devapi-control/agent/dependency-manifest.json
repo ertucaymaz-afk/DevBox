@@ -19,15 +19,25 @@
       "debug": "^4.4.0",
       "openai": "^6.46.0"
     },
-    "peerDependenciesAtTag": { "zod": "^4.0.0" },
-    "optionalCoreDependencies": { "@modelcontextprotocol/sdk": "^1.26.0" },
+    "peerDependenciesAtTag": {
+      "zod": "^4.0.0"
+    },
+    "optionalCoreDependencies": {
+      "@modelcontextprotocol/sdk": "^1.26.0"
+    },
     "securityPolicySourcePresent": true,
     "transitiveLockState": "LOCKED",
     "advisoryAuditState": "PASS",
     "integrationDecision": "Exact package and transitive graph are locked and integrated. Model provider runtime remains independently BLOCKED_EXTERNAL until OPENAI_API_KEY-backed smoke passes.",
     "resolvedIntegrity": "sha512-mhAPpDz+CeEoViMsYxPcHEMUonPQnGIgP2yCch/SXhXQkhb/53ojO2bUIXW3NSD5lIDyyV6sTIkO+O5WWJrVDA==",
     "installScriptsObserved": [],
-    "licenseGraph": ["Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT"]
+    "licenseGraph": [
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "ISC",
+      "MIT"
+    ]
   },
   "schemaRuntime": {
     "name": "zod",
@@ -44,8 +54,8 @@
     "pinnedForInstallation": true,
     "lockCommitted": true,
     "runtimeVerified": false,
-    "reason": "Dependency supply chain is verified and integrated; actual OpenAI model execution is a separate runtime gate and is not yet verified."
+    "reason": "Exact versions are locked; npm audit has no high/critical findings; package integrity and license metadata passed. Runtime provider smoke remains independent."
   },
-  "finalizedAt": "2026-08-19T11:57:16.152Z",
+  "finalizedAt": "2026-08-19T12:08:33.006Z",
   "reconciledAt": "2026-08-19T12:10:00.000Z"
 }
