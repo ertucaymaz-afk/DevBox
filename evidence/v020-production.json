@@ -14,7 +14,7 @@
   },
   "devbox": {
     "projectId": null,
-    "canonicalUrl": "https://devbox.vercel.app",
+    "canonicalUrl": null,
     "deploymentId": null
   },
   "neon": {
@@ -35,6 +35,6 @@
     }
   },
   "publicState": { "sanitize": "SOURCE_PASS", "stale": "SOURCE_PASS" },
-  "crossLinks": "SOURCE_PASS",
+  "crossLinks": "BLOCKED",
   "observability": { "criticalHighFindings": null }
 }
