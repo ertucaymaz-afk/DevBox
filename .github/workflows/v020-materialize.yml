@@ -76,8 +76,9 @@ jobs:
           if ($code -eq 0) { throw 'V020_PRODUCTION_GATE_FALSE_PASS' }
           $text = $output -join "`n"
           if ($text -notmatch 'DEVBOX_PRODUCTION_V13_FAIL') { throw 'V020_PRODUCTION_GATE_UNEXPECTED_FAILURE' }
-          if ($text -notmatch 'BLOCKED') { throw 'V020_PRODUCTION_GATE_BLOCKER_NOT_REPORTED' }
+          if ($text -notmatch 'production-evidence:BLOCKED') { throw 'V020_PRODUCTION_GATE_BLOCKER_NOT_REPORTED' }
           Write-Host 'V020_PRODUCTION_GATE_EXPECTED_BLOCKED PASS'
+          exit 0
 
       - name: Doğrulanmış ürün kaynaklarını branch'e yaz
         shell: pwsh
