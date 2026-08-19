@@ -181,6 +181,35 @@ async function waitSnapshot(projectId, after, predicate, label, timeoutSeconds =
   }
   fail("SNAPSHOT_TIMEOUT", `${label}:${last}`);
 }
+async function verifyPublicState(projectId, instanceId) {
+  const url = new URL("/api/v1/public-state", endpoint);
+  url.searchParams.set("projectId", projectId);
+  const response = await fetch(url, {
+    headers: { accept: "application/json", "cache-control": "no-cache" },
+    redirect: "error",
+    signal: AbortSignal.timeout(15_000)
+  });
+  const text = await response.text();
+  if (response.status !== 200) fail("PUBLIC_STATE_HTTP", response.status);
+  if (response.headers.get("x-devbox-public-state") !== "sanitized") fail("PUBLIC_STATE_MARKER_MISSING");
+  const etag = response.headers.get("etag");
+  if (!etag) fail("PUBLIC_STATE_ETAG_MISSING");
+  let body;
+  try { body = JSON.parse(text); } catch { fail("PUBLIC_STATE_INVALID_JSON"); }
+  if (body?.product?.name !== "DevBox" || body?.product?.version !== VERSION) fail("PUBLIC_STATE_VERSION_DRIFT");
+  if (body?.devapi?.state !== "READY" || body?.devapi?.controlPlaneVersion !== VERSION) fail("PUBLIC_STATE_DEVAPI_DRIFT");
+  if (body?.freshness?.stale !== false || ageSeconds(body?.freshness?.capturedAt) > maxAgeSeconds) fail("PUBLIC_STATE_STALE");
+  if (text.includes(projectId) || text.includes(instanceId)) fail("PUBLIC_STATE_IDENTITY_LEAK");
+
+  const conditional = await fetch(url, {
+    headers: { accept: "application/json", "if-none-match": etag },
+    redirect: "error",
+    signal: AbortSignal.timeout(15_000)
+  });
+  if (conditional.status !== 304) fail("PUBLIC_STATE_ETAG_REVALIDATION", conditional.status);
+  console.log(`V020_CANARY_PUBLIC_STATE_PASS project=${projectId} status=200 marker=sanitized fresh=true etag=304 identityLeak=false`);
+  return body;
+}
 
 const selected = await waitForDesktop();
 const projectId = String(selected.projectId);
@@ -228,6 +257,8 @@ try {
     restore.appliedAt = restoreAppliedAt;
   }
 
+  await verifyPublicState(projectId, baseline.instanceId);
+
   const sequences = proof.map((item) => item.sequence);
   for (let index = 1; index < sequences.length; index += 1) {
     if (sequences[index] <= sequences[index - 1]) fail("COMMAND_SEQUENCE_NOT_MONOTONIC", sequences.join(","));
@@ -254,6 +285,7 @@ try {
     },
     canary: {
       desktopSnapshot: "PASS",
+      publicStateSanitization: "PASS",
       setEnabledAck: "PASS",
       runAck: "PASS",
       cancelAck: "PASS",
@@ -269,6 +301,7 @@ try {
       `project_id=${projectId}`,
       `instance_id=${baseline.instanceId}`,
       "desktop_snapshot=PASS",
+      "public_state_sanitization=PASS",
       "set_enabled_ack=PASS",
       "run_ack=PASS",
       "cancel_ack=PASS",
@@ -277,7 +310,7 @@ try {
     ].join("\n") + "\n", { flag: "a" });
   }
   successful = true;
-  console.log(`V020_DESKTOP_CANARY_PASS project=${projectId} instance=${baseline.instanceId} commands=${proof.length} secrets=0-in-artifact`);
+  console.log(`V020_DESKTOP_CANARY_PASS project=${projectId} instance=${baseline.instanceId} commands=${proof.length} publicState=sanitized secrets=0-in-artifact`);
 } finally {
   if (!successful) {
     console.error(`V020_DESKTOP_CANARY_CLEANUP_START project=${projectId} runMayBeActive=${runMayBeActive} enabledForCanary=${enabledForCanary}`);
