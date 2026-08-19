@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "canonicalOrigin": "https://devbox.vercel.app",
+  "truthPolicy": {
+    "fakeReady": false,
+    "productionStateRequiresLiveEvidence": true,
+    "sourceAndProductionStatesAreSeparate": true,
+    "publicStateHeader": "x-devbox-public-state",
+    "publicStateTrustedValue": "sanitized-proxy"
+  },
+  "products": [
+    {
+      "id": "devbox",
+      "name": "DevBox",
+      "kind": "windows-engineering-desktop",
+      "source": "https://github.com/ertucaymaz-afk/DevBox"
+    },
+    {
+      "id": "devapi",
+      "name": "DevAPI",
+      "kind": "cloud-control-plane",
+      "production": "https://devapi-virid.vercel.app"
+    },
+    {
+      "id": "hotapi",
+      "name": "HotAPI",
+      "kind": "api-productization-platform",
+      "production": "https://hotapi-six-gamma.vercel.app"
+    }
+  ],
+  "surfaces": [
+    { "id": "portal", "path": "/", "title": "DevBox Ekosistemi", "type": "portal" },
+    { "id": "home", "path": "/devapi-home", "title": "DevAPI Home", "type": "devapi" },
+    { "id": "api", "path": "/devapi-api", "title": "API Merkezi", "type": "devapi" },
+    { "id": "docs", "path": "/devapi-docs", "title": "Dokümantasyon", "type": "devapi" },
+    { "id": "console", "path": "/devapi-console", "title": "Developer Console", "type": "devapi" },
+    { "id": "status", "path": "/devapi-status", "title": "Status", "type": "devapi" },
+    { "id": "studio", "path": "/devapi-studio", "title": "API Studio", "type": "devapi" },
+    { "id": "evolution", "path": "/devapi-evolution", "title": "Evolution", "type": "devapi" },
+    { "id": "workbench", "path": "/devapi-workbench", "title": "Workbench", "type": "devapi" },
+    { "id": "memory", "path": "/devapi-memory", "title": "Memory", "type": "devapi" },
+    { "id": "diagnostics", "path": "/devapi-diagnostics", "title": "Diagnostics", "type": "devapi" }
+  ],
+  "researchSources": [
+    { "name": "Magic UI", "license": "MIT", "usage": "interaction-pattern-research" },
+    { "name": "shadcn/ui", "license": "MIT", "usage": "component-architecture-research" },
+    { "name": "Lucide", "license": "ISC", "usage": "icon-system-reference" },
+    { "name": "Motion", "license": "MIT", "usage": "animation-performance-reference" },
+    { "name": "Kibo UI", "license": "MIT", "usage": "accessible-composition-reference" }
+  ]
+}
