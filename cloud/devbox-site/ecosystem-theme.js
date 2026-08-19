@@ -1,6 +1,7 @@
 const STORAGE_KEY="devbox.ecoTheme";
 const OPTIONS=["system","light","dark"];
 const media=matchMedia("(prefers-color-scheme: dark)");
+const compact=matchMedia("(max-width: 760px)");
 
 function savedMode(){
   try{const value=localStorage.getItem(STORAGE_KEY);return OPTIONS.includes(value)?value:"system"}catch{return "system"}
@@ -24,10 +25,18 @@ function install(){
   if(document.querySelector(".eco-theme-switcher"))return;
   const top=document.querySelector(".eco-topbar-inner");
   const navActions=document.querySelector(".nav-actions");
-  const host=top||navActions;
+  const floating=!top&&Boolean(navActions)&&compact.matches;
+  const host=top||(floating?document.body:navActions);
   if(!host)return;
   host.insertAdjacentHTML("beforeend",markup());
-  host.querySelectorAll("[data-eco-theme-option]").forEach(button=>button.addEventListener("click",()=>setMode(button.getAttribute("data-eco-theme-option")||"system")));
+  const switcher=host.querySelector(".eco-theme-switcher:last-of-type");
+  if(floating&&switcher instanceof HTMLElement){
+    switcher.style.position="fixed";
+    switcher.style.right="12px";
+    switcher.style.bottom="12px";
+    switcher.style.zIndex="120";
+  }
+  switcher?.querySelectorAll("[data-eco-theme-option]").forEach(button=>button.addEventListener("click",()=>setMode(button.getAttribute("data-eco-theme-option")||"system")));
   apply(savedMode());
 }
 function ensureStyle(){
