@@ -1,4 +1,4 @@
-name: DevAPI autonomous evolution v3
+name: DevAPI autonomous evolution v4
 
 on:
   push:
@@ -10,6 +10,9 @@ on:
       - scripts/build-devapi-repo-inventory.mjs
       - scripts/devapi-agent-worker-smoke.mjs
       - scripts/devapi-worktree-smoke.mjs
+      - scripts/devapi-file-lease-child.mjs
+      - scripts/devapi-file-lease-smoke.mjs
+      - scripts/devapi-security-v4-smoke.mjs
       - scripts/devapi-browser-smoke.mjs
       - scripts/devapi-provider-smoke.mjs
       - scripts/devapi-reviewer-smoke.mjs
@@ -20,6 +23,7 @@ on:
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
       - scripts/verify-devapi-autonomous-v3.mjs
+      - scripts/verify-devapi-autonomous-v4.mjs
       - scripts/verify-devapi-worker-security.mjs
       - scripts/verify-devapi-tool-catalog-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
@@ -41,7 +45,7 @@ concurrency:
 
 jobs:
   verify:
-    name: dependency + task + worker + worktree + browser + planner + reviewer + db + sites truth gate
+    name: dependency + worker + lease + security + browser + planner + reviewer + db + sites truth gate
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -94,6 +98,7 @@ jobs:
             cloud/devapi-control/lib/http-response.mjs \
             cloud/devapi-control/worker/approval.mjs \
             cloud/devapi-control/worker/workspace.mjs \
+            cloud/devapi-control/worker/file-lease.mjs \
             cloud/devapi-control/worker/git-worktree.mjs \
             cloud/devapi-control/browser/system-chrome.mjs \
             cloud/devapi-control/api/v1/agent-approvals.mjs \
@@ -102,12 +107,16 @@ jobs:
             cloud/devapi-control/api/v1/agent-research.mjs \
             cloud/devapi-control/api/v1/agent-runtime.mjs \
             cloud/devapi-control/api/v1/agent-tasks.mjs \
+            scripts/devapi-file-lease-child.mjs \
+            scripts/devapi-file-lease-smoke.mjs \
+            scripts/devapi-security-v4-smoke.mjs \
             scripts/devapi-provider-smoke.mjs \
             scripts/devapi-reviewer-smoke.mjs \
             scripts/devapi-db-runtime-smoke.mjs \
             scripts/devapi-vercel-credential-state.mjs \
             scripts/verify-devapi-sites-v1.mjs \
-            scripts/verify-devapi-autonomous-v3.mjs; do node --check "$file"; done
+            scripts/verify-devapi-autonomous-v3.mjs \
+            scripts/verify-devapi-autonomous-v4.mjs; do node --check "$file"; done
 
       - name: Build repository inventory
         run: node scripts/build-devapi-repo-inventory.mjs
@@ -115,8 +124,14 @@ jobs:
       - name: Real isolated worker smoke
         run: node scripts/devapi-agent-worker-smoke.mjs
 
-      - name: Real worktree smoke
+      - name: Real worktree smoke with lease heartbeat
         run: node scripts/devapi-worktree-smoke.mjs
+
+      - name: Cross-process lease and TTL recovery smoke
+        run: node scripts/devapi-file-lease-smoke.mjs
+
+      - name: Extended worker security attack matrix
+        run: node scripts/devapi-security-v4-smoke.mjs
 
       - name: Real read-only browser smoke
         run: node scripts/devapi-browser-smoke.mjs
@@ -148,8 +163,11 @@ jobs:
       - name: Autonomous v2 regression
         run: node scripts/verify-devapi-autonomous-v2.mjs
 
-      - name: Autonomous v3 verification
+      - name: Autonomous v3 regression
         run: node scripts/verify-devapi-autonomous-v3.mjs
+
+      - name: Autonomous v4 verification
+        run: node scripts/verify-devapi-autonomous-v4.mjs
 
       - name: Existing cloud regression
         run: node scripts/verify-cloud-ecosystem.mjs
@@ -157,14 +175,16 @@ jobs:
       - name: Diff hygiene
         run: git diff --check
 
-      - name: Upload v3 evidence
+      - name: Upload v4 evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: DevAPI-Autonomous-Evolution-v3-Evidence
+          name: DevAPI-Autonomous-Evolution-v4-Evidence
           path: |
             outputs/devapi-repo-inventory.json
             outputs/devapi-worker-smoke.json
             outputs/devapi-worktree-smoke.json
+            outputs/devapi-file-lease-smoke.json
+            outputs/devapi-security-v4-smoke.json
             outputs/devapi-browser-smoke.json
             outputs/devapi-provider-smoke.json
             outputs/devapi-reviewer-smoke.json
