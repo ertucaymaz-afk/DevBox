@@ -25,6 +25,18 @@ const devboxPackage = JSON.parse(content.devboxPackage);
 const links = JSON.parse(content.links);
 const evidence = JSON.parse(content.evidence);
 const version = String(rootPackage.version ?? "");
+const canonicalUrl = (value, id, required = true) => {
+  if (value == null || value === "") {
+    if (required) throw new Error(`CLOUD_VERIFY_FAIL:${id}-missing`);
+    return null;
+  }
+  let url;
+  try { url = new URL(String(value)); } catch { throw new Error(`CLOUD_VERIFY_FAIL:${id}-invalid`); }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+    throw new Error(`CLOUD_VERIFY_FAIL:${id}-unsafe`);
+  }
+  return url.origin;
+};
 if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u.test(version)) throw new Error("CLOUD_VERIFY_FAIL:root-version");
 if (devapiPackage.version !== version) throw new Error("CLOUD_VERIFY_FAIL:devapi-version-drift");
 if (devboxPackage.version !== version) throw new Error("CLOUD_VERIFY_FAIL:devbox-version-drift");
@@ -53,10 +65,22 @@ requireText("devapiCss", "prefers-reduced-motion", "devapi-reduced-motion");
 requireText("devboxVercel", "Content-Security-Policy", "site-csp");
 requireText("devapiVercel", "Content-Security-Policy", "devapi-csp");
 requireText("devboxIndex", "NO FAKE READY", "site-truth-contract");
-requireText("devboxIndex", "DevAPI Cloud Control", "site-cross-link");
+requireText("devboxIndex", "DevAPI Cloud Control", "site-cross-link-label");
 requireText("devapiIndex", "DevAPI Control Plane", "devapi-title");
-requireText("devapiIndex", "production pending", "devbox-blocked-link-state");
-if (links.devapi?.canonicalUrl !== "https://devapi-virid.vercel.app") throw new Error("CLOUD_VERIFY_FAIL:devapi-canonical-config");
-if (links.devbox?.state === "PASS" && !links.devbox?.canonicalUrl) throw new Error("CLOUD_VERIFY_FAIL:devbox-pass-without-url");
-if (evidence.release?.productionEvidence === "PASS") throw new Error("CLOUD_VERIFY_FAIL:source-manifest-must-not-predeclare-production-pass");
-console.log(`DEVBOX_CLOUD_ECOSYSTEM_VERIFY_PASS version=${version} publicState=sanitized sites=2 syntax=pass securityHeaders=pass polling=bounded`);
+const devapiLink = canonicalUrl(links.devapi?.canonicalUrl, "devapi-canonical-config");
+const evidenceDevapiLink = canonicalUrl(evidence.vercel?.devapi?.canonicalUrl, "devapi-canonical-evidence");
+if (devapiLink !== evidenceDevapiLink) throw new Error("CLOUD_VERIFY_FAIL:devapi-canonical-drift");
+if (!content.devboxApp.includes(devapiLink)) throw new Error("CLOUD_VERIFY_FAIL:devbox-devapi-link-drift");
+const devboxLink = canonicalUrl(links.devbox?.canonicalUrl, "devbox-canonical-config", false);
+const evidenceDevboxLink = canonicalUrl(evidence.vercel?.devbox?.canonicalUrl, "devbox-canonical-evidence", false);
+if (devboxLink !== evidenceDevboxLink) throw new Error("CLOUD_VERIFY_FAIL:devbox-canonical-drift");
+if (links.devbox?.state === "PASS") {
+  if (!devboxLink || !evidence.vercel?.devbox?.projectId) throw new Error("CLOUD_VERIFY_FAIL:devbox-pass-without-proof");
+} else {
+  if (devboxLink && !evidence.vercel?.devbox?.projectId) throw new Error("CLOUD_VERIFY_FAIL:unverified-devbox-canonical");
+  requireText("devapiIndex", "production pending", "devbox-blocked-link-state");
+}
+if (evidence.release?.productionEvidence === "PASS") {
+  execFileSync(process.execPath, ["scripts/verify-production-evidence-v13.mjs"], { stdio: "inherit" });
+}
+console.log(`DEVBOX_CLOUD_ECOSYSTEM_VERIFY_PASS version=${version} publicState=sanitized sites=2 syntax=pass securityHeaders=pass polling=bounded canonicalConfig=evidence`);
