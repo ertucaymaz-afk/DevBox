@@ -47,7 +47,7 @@ jobs:
           mkdir -p outputs
           if [ -z "${VERCEL_TOKEN:-}" ]; then
             cat > outputs/devapi-sites-production.json <<'JSON'
-          {"schemaVersion":1,"state":"BLOCKED_EXTERNAL","blocker":"VERCEL_TOKEN_UNCONFIGURED","productionVerified":false,"projects":[]}
+          {"schemaVersion":2,"state":"BLOCKED_EXTERNAL","blocker":"VERCEL_TOKEN_UNCONFIGURED","productionVerified":false,"requiredSuffix":".vercel.app","projects":[]}
           JSON
             echo 'configured=false' >> "$GITHUB_OUTPUT"
             echo 'DEVAPI_SITES_PRODUCTION_BLOCKED_EXTERNAL credential=VERCEL_TOKEN'
@@ -75,28 +75,33 @@ jobs:
             echo "Deploying $id from $root as $name"
             url="$(npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy "$root" --prod --yes --name "$name" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN")"
             url="$(printf '%s' "$url" | tail -n 1 | tr -d '\r')"
-            case "$url" in https://*) ;; *) echo "DEVAPI_SITE_DEPLOY_URL_INVALID:$id:$url" >&2; exit 1;; esac
+            case "$url" in https://*.vercel.app) ;; *) echo "DEVAPI_SITE_DEPLOY_URL_INVALID:$id:$url" >&2; exit 1;; esac
             printf '%s\t%s\n' "$id" "$url" >> outputs/devapi-sites-urls.txt
             code="$(curl --silent --show-error --location --output /tmp/devapi-site-body --write-out '%{http_code}' --max-time 30 "$url")"
             test "$code" = '200'
             grep -qi '<title>DevAPI' /tmp/devapi-site-body
-            echo "DEVAPI_SITE_PRODUCTION_HTTP_PASS id=$id http=$code"
+            echo "DEVAPI_SITE_PRODUCTION_HTTP_PASS id=$id http=$code url=$url"
           }
 
-          deploy_one main cloud/devapi-sites/main devapi
-          deploy_one runtime cloud/devapi-sites/runtime devapi-api
-          deploy_one docs cloud/devapi-sites/docs devapi-docs
-          deploy_one status cloud/devapi-sites/status devapi-status
-          deploy_one console cloud/devapi-sites/console devapi-console
+          deploy_one main cloud/devapi-sites/main yaaertu-devapi
+          deploy_one runtime cloud/devapi-sites/runtime yaaertu-devapi-api
+          deploy_one docs cloud/devapi-sites/docs yaaertu-devapi-docs
+          deploy_one status cloud/devapi-sites/status yaaertu-devapi-status
+          deploy_one console cloud/devapi-sites/console yaaertu-devapi-console
 
           SOURCE_SHA="$GITHUB_SHA" node <<'NODE'
           const fs = require('fs');
           const crypto = require('crypto');
           const lines = fs.readFileSync('outputs/devapi-sites-urls.txt','utf8').trim().split(/\r?\n/).filter(Boolean);
           if (lines.length !== 5) throw new Error(`DEVAPI_SITE_DEPLOY_COUNT:${lines.length}`);
-          const projects = lines.map(line => { const [id,url] = line.split('\t'); return {id,url,http:200}; });
+          const projects = lines.map(line => {
+            const [id,url] = line.split('\t');
+            const hostname = new URL(url).hostname;
+            if (!hostname.endsWith('.vercel.app')) throw new Error(`DEVAPI_SITE_SUFFIX_INVALID:${hostname}`);
+            return {id,url,hostname,http:200};
+          });
           const digest = crypto.createHash('sha256').update(JSON.stringify(projects)).digest('hex');
-          const out = {schemaVersion:1,state:'PRODUCTION_VERIFIED',productionVerified:true,scope:process.env.VERCEL_SCOPE,sourceSha:process.env.SOURCE_SHA,projectCount:projects.length,projects,digest,generatedAt:new Date().toISOString()};
+          const out = {schemaVersion:2,state:'PRODUCTION_VERIFIED',productionVerified:true,requiredSuffix:'.vercel.app',scope:process.env.VERCEL_SCOPE,sourceSha:process.env.SOURCE_SHA,projectCount:projects.length,projects,digest,generatedAt:new Date().toISOString()};
           fs.writeFileSync('outputs/devapi-sites-production.json', JSON.stringify(out,null,2)+'\n');
           console.log(`DEVAPI_SITES_PRODUCTION_PASS projects=${projects.length} sourceSha=${process.env.SOURCE_SHA} digest=${digest}`);
           NODE
