@@ -4,6 +4,7 @@ function assert(condition, code) { if (!condition) throw new Error(code); }
 
 const worker = JSON.parse(await readFile("outputs/devapi-worker-smoke.json", "utf8"));
 const worktree = JSON.parse(await readFile("outputs/devapi-worktree-smoke.json", "utf8"));
+const browser = JSON.parse(await readFile("outputs/devapi-browser-smoke.json", "utf8"));
 assert(worker.approval?.missingApprovalBlocked === true, "DEVAPI_SECURITY_WORKER_APPROVAL_BYPASS");
 assert(worker.patch?.approvalId === worker.approval?.approvalId, "DEVAPI_SECURITY_PATCH_APPROVAL_MISMATCH");
 assert(worker.command?.approvalId === worker.approval?.approvalId, "DEVAPI_SECURITY_SHELL_APPROVAL_MISMATCH");
@@ -13,11 +14,14 @@ assert(worker.containment?.gitPushBlocked === true, "DEVAPI_SECURITY_GIT_PUSH_NO
 assert(worktree.approval?.missingApprovalBlocked === true, "DEVAPI_SECURITY_WORKTREE_APPROVAL_BYPASS");
 assert(worktree.diff?.approvalId === worktree.approval?.approvalId, "DEVAPI_SECURITY_WORKTREE_APPROVAL_MISMATCH");
 assert(worktree.singleWriter?.conflictQueued === true, "DEVAPI_SECURITY_SINGLE_WRITER_BYPASS");
+assert(browser.security?.privateNetworkDeniedWithoutExplicitLoopback === true, "DEVAPI_SECURITY_BROWSER_SSRF_GUARD");
+assert(browser.security?.browserActions === "READ_ONLY", "DEVAPI_SECURITY_BROWSER_WRITE_BOUNDARY");
 
 const sourceFiles = [
   "cloud/devapi-control/worker/approval.mjs",
   "cloud/devapi-control/worker/workspace.mjs",
   "cloud/devapi-control/worker/git-worktree.mjs",
+  "cloud/devapi-control/browser/system-chrome.mjs",
   "cloud/devapi-control/agent/runtime.mjs",
   "cloud/devapi-control/lib/openai-web-research.mjs"
 ];
@@ -34,5 +38,9 @@ assert(!workspaceSource.includes("env: process.env"), "DEVAPI_SECURITY_FULL_ENV_
 const worktreeSource = await readFile("cloud/devapi-control/worker/git-worktree.mjs", "utf8");
 assert(worktreeSource.includes("CONFLICT_QUEUE"), "DEVAPI_SECURITY_SINGLE_WRITER_POLICY_MISSING");
 assert(worktreeSource.includes("assertWorkerApproval"), "DEVAPI_SECURITY_WORKTREE_APPROVAL_POLICY_MISSING");
+const browserSource = await readFile("cloud/devapi-control/browser/system-chrome.mjs", "utf8");
+assert(browserSource.includes("BROWSER_URL_PRIVATE_NETWORK_DENIED"), "DEVAPI_SECURITY_BROWSER_PRIVATE_NETWORK_POLICY_MISSING");
+assert(browserSource.includes("lookup(url.hostname"), "DEVAPI_SECURITY_BROWSER_DNS_RESOLUTION_MISSING");
+assert(browserSource.includes("--disable-background-networking"), "DEVAPI_SECURITY_BROWSER_BACKGROUND_NETWORK_NOT_DISABLED");
 
-console.log("DEVAPI_WORKER_SECURITY_PASS approval=verified pathEscape=blocked shellInjection=blocked gitPush=blocked env=minimal outputRedaction=present singleWriter=verified secretLiteralScan=pass");
+console.log("DEVAPI_WORKER_SECURITY_PASS approval=verified pathEscape=blocked shellInjection=blocked gitPush=blocked env=minimal outputRedaction=present singleWriter=verified browserSsrf=verified browserReadOnly=verified secretLiteralScan=pass");
