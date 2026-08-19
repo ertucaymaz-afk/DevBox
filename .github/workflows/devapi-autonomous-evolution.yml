@@ -1,0 +1,86 @@
+name: DevAPI autonomous evolution v1
+
+on:
+  push:
+    branches:
+      - codex/devapi-autonomous-evolution-v1
+    paths:
+      - cloud/devapi-control/**
+      - scripts/build-devapi-repo-inventory.mjs
+      - scripts/verify-devapi-autonomous-v1.mjs
+      - .github/workflows/devapi-autonomous-evolution.yml
+  pull_request:
+    branches:
+      - codex/v0.1.20-vercel-production-modernization
+    paths:
+      - cloud/devapi-control/**
+      - scripts/build-devapi-repo-inventory.mjs
+      - scripts/verify-devapi-autonomous-v1.mjs
+      - .github/workflows/devapi-autonomous-evolution.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devapi-autonomous-evolution-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: truth-first agent + repo + contract gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Exact source checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Syntax gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check cloud/devapi-control/agent/tool-registry.mjs
+          node --check cloud/devapi-control/agent/task-policy.mjs
+          node --check cloud/devapi-control/research/evidence.mjs
+          node --check cloud/devapi-control/api/v1/agent-capabilities.mjs
+          node --check scripts/build-devapi-repo-inventory.mjs
+          node --check scripts/verify-devapi-autonomous-v1.mjs
+
+      - name: Build real repository inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/build-devapi-repo-inventory.mjs
+          test -s outputs/devapi-repo-inventory.json
+
+      - name: Autonomous foundation verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-devapi-autonomous-v1.mjs
+
+      - name: Existing cloud regression gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-cloud-ecosystem.mjs
+
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+
+      - name: Upload source evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DevAPI-Autonomous-Evolution-v1-Evidence
+          path: outputs/devapi-repo-inventory.json
+          if-no-files-found: error
+          retention-days: 14
