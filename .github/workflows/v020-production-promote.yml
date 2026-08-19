@@ -126,6 +126,7 @@ jobs:
           OUT_DEVBOX_PRODUCT_URL: ${{ steps.promote.outputs.devbox_product_url }}
           OUT_DEVBOX_ROLLBACK_ID: ${{ steps.promote.outputs.devbox_rollback_id }}
           OUT_DEVBOX_PUBLIC_STATE_STATUS: ${{ steps.promote.outputs.devbox_public_state_status }}
+          OUT_PUBLIC_STATE_CONTRACT: ${{ steps.promote.outputs.public_state_contract }}
           OUT_PUBLIC_STATE_SANITIZATION: ${{ steps.promote.outputs.public_state_sanitization }}
           OUT_CROSS_SITE_LINKS: ${{ steps.promote.outputs.cross_site_links }}
         run: |
@@ -134,10 +135,13 @@ jobs:
           const required = [
             'OUT_DEVAPI_PROJECT_ID','OUT_DEVAPI_DEPLOYMENT_ID','OUT_DEVAPI_DEPLOYMENT_URL','OUT_DEVAPI_ROLLBACK_ID','OUT_DEVAPI_PUBLIC_STATE_STATUS',
             'OUT_DEVBOX_PROJECT_ID','OUT_DEVBOX_DEPLOYMENT_ID','OUT_DEVBOX_DEPLOYMENT_URL','OUT_DEVBOX_PRODUCT_URL','OUT_DEVBOX_ROLLBACK_ID',
-            'OUT_DEVBOX_PUBLIC_STATE_STATUS','OUT_PUBLIC_STATE_SANITIZATION','OUT_CROSS_SITE_LINKS'
+            'OUT_DEVBOX_PUBLIC_STATE_STATUS','OUT_PUBLIC_STATE_CONTRACT','OUT_PUBLIC_STATE_SANITIZATION','OUT_CROSS_SITE_LINKS'
           ];
           for (const name of required) if (!process.env[name]) throw new Error(`PROMOTION_EVIDENCE_OUTPUT_MISSING:${name}`);
-          if (process.env.OUT_PUBLIC_STATE_SANITIZATION !== 'PASS') throw new Error('PROMOTION_EVIDENCE_SANITIZATION_NOT_PASS');
+          if (process.env.OUT_PUBLIC_STATE_CONTRACT !== 'PASS') throw new Error('PROMOTION_EVIDENCE_PUBLIC_STATE_CONTRACT_NOT_PASS');
+          if (!['PASS','PENDING_DESKTOP_SNAPSHOT'].includes(process.env.OUT_PUBLIC_STATE_SANITIZATION)) {
+            throw new Error(`PROMOTION_EVIDENCE_SANITIZATION_INVALID:${process.env.OUT_PUBLIC_STATE_SANITIZATION}`);
+          }
           if (process.env.OUT_CROSS_SITE_LINKS !== 'PASS') throw new Error('PROMOTION_EVIDENCE_CROSS_LINKS_NOT_PASS');
           if (process.env.OUT_DEVAPI_DEPLOYMENT_ID === process.env.OUT_DEVAPI_ROLLBACK_ID) throw new Error('PROMOTION_EVIDENCE_DEVAPI_ROLLBACK_EQUALS_LIVE');
           if (process.env.OUT_DEVBOX_DEPLOYMENT_ID === process.env.OUT_DEVBOX_ROLLBACK_ID) throw new Error('PROMOTION_EVIDENCE_DEVBOX_ROLLBACK_EQUALS_LIVE');
@@ -167,6 +171,10 @@ jobs:
                 publicStateHttpStatus: Number(process.env.OUT_DEVBOX_PUBLIC_STATE_STATUS)
               }
             },
+            deploymentContract: {
+              publicStateSanitization: process.env.OUT_PUBLIC_STATE_CONTRACT,
+              crossSiteLinks: process.env.OUT_CROSS_SITE_LINKS
+            },
             canary: {
               publicStateSanitization: process.env.OUT_PUBLIC_STATE_SANITIZATION,
               crossSiteLinks: process.env.OUT_CROSS_SITE_LINKS,
@@ -181,7 +189,7 @@ jobs:
           };
           mkdirSync('outputs', { recursive: true });
           writeFileSync('outputs/v020-production-promotion.json', `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-          console.log('V020_PROMOTION_EVIDENCE_JSON_PASS secrets=0 state=PARTIAL_PASS_CANARY_PENDING rollback=2');
+          console.log(`V020_PROMOTION_EVIDENCE_JSON_PASS secrets=0 state=PARTIAL_PASS_CANARY_PENDING contract=${report.deploymentContract.publicStateSanitization} sanitizationCanary=${report.canary.publicStateSanitization} rollback=2`);
           NODE
 
       - name: Promotion evidence artifact yükle
@@ -209,7 +217,8 @@ jobs:
             echo "- DevBox rollback: \`${{ steps.promote.outputs.devbox_rollback_id || 'BLOCKED' }}\`"
             echo "- DevBox verified product URL: \`${{ steps.promote.outputs.devbox_product_url || 'BLOCKED' }}\`"
             echo "- DevBox public-state proxy HTTP: \`${{ steps.promote.outputs.devbox_public_state_status || 'BLOCKED' }}\`"
-            echo "- Public-state sanitization: \`${{ steps.promote.outputs.public_state_sanitization || 'BLOCKED' }}\`"
+            echo "- Public-state deployment contract: \`${{ steps.promote.outputs.public_state_contract || 'BLOCKED' }}\`"
+            echo "- Public-state desktop sanitization canary: \`${{ steps.promote.outputs.public_state_sanitization || 'BLOCKED' }}\`"
             echo "- Cross-site links: \`${{ steps.promote.outputs.cross_site_links || 'BLOCKED' }}\`"
             echo '- Production evidence yalnız desktop snapshot + ACK canary gerçek PASS olduktan sonra PASS yapılacaktır.'
           } >> "$GITHUB_STEP_SUMMARY"
