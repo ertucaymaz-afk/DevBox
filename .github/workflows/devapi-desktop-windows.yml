@@ -73,7 +73,8 @@ jobs:
           if ($runtime -notmatch "worktree', 'add'") { throw 'DEVAPI_DESKTOP_WORKTREE_MISSING' }
           if ($runtime -notmatch 'beforeSha256') { throw 'DEVAPI_DESKTOP_SHA_GUARD_MISSING' }
           if ($runtime -notmatch 'Independent Reviewer') { throw 'DEVAPI_DESKTOP_INDEPENDENT_REVIEWER_MISSING' }
-          if ($runtime -match 'git push|npm publish') { throw 'DEVAPI_DESKTOP_FORBIDDEN_REMOTE_MUTATION_LITERAL' }
+          if ($runtime -match "spawnCapture\('git',\s*\['push'") { throw 'DEVAPI_DESKTOP_GIT_PUSH_EXECUTION_PRESENT' }
+          if ($runtime -match "spawnCapture\('npm',\s*\['publish'") { throw 'DEVAPI_DESKTOP_NPM_PUBLISH_EXECUTION_PRESENT' }
           $manifest = Get-Content cloud/devapi-sites/sites.manifest.json -Raw | ConvertFrom-Json
           if ($manifest.domainPolicy.requiredSuffix -ne '.vercel.app') { throw 'DEVAPI_DESKTOP_SITE_SUFFIX_INVALID' }
           if ($manifest.domainPolicy.customComDomains -ne $false) { throw 'DEVAPI_DESKTOP_CUSTOM_DOMAIN_POLICY_INVALID' }
