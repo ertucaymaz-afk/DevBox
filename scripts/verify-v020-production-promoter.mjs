@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises";
 
-const [sourceRaw, workflowRaw] = await Promise.all([
+const [sourceRaw, workflowRaw, packageRaw] = await Promise.all([
   readFile("scripts/v020-production-promote.mjs", "utf8"),
-  readFile(".github/workflows/v020-production-promote.yml", "utf8")
+  readFile(".github/workflows/v020-production-promote.yml", "utf8"),
+  readFile("package.json", "utf8")
 ]);
 const source = sourceRaw.replace(/\r\n/gu, "\n");
 const workflow = workflowRaw.replace(/\r\n/gu, "\n");
+const pkg = JSON.parse(packageRaw);
 const need = (input, needle, id) => { if (!input.includes(needle)) throw new Error(`V020_PROMOTER_VERIFY_FAIL:${id}`); };
 const forbid = (input, needle, id) => { if (input.includes(needle)) throw new Error(`V020_PROMOTER_VERIFY_FAIL:${id}`); };
 
@@ -23,7 +25,7 @@ for (const [needle, id] of [
   ["sanitized-proxy", "devbox-proxy-trust"],
   ["cross_site_links=PASS", "cross-link-output"],
   ["public_state_contract=PASS", "public-state-contract-output"],
-  ["PENDING_DESKTOP_SNAPSHOT", "public-state-pending-truth"],
+  ["PENDING_DESKTOP_SNAPSHOT", "promoter-public-state-pending-truth"],
   ["public_state_sanitization=${publicStateSanitizationState}", "public-state-dynamic-canary-output"],
   ["devapi_rollback_id=", "devapi-rollback-output"],
   ["devbox_rollback_id=", "devbox-rollback-output"],
@@ -69,6 +71,7 @@ if (jobEnvStart < 0 || stepsStart < 0 || jobEnvStart >= stepsStart) throw new Er
 const jobEnv = workflow.slice(jobEnvStart, stepsStart);
 forbid(jobEnv, "secrets.", "job-wide-secret-exposure");
 forbid(workflow, '>> "$GITHUB_ENV"', "secret-persistence-github-env");
+forbid(workflow, "PARTIAL_PASS_CANARY_PENDING", "obsolete-partial-pass-state");
 
 for (const [needle, id] of [
   ["Production secret gerçeklik kapısı", "secret-gate-step"],
@@ -77,23 +80,57 @@ for (const [needle, id] of [
   ["VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}", "vercel-secret-step-env"],
   ["exec node scripts/v020-production-promote.mjs", "promotion-exec"],
   ["pnpm production:promoter:verify", "promoter-self-gate"],
+  ["pnpm production:canary:verify", "canary-static-gate"],
+  ["pnpm test:cloud-idempotency", "idempotency-fault-gate"],
+  ["Gerçek v0.1.20 desktop snapshot ve ACK canary", "desktop-live-canary-step"],
+  ["node scripts/v020-production-desktop-canary.mjs", "desktop-live-canary-exec"],
+  ["Yeni deployment runtime error taraması", "runtime-scan-step"],
+  ["node scripts/v020-vercel-runtime-scan.mjs", "runtime-scan-exec"],
   ["OUT_PUBLIC_STATE_CONTRACT", "workflow-public-state-contract"],
-  ["PENDING_DESKTOP_SNAPSHOT", "workflow-pending-sanitization"],
+  ["OUT_PUBLIC_STATE_SANITIZATION", "workflow-live-sanitization-output"],
+  ["OUT_COMMAND_IDEMPOTENCY", "workflow-idempotency-output"],
+  ["OUT_RUNTIME_ERROR_SCAN", "workflow-runtime-output"],
   ["deploymentContract", "evidence-contract-section"],
+  ["PASS_RELEASE_EVIDENCE_CANDIDATE", "release-evidence-pass-state"],
+  ["BLOCKED_CANARY_OR_RUNTIME", "release-evidence-blocked-state"],
+  ["cloudCommandIdempotencyFaultInjection: 'PASS'", "evidence-static-idempotency-proof"],
   ["outputs/v020-production-promotion.json", "promotion-evidence-json"],
+  ["outputs/v020-desktop-canary.json", "desktop-canary-evidence-json"],
+  ["outputs/v020-runtime-scan.json", "runtime-scan-evidence-json"],
   ["actions/upload-artifact@v6", "promotion-evidence-upload"],
-  ["PARTIAL_PASS_CANARY_PENDING", "partial-pass-truth-state"],
+  ["Release evidence final kapısı", "final-release-gate-step"],
+  ["V020_RELEASE_BLOCKED", "final-release-fail-closed"],
+  ["V020_RELEASE_EVIDENCE_CANDIDATE_PASS", "final-release-pass-marker"],
   ["secrets=0", "evidence-no-secret-marker"]
 ]) need(workflow, needle, id);
 
-forbid(workflow, "PROMOTION_EVIDENCE_SANITIZATION_NOT_PASS", "workflow-false-sanitization-requirement");
+forbid(workflow, "PROMOTION_EVIDENCE_SANITIZATION_NOT_PASS", "workflow-obsolete-sanitization-branch");
+
+if (pkg.scripts?.["test:cloud-idempotency"] !== "vitest run src/main/services/cloud-control-idempotency.test.ts --config config/vitest.config.ts --maxWorkers=1 --no-file-parallelism") {
+  throw new Error("V020_PROMOTER_VERIFY_FAIL:idempotency-script-drift");
+}
 
 const secretGateIndex = workflow.indexOf("- name: Production secret gerçeklik kapısı");
 const installIndex = workflow.indexOf("- name: Kilitli bağımlılıkları kur");
-const sourceVerifyIndex = workflow.indexOf("- name: Source ve production promoter kontratını tekrar doğrula");
+const sourceVerifyIndex = workflow.indexOf("- name: Source, promoter ve canary kontratını tekrar doğrula");
 const promoteIndex = workflow.indexOf("- name: DevAPI ve DevBox production promote");
-if (secretGateIndex < 0 || installIndex < 0 || sourceVerifyIndex < 0 || promoteIndex < 0 || !(secretGateIndex < installIndex && installIndex < sourceVerifyIndex && sourceVerifyIndex < promoteIndex)) {
-  throw new Error("V020_PROMOTER_VERIFY_FAIL:workflow-order-secret-check-install-verify-promote");
+const canaryIndex = workflow.indexOf("- name: Gerçek v0.1.20 desktop snapshot ve ACK canary");
+const runtimeIndex = workflow.indexOf("- name: Yeni deployment runtime error taraması");
+const evidenceIndex = workflow.indexOf("- name: Secret-free birleşik production evidence JSON üret");
+const uploadIndex = workflow.indexOf("- name: Production evidence artifact yükle");
+const finalGateIndex = workflow.indexOf("- name: Release evidence final kapısı");
+if ([secretGateIndex, installIndex, sourceVerifyIndex, promoteIndex, canaryIndex, runtimeIndex, evidenceIndex, uploadIndex, finalGateIndex].some((index) => index < 0)) {
+  throw new Error("V020_PROMOTER_VERIFY_FAIL:workflow-required-step-missing");
+}
+if (!(secretGateIndex < installIndex && installIndex < sourceVerifyIndex && sourceVerifyIndex < promoteIndex && promoteIndex < canaryIndex && canaryIndex < runtimeIndex && runtimeIndex < evidenceIndex && evidenceIndex < uploadIndex && uploadIndex < finalGateIndex)) {
+  throw new Error("V020_PROMOTER_VERIFY_FAIL:workflow-closed-loop-order");
 }
 
-console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean lineEndings=portable stagedSmokePromote=required rollback=verified-baseline publicStateContract=pass desktopSanitization=pending-or-pass crossLinks=bidirectional proxy=verified evidenceArtifact=secret-free");
+const canaryBlock = workflow.slice(canaryIndex, runtimeIndex);
+const runtimeBlock = workflow.slice(runtimeIndex, evidenceIndex);
+need(canaryBlock, "continue-on-error: true", "canary-evidence-preservation");
+need(runtimeBlock, "continue-on-error: true", "runtime-evidence-preservation");
+need(workflow.slice(finalGateIndex), '[[ "$CANARY_OUTCOME" == success ]]', "final-canary-outcome-gate");
+need(workflow.slice(finalGateIndex), '[[ "$RUNTIME_OUTCOME" == success ]]', "final-runtime-outcome-gate");
+
+console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean lineEndings=portable stagedSmokePromote=required rollback=verified-baseline publicStateContract=pass desktopCanary=live-ack runtimeScan=deployment-scoped idempotency=fault-injected evidenceArtifact=combined-secret-free finalGate=fail-closed");
