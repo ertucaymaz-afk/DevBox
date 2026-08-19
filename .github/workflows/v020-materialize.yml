@@ -42,14 +42,12 @@ jobs:
       - name: Kilitli bağımlılıkları kur
         run: pnpm install --frozen-lockfile
 
-      - name: Adaptif evolution track ve DB timing hardening uygula
+      - name: Adaptif evolution track hardening uygula
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           node scripts/apply-v020-evolution-tracks.mjs
           if ($LASTEXITCODE -ne 0) { throw 'V020_EVOLUTION_TRACK_PATCH_FAILED' }
-          node scripts/apply-v020-db-test-timeout.mjs
-          if ($LASTEXITCODE -ne 0) { throw 'V020_DB_TEST_PATCH_FAILED' }
 
       - name: Diff bütünlüğünü doğrula
         shell: pwsh
@@ -83,9 +81,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           git config user.name 'devbox-v020-materializer'
           git config user.email 'actions@users.noreply.github.com'
-          git add src/shared/contracts.ts src/main/services/api-evolution-service.ts src/main/services/database.test.ts
+          git add src/shared/contracts.ts src/main/services/api-evolution-service.ts
           if (-not (git diff --cached --quiet)) {
-            git commit -m 'v0.1.20 adaptive evolution tracks and deterministic DB test budget'
+            git commit -m 'v0.1.20 adaptive evolution cloud and production tracks'
             git push origin HEAD:codex/v0.1.20-vercel-production-modernization
           } else {
             Write-Host 'V020_STRUCTURAL_PRODUCT_ALREADY_MATERIALIZED'
