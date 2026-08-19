@@ -1,0 +1,73 @@
+name: DevBox v0.1.20 catalog truth verification
+
+on:
+  push:
+    branches:
+      - codex/v0.1.20-ui-runtime-stabilization
+  pull_request:
+    branches:
+      - codex/v0.1.20-vercel-production-modernization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v020-catalog-truth-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Branch kaynağını al
+        uses: actions/checkout@v6
+        with:
+          ref: codex/v0.1.20-ui-runtime-stabilization
+          fetch-depth: 0
+
+      - name: pnpm 11.19.0 kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Node.js 24 kullan
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Bağımlılıkları kur
+        run: pnpm install --frozen-lockfile
+
+      - name: Catalog truth patch uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/patch-v020-catalog-truth.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'CATALOG_TRUTH_PATCH_FAILED' }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'CATALOG_TRUTH_DIFF_CHECK_FAILED' }
+
+      - name: Ürün kapılarını doğrula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pnpm evolution:verify
+          if ($LASTEXITCODE -ne 0) { throw 'EVOLUTION_VERIFY_FAILED' }
+          pnpm verify
+          if ($LASTEXITCODE -ne 0) { throw 'PRODUCT_VERIFY_FAILED' }
+
+      - name: Doğrulanmış Catalog düzeltmesini branch'e yaz
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git add -- src/renderer/CatalogWorkspaceV2.tsx
+          if (-not (git diff --cached --quiet)) {
+            git config user.name 'devbox-ci'
+            git config user.email 'devbox-ci@users.noreply.github.com'
+            git commit -m 'fix(ui): keep catalog status labels truthful'
+            git push origin HEAD:codex/v0.1.20-ui-runtime-stabilization
+          }
