@@ -18,10 +18,8 @@ import {
   SquareTerminal,
   Trash2,
   Upload,
-  X
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { DEVBOX_DAY_THEME, DEVBOX_OBSIDIAN_THEME } from "../shared/theme-presets";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   AppSettings,
   CatalogItem,
@@ -777,42 +775,4 @@ export function IntegrationWorkspace({ project, scope = "all" }: { project: Proj
     {result && <div className="command-evidence"><header><span>{result.commandDisplay}</span><Status value={result.exitCode === 0 ? "SUCCEEDED" : result.exitReason === "CANCELLED" ? "CANCELLED" : "FAILED"} /><button onClick={() => void window.devbox.copyText(`${result.stdout}\n${result.stderr}`)}><Copy size={13} /> Kopyala</button></header><pre>{result.stdout || result.stderr || (result.exitReason === "CANCELLED" ? "İşlem kullanıcı tarafından iptal edildi." : "Komut çıktı üretmedi.")}</pre><footer>{result.durationMs} ms · {resultReasonLabel(result.exitReason)} · çıkış {result.exitCode ?? "—"}</footer></div>}
     {error && <div className="inline-error">{error}</div>}
   </section>;
-}
-
-export function SettingsWorkspace({ settings, onSettings, onClose }: { settings: AppSettings | null; onSettings: (settings: AppSettings) => void; onClose: () => void }): ReactNode {
-  const [portable, setPortable] = useState("");
-  const [notice, setNotice] = useState<string | null>(null);
-  const [section, setSection] = useState<"appearance" | "permissions" | "terminal">("appearance");
-  const patch = async (value: Parameters<typeof window.devbox.patchSettings>[0]): Promise<void> => {
-    try { onSettings(await window.devbox.patchSettings(value)); setNotice("Ayar yerel SQLite deposuna kaydedildi."); }
-    catch (caught) { setNotice(failure(caught)); }
-  };
-  if (!settings) return <section className="advanced-page"><div className="advanced-empty"><LoaderCircle className="spin" size={24} />Ayarlar yükleniyor…</div></section>;
-  return <section className="advanced-page settings-workspace">
-    <div className="advanced-heading"><div><span className="advanced-eyebrow">POLİTİKA MERKEZİ</span><h1>Ayarlar</h1><p>Yalnızca gerçek çalışma zamanında uygulanan görünüm, izin, sandbox, ağ ve terminal politikaları.</p></div><div className="settings-heading-actions"><Status value="SAVED LOCALLY" /><button onClick={onClose} aria-label="Ayarları kapat" title="Ayarları kapat"><X size={16} /></button></div></div>
-    <nav className="settings-nav" aria-label="Ayar bölümleri"><button className={section === "appearance" ? "active" : ""} onClick={() => setSection("appearance")}>Görünüm</button><button className={section === "permissions" ? "active" : ""} onClick={() => setSection("permissions")}>İzinler ve sandbox</button><button className={section === "terminal" ? "active" : ""} onClick={() => setSection("terminal")}>Terminal</button></nav>
-    <div className="settings-sections">
-      {section === "appearance" && <section><h2>Görünüm</h2><div className="theme-presets" aria-label="Yerleşik tema seçimi"><button className={settings.theme.base === "dark" ? "active" : ""} onClick={() => void patch({ theme: DEVBOX_OBSIDIAN_THEME })}>Obsidyen · koyu</button><button className={settings.theme.base === "light" ? "active" : ""} onClick={() => void patch({ theme: DEVBOX_DAY_THEME })}>Gündüz · açık</button></div><div className="settings-grid"><label><span>Tema adı<small>Portable tema manifestinde görünür.</small></span><input value={settings.theme.name} onChange={(event) => void patch({ theme: { name: event.target.value || "DevBox" } })} /></label><label><span>Vurgu rengi<small>Hex renk, kod çalıştırmaz.</small></span><input type="color" value={settings.theme.accent} onChange={(event) => void patch({ theme: { accent: event.target.value } })} /></label><label><span>Arayüz yazı tipi</span><input value={settings.theme.uiFont} onChange={(event) => void patch({ theme: { uiFont: event.target.value || "Segoe UI" } })} /></label><label><span>Kod yazı tipi</span><input value={settings.theme.codeFont} onChange={(event) => void patch({ theme: { codeFont: event.target.value || "Consolas" } })} /></label><label><span>Kontrast</span><select value={settings.theme.contrast} onChange={(event) => void patch({ theme: { contrast: event.target.value as AppSettings["theme"]["contrast"] } })}><option value="normal">Normal</option><option value="high">Yüksek</option></select></label><label><span>Başlangıç tanıtımı<small>Seçim yerel ayarlarda kalıcı olarak saklanır.</small></span><select value={settings.launchIntroMode} onChange={(event) => { const mode = event.target.value as AppSettings["launchIntroMode"]; void patch({ launchIntroMode: mode, launchIntroSeen: mode === "once" ? false : settings.launchIntroSeen }); }}><option value="once">Yalnız ilk açılışta</option><option value="always">Her açılışta</option><option value="never">Gösterme</option></select></label><label className="switch-setting"><span>Hareketi azalt<small>Animasyonları ve geçişleri sınırlar.</small></span><button className={`automation-toggle ${settings.reduceMotion ? "on" : ""}`} onClick={() => void patch({ reduceMotion: !settings.reduceMotion })} aria-label="Hareketi azalt"><i /></button></label></div><div className="theme-row"><textarea value={portable} onChange={(event) => setPortable(event.target.value)} placeholder="devbox-theme-v1:… veya güvenli codex-theme-v1:… veri manifesti" /><button onClick={() => void window.devbox.importTheme(portable).then((next) => { onSettings(next); setNotice("Tema doğrulandı ve içe aktarıldı."); }).catch((caught) => setNotice(failure(caught)))} disabled={!portable.trim()}><Upload size={14} /> İçe aktar</button><button onClick={() => void window.devbox.exportTheme().then((value) => { setPortable(value); void window.devbox.copyText(value); setNotice("Portable tema panoya kopyalandı."); })}><Copy size={14} /> Dışa aktar</button></div></section>}
-      {section === "permissions" && <section><h2>İzinler ve sandbox</h2><div className="permission-settings"><label><span>İzin profili<small>Profil, onay + sandbox + ağ politikasını atomik olarak değiştirir.</small></span><select value={settings.permissionProfile} onChange={(event) => void patch({ permissionProfile: event.target.value as AppSettings["permissionProfile"] })}><option value="Salt okunur">Onay iste</option><option value="Onaylı">Benim için onayla</option><option value="Tam erişim">Tam erişim</option></select></label><dl><div><dt>Onay davranışı</dt><dd>{settings.approvalPolicy === "always" ? "Her proje yazma, süreç ve ağ işleminde sor" : settings.approvalPolicy === "on-request" ? "Yalnız riskli işlemde sor" : "Politika diyaloğu gösterme"}</dd></div><div><dt>Dosya kapsamı</dt><dd>{settings.sandboxPolicy === "read-only" ? "Salt okunur" : settings.sandboxPolicy === "workspace-write" ? "Seçili proje kökü; profil kurallarına bağlı yazma" : "Açılan hedeflerde tam erişim"}</dd></div><div><dt>Ağ</dt><dd>{settings.networkAccess ? "Gerçek sağlayıcı ve entegrasyon çağrıları profil onayıyla açık" : "Kapalı"}</dd></div></dl></div></section>}
-      {section === "terminal" && <section><h2>Terminal</h2><div className="settings-grid"><label><span>Terminal kabuğu<small>Yeni ConPTY oturumlarında gerçekten kullanılan çalıştırılabilir dosya.</small></span><select value={settings.terminalShell} onChange={(event) => void patch({ terminalShell: event.target.value as AppSettings["terminalShell"] })}><option value="pwsh">PowerShell 7</option><option value="powershell">Windows PowerShell</option><option value="cmd">Command Prompt</option></select></label></div></section>}
-    </div>
-    {notice && <div className="inline-info">{notice}</div>}
-  </section>;
-}
-
-export function themeStyle(settings: AppSettings | null): CSSProperties {
-  if (!settings) return {};
-  return {
-    "--accent": settings.theme.accent,
-    "--bg-app": settings.theme.surface,
-    "--bg-sidebar": settings.theme.sidebar,
-    "--bg-panel": settings.theme.panel,
-    "--border": settings.theme.border,
-    "--text": settings.theme.ink,
-    "--text-muted": settings.theme.muted,
-    "--success": settings.theme.success,
-    "--warning": settings.theme.warning,
-    "--danger": settings.theme.danger,
-    fontFamily: `${settings.theme.uiFont}, "Segoe UI", sans-serif`
-  } as CSSProperties;
 }
