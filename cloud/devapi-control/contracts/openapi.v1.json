@@ -19,6 +19,30 @@
         }
       }
     },
+    "/api/v1/agent-research": {
+      "get": {
+        "operationId": "getAgentResearchState",
+        "summary": "Web research provider configuration truth state",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": { "description": "Research provider state" },
+          "401": { "description": "Unauthorized" },
+          "503": { "description": "Control plane unconfigured" }
+        }
+      },
+      "post": {
+        "operationId": "runAgentResearch",
+        "summary": "Run bounded primary-source-first web research",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": { "description": "Research result with provider evidence URLs" },
+          "400": { "description": "Invalid research request" },
+          "401": { "description": "Unauthorized" },
+          "502": { "description": "Research provider failure" },
+          "503": { "description": "External provider credential unconfigured" }
+        }
+      }
+    },
     "/api/v1/commands": {
       "get": { "operationId": "listDesktopCommands", "summary": "List commands for authenticated desktop", "security": [{ "desktopSignature": [] }], "responses": { "200": { "description": "Commands" }, "401": { "description": "Unauthorized" } } },
       "post": { "operationId": "createDesktopCommand", "summary": "Create allow-listed command", "security": [{ "adminToken": [] }], "responses": { "201": { "description": "Created" }, "400": { "description": "Invalid command" }, "401": { "description": "Unauthorized" } } },
