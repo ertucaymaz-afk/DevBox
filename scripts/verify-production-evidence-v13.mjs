@@ -38,6 +38,8 @@ if (Array.isArray(promotion.missingGitHubSecrets) && promotion.missingGitHubSecr
 if (promotion.sourceSha !== source.verifiedCommit) fail("promotion-source-drift", `${promotion.sourceSha}!=${source.verifiedCommit}`);
 if (promotion.crossSiteLinks !== "PASS") fail("promotion-cross-links", promotion.crossSiteLinks);
 if (promotion.publicStateSanitization !== "PASS") fail("promotion-public-state", promotion.publicStateSanitization);
+if (promotion.idleIsolation !== "PASS") fail("promotion-idle-isolation", promotion.idleIsolation);
+if (promotion.runtimeErrorScan !== "PASS") fail("promotion-runtime-scan", promotion.runtimeErrorScan);
 
 const devapi = evidence.vercel?.devapi ?? {};
 const devbox = evidence.vercel?.devbox ?? {};
@@ -54,6 +56,7 @@ if (devapi.state !== "PASS" || devapi.rootHttpStatus !== 200 || devapi.healthHtt
   fail("devapi-production", `${devapi.state}:${devapi.rootHttpStatus}/${devapi.healthHttpStatus}/${devapi.publicStateHttpStatus}`);
 }
 if (devapi.observedVersion !== pkg.version || devapi.expectedVersion !== pkg.version) fail("devapi-version", `${devapi.observedVersion}/${devapi.expectedVersion}`);
+if (Number(devapi.runtimeErrorClusters24h) !== 0) fail("devapi-runtime-errors", devapi.runtimeErrorClusters24h);
 if (devbox.state !== "PASS" || devbox.rootHttpStatus !== 200) fail("devbox-production", `${devbox.state}:${devbox.rootHttpStatus}`);
 
 const devapiOrigin = origin(devapi.canonicalUrl, "devapi-canonical-url");
@@ -71,6 +74,7 @@ if (origin(promotion.devboxProductUrl, "promotion-devbox-url") !== devboxOrigin)
 
 const neon = evidence.neon ?? {};
 if (neon.schemaReadBack !== "PASS") fail("neon-schema-readback", neon.schemaReadBack);
+if (neon.runtimeBinding !== "PASS") fail("neon-runtime-binding", neon.runtimeBinding);
 const tables = new Set(Array.isArray(neon.schemaTables) ? neon.schemaTables : []);
 for (const table of ["devbox_project_state", "devbox_project_state_history", "devbox_control_commands"]) {
   if (!tables.has(table)) fail("neon-canonical-table", table);
@@ -80,6 +84,7 @@ const canary = evidence.canary ?? {};
 for (const key of [
   "desktopSnapshot",
   "publicStateSanitization",
+  "idleIsolation",
   "setEnabledAck",
   "runAck",
   "cancelAck",
@@ -92,5 +97,6 @@ for (const key of [
 }
 if (canary.crossSiteLinks !== promotion.crossSiteLinks) fail("cross-link-evidence-drift");
 if (canary.publicStateSanitization !== promotion.publicStateSanitization) fail("public-state-evidence-drift");
+if (canary.idleIsolation !== promotion.idleIsolation) fail("idle-isolation-evidence-drift");
 
-console.log(`DEVBOX_PRODUCTION_V13_PASS version=${pkg.version} source=${source.verifiedCommit} devapi=${devapiDeploymentId} devbox=${devboxDeploymentId} crossLinks=pass canary=pass`);
+console.log(`DEVBOX_PRODUCTION_V13_PASS version=${pkg.version} source=${source.verifiedCommit} devapi=${devapiDeploymentId} devbox=${devboxDeploymentId} crossLinks=pass canary=pass idleIsolation=pass runtimeBinding=pass`);
