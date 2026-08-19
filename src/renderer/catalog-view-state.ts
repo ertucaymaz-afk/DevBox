@@ -23,7 +23,8 @@ export function catalogRuntimeLabel(item: CatalogItem): string {
   if (item.runtimeState === "FAILED") return "Çalışma hatası";
   if (item.runtimeState === "RUNNING") return "Çalışıyor";
   if (item.runtimeState === "INSTALLED") return "Kurulu";
-  if (item.runtimeState === "SOURCE_ONLY") return "Kaynak hazır";
+  if (item.runtimeState === "SOURCE_ONLY" && catalogSourceVerified(item)) return "Kaynak doğrulandı";
+  if (item.runtimeState === "SOURCE_ONLY") return "Kaynak bekliyor";
   return "Kurulu değil";
 }
 
