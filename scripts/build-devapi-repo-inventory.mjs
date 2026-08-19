@@ -5,11 +5,13 @@ import path from "node:path";
 const ROOT = path.resolve("cloud/devapi-control");
 const API_ROOT = path.join(ROOT, "api/v1");
 const OUTPUT = path.resolve("outputs/devapi-repo-inventory.json");
+const IGNORED_DIRS = new Set(["node_modules", ".vercel", "dist", "coverage", ".cache"]);
 
 async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
+    if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) continue;
     const absolute = path.join(dir, entry.name);
     if (entry.isDirectory()) files.push(...await walk(absolute));
     else if (entry.isFile()) files.push(absolute);
@@ -65,9 +67,10 @@ for (const filename of routeFiles) {
 }
 
 const report = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   product: "DevAPI",
   scope: "cloud/devapi-control",
+  ignoredDirectories: [...IGNORED_DIRS].sort(),
   sourceSha: process.env.GITHUB_SHA || "LOCAL",
   generatedAt: new Date().toISOString(),
   counts: { files: fileRecords.length, routes: routes.length },
@@ -76,4 +79,4 @@ const report = {
 };
 await mkdir(path.dirname(OUTPUT), { recursive: true });
 await writeFile(OUTPUT, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-console.log(`DEVAPI_REPO_INVENTORY_PASS files=${fileRecords.length} routes=${routes.length} output=${rel(OUTPUT)}`);
+console.log(`DEVAPI_REPO_INVENTORY_PASS files=${fileRecords.length} routes=${routes.length} ignoredGenerated=true output=${rel(OUTPUT)}`);
