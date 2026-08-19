@@ -1,0 +1,35 @@
+appId: com.yaaertu.devapi
+productName: DevAPI
+executableName: DevAPI
+artifactName: DevAPI-Setup-${version}-${arch}.${ext}
+electronVersion: 43.4.0
+npmRebuild: false
+asar: true
+directories:
+  output: ../../release-devapi
+files:
+  - main.cjs
+  - preload.cjs
+  - renderer/**/*
+  - package.json
+extraResources:
+  - from: ../../cloud/devapi-sites
+    to: devapi-sites
+    filter:
+      - '**/*'
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  requestedExecutionLevel: asInvoker
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: DevAPI
+  uninstallDisplayName: DevAPI
+  deleteAppDataOnUninstall: false
