@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 
 await import("./verify-api-evolution-v8.mjs");
 
-const [pkg, contracts, findingContracts, findings, evolution, remixContracts, remixService, remixTest, bridge, preload, ipc, main, app, rendererMain, musicUi, theme, lightCss, musicCss, designSystem, componentCss, iconScript] = await Promise.all([
+const [pkg, contracts, findingContracts, findings, evolution, remixContracts, remixService, remixTest, bridge, preload, ipc, main, app, advancedViews, rendererMain, musicUi, theme, lightCss, musicCss, designSystem, componentCss, settingsV2, settingsCss, themeStyleV2, iconScript] = await Promise.all([
   readFile("package.json", "utf8"),
   readFile("src/shared/contracts.ts", "utf8"),
   readFile("src/shared/devapi-control-contracts.ts", "utf8"),
@@ -17,6 +17,7 @@ const [pkg, contracts, findingContracts, findings, evolution, remixContracts, re
   readFile("src/main/ipc.ts", "utf8"),
   readFile("src/main/main.ts", "utf8"),
   readFile("src/renderer/App.tsx", "utf8"),
+  readFile("src/renderer/AdvancedViews.tsx", "utf8"),
   readFile("src/renderer/main.tsx", "utf8"),
   readFile("src/renderer/RemixRotaWorkspace.tsx", "utf8"),
   readFile("src/shared/theme-presets.ts", "utf8"),
@@ -24,6 +25,9 @@ const [pkg, contracts, findingContracts, findings, evolution, remixContracts, re
   readFile("src/renderer/remixrota-v016.css", "utf8"),
   readFile("src/renderer/design-system-v2.css", "utf8"),
   readFile("src/renderer/design-system-v2-components.css", "utf8"),
+  readFile("src/renderer/SettingsWorkspaceV2.tsx", "utf8"),
+  readFile("src/renderer/settings-v2.css", "utf8"),
+  readFile("src/renderer/theme-style-v2.ts", "utf8"),
   readFile("scripts/generate-app-icon.mjs", "utf8")
 ]);
 
@@ -83,6 +87,12 @@ check("design-v2-load-order", rendererMain.indexOf('"./design-system-v2.css"') >
 check("legacy-day-surface-still-bounded", all(lightCss, [".system-bar", ".sidebar", ".composer"]));
 check("native-window-theme", all(main, ["createWindow(themeBase", "titleBarOverlay", 'settings.get().theme.base']) && all(ipc, ["setBackgroundColor", "setTitleBarOverlay"]));
 check("music-theme-parity", componentCss.includes(".music-connection-details") && musicCss.includes(".music-track-row.current"));
+check("design-v2-user-accent-boundary", designSystem.includes("var(--theme-accent") && themeStyleV2.includes("--theme-accent") && !themeStyleV2.includes("--bg-app") && !themeStyleV2.includes("--bg-sidebar") && !themeStyleV2.includes("--bg-panel"));
+check("settings-v2-real-contract", all(settingsV2, ["window.devbox.patchSettings", 'base: "system"', "terminalShell", "permissionProfile", "reduceMotion", "launchIntroMode", "window.devbox.importTheme", "window.devbox.exportTheme"]));
+check("settings-v2-layout", all(settingsCss, [".settings-v2-layout", ".settings-v2-nav", ".theme-thumb.dark", ".theme-thumb.light", ".theme-thumb.system"]));
+check("app-v2-wiring", all(app, ["SettingsWorkspaceV2", "themeStyleV2(appSettings)"]) && !app.includes("style={themeStyle(appSettings)}"));
+check("evolution-human-stage-surface", all(advancedViews, ['MODEL_ATTEMPT: "MODEL HAZIRLANIYOR"', 'RUNNING_COMMAND: "KOMUT YÜRÜTÜLÜYOR"', 'evolutionStageLabel(campaign.runtime.stage)', "KALICI GELİŞİM KONTROL DÜZLEMİ · ADAPTİF"]) && !advancedViews.includes("KALICI GELİŞİM KONTROL DÜZLEMİ · V9 ADAPTIVE"));
+check("terminal-system-theme-parity", all(advancedViews, ['matchMedia("(prefers-color-scheme: dark)")', 'settings?.theme.base === "system"', "terminalIsLight", "[reload, terminalIsLight]"]));
 
 check("icon-sizes", all(iconScript, ["16, 24, 32, 48, 64, 128, 256", 'writeFile(path.join(output,"icon.ico")', 'writeFile(path.join(output,"icon-master.png")']));
 check("icon-flame-glyph", all(iconScript, ["Flame ribbon", "DevBox cube / code glyph", "[230,55,34,235]", "[255,103,40,225]", "terminal chevron and cursor"]));

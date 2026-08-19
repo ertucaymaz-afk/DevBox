@@ -145,6 +145,20 @@ function Status({ value }: { value: string }): ReactNode {
     CANCEL_REQUESTED: "İPTAL BEKLENİYOR",
     DISABLED: "KAPALI",
     IDLE: "BEKLİYOR",
+    QUEUEING: "KUYRUĞA ALINIYOR",
+    PREPARING: "HAZIRLANIYOR",
+    PROVIDER_CHECK: "SAĞLAYICI DOĞRULANIYOR",
+    AUTH_CHECK: "OTURUM DOĞRULANIYOR",
+    MODEL_ATTEMPT: "MODEL HAZIRLANIYOR",
+    PLANNING: "PLANLANIYOR",
+    INSPECTING: "KAYNAK İNCELENİYOR",
+    EDITING: "KODLANIYOR",
+    RUNNING_COMMAND: "KOMUT YÜRÜTÜLÜYOR",
+    TESTING: "TEST EDİLİYOR",
+    VERIFYING: "DOĞRULANIYOR",
+    REVIEWING: "KANIT İNCELENİYOR",
+    WAITING: "BEKLİYOR",
+    SETTLING: "SONUÇLANDIRILIYOR",
     ONLINE: "ÇEVRİM İÇİ",
     OFFLINE: "ÇEVRİM DIŞI",
     REVOKED: "YETKİSİ KALDIRILDI",
@@ -218,6 +232,15 @@ export function TerminalWorkspace({ project, settings }: { project: ProjectSumma
   const [busy, setBusy] = useState(false);
   const [terminalReady, setTerminalReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = (event: MediaQueryListEvent): void => setSystemDark(event.matches);
+    setSystemDark(media.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, []);
+  const terminalIsLight = settings?.theme.base === "light" || (settings?.theme.base === "system" && !systemDark);
 
   const reload = useCallback(async () => {
     if (!project) return setTerminals([]);
@@ -238,7 +261,7 @@ export function TerminalWorkspace({ project, settings }: { project: ProjectSumma
         fontSize: 13,
         lineHeight: 1.25,
         scrollback: 20_000,
-        theme: settings?.theme.base === "light"
+        theme: terminalIsLight
           ? { background: "#ffffff", foreground: "#182027", cursor: "#182027", selectionBackground: "#cfe2f3" }
           : { background: "#0b0b0b", foreground: "#dddddd", cursor: "#f2f2f2", selectionBackground: "#3e3e3e" }
       });
@@ -282,7 +305,7 @@ export function TerminalWorkspace({ project, settings }: { project: ProjectSumma
       setTerminalReady(false);
       cleanup();
     };
-  }, [reload, settings?.theme.base]);
+  }, [reload, terminalIsLight]);
 
   useEffect(() => { void reload().catch((caught) => setError(failure(caught))); }, [reload]);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
@@ -484,14 +507,14 @@ export function AutomationWorkspace({ project }: { project: ProjectSummary | nul
   const adaptiveMode = Boolean(campaign && campaign.spec.remainingCount === 0);
   const adaptiveActive = Boolean(campaign?.runtime.activeSpecTaskId?.startsWith("ADAPT-"));
   const phaseProgressLabel = campaign?.spec.currentPhaseId
-    ? `${campaign.spec.currentPhaseId}/22 · G${campaign.spec.currentTaskIndex ?? "—"}/${campaign.spec.currentPhaseTaskCount ?? "—"} · ${campaign.runtime.stage}`
+    ? `${campaign.spec.currentPhaseId}/22 · G${campaign.spec.currentTaskIndex ?? "—"}/${campaign.spec.currentPhaseTaskCount ?? "—"} · ${evolutionStageLabel(campaign.runtime.stage)}`
     : adaptiveMode ? adaptiveActive ? `22/22 çekirdek PASS · ${campaign?.runtime.activeSpecTaskId}` : "22/22 çekirdek PASS · adaptif bakım hazır" : "22/22 Faz tamamlandı";
   const recoveryRequired = campaign?.runtime.stage === "RECOVERY_REQUIRED" || campaign?.spec.currentGateState === "RECOVERY_REQUIRED";
   const externalBlocked = campaign?.runtime.stage === "BLOCKED_EXTERNAL" || campaign?.spec.currentGateState === "BLOCKED_EXTERNAL";
   const runLabel = recoveryRequired ? "Kurtarmayı yeniden dene" : externalBlocked ? "Engeli yeniden dene" : "Şimdi çalıştır";
 
   return <section className="advanced-page">
-    <div className="advanced-heading evolution-heading"><div><span className="advanced-eyebrow">KALICI GELİŞİM KONTROL DÜZLEMİ · V9 ADAPTIVE</span><h1>DevBox API gelişimi</h1><p><strong>geliştirme.md</strong> içindeki 22 faz / 3362 atomik çekirdek görevi önce kanıtlı biçimde uygular. Çekirdek plan bittiğinde sistem durmaz; <strong>adaptif bakım döngüsü</strong> repo, test ve runtime kanıtını yeniden inceleyerek kalite, performans, UX, güvenlik, eşzamanlılık, API ve supply-chain alanlarında yeni somut görev üretir. <strong>Simülasyon, demo, fake, sahte, placeholder, no-op ve uydurma kanıt yasaktır.</strong> Recoverable hata aynı görevi FIX → RETEST backoff döngüsünde tutar; yalnız gerçek harici engel, veri kaybı riski taşıyan recovery veya Durdur akışı keser. Kalıcı Git commit + bağımsız verify olmadan PASS yoktur.</p></div><div className="advanced-actions"><button onClick={() => { setBusy("reload"); void reload().catch((caught) => setError(failure(caught))).finally(() => setBusy(null)); }} disabled={!project || busy === "reload"}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yenile</button>{campaign?.isRunning || busy === "run" ? <button className="danger-action" onClick={() => void cancel()} disabled={busy === "cancel"}><CircleStop size={14} /> {busy === "cancel" ? "Durduruluyor" : "Durdur"}</button> : <button className={recoveryRequired ? "recovery-action" : "primary"} onClick={() => void run()} disabled={!project || Boolean(busy)}>{recoveryRequired ? <RefreshCw size={14} /> : <Play size={14} />} {runLabel}</button>}</div></div>
+    <div className="advanced-heading evolution-heading"><div><span className="advanced-eyebrow">KALICI GELİŞİM KONTROL DÜZLEMİ · ADAPTİF</span><h1>DevBox API gelişimi</h1><p><strong>geliştirme.md</strong> içindeki 22 faz / 3362 atomik çekirdek görevi önce kanıtlı biçimde uygular. Çekirdek plan bittiğinde sistem durmaz; <strong>adaptif bakım döngüsü</strong> repo, test ve runtime kanıtını yeniden inceleyerek kalite, performans, UX, güvenlik, eşzamanlılık, API ve supply-chain alanlarında yeni somut görev üretir. <strong>Simülasyon, demo, fake, sahte, placeholder, no-op ve uydurma kanıt yasaktır.</strong> Recoverable hata aynı görevi FIX → RETEST backoff döngüsünde tutar; yalnız gerçek harici engel, veri kaybı riski taşıyan recovery veya Durdur akışı keser. Kalıcı Git commit + bağımsız verify olmadan PASS yoktur.</p></div><div className="advanced-actions"><button onClick={() => { setBusy("reload"); void reload().catch((caught) => setError(failure(caught))).finally(() => setBusy(null)); }} disabled={!project || busy === "reload"}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yenile</button>{campaign?.isRunning || busy === "run" ? <button className="danger-action" onClick={() => void cancel()} disabled={busy === "cancel"}><CircleStop size={14} /> {busy === "cancel" ? "Durduruluyor" : "Durdur"}</button> : <button className={recoveryRequired ? "recovery-action" : "primary"} onClick={() => void run()} disabled={!project || Boolean(busy)}>{recoveryRequired ? <RefreshCw size={14} /> : <Play size={14} />} {runLabel}</button>}</div></div>
     {!project ? <EmptyProject /> : !campaign ? <div className="advanced-empty"><LoaderCircle className="spin" size={24} />Gerçek kampanya durumu yükleniyor…</div> : <>
       {(recoveryRequired || externalBlocked) && <div className={`evolution-recovery-banner ${recoveryRequired ? "recovery" : "blocked"}`}><ShieldCheck size={18} /><div><strong>{recoveryRequired ? "Otomatik ilerleme fail-closed durdu" : "Harici engel nedeniyle ilerleme durdu"}</strong><p>{campaign.runtime.waitingReason ?? campaign.lastError ?? campaign.runtime.detail}</p><small>{recoveryRequired ? "Kör otomatik tekrar yapılmaz. Yukarıdaki kurtarma düğmesi tek bir manuel reconcile/retry çevrimi çalıştırır; gerçek mutasyon + verify + commit olmadan PASS verilmez." : "Engel giderildiyse yukarıdaki manuel yeniden deneme düğmesini kullanın."}</small></div></div>}
       <div className="evolution-summary">

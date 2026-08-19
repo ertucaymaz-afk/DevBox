@@ -1,3 +1,4 @@
+import "./settings-v2.css";
 import { Copy, Monitor, Moon, ShieldCheck, SquareTerminal, Sun, Upload, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { DEVBOX_DAY_THEME, DEVBOX_OBSIDIAN_THEME } from "../shared/theme-presets";
