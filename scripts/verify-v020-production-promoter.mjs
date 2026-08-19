@@ -20,8 +20,17 @@ for (const [needle, id] of [
   ["/api/product-links", "devbox-product-link-probe"],
   ["sanitized-proxy", "devbox-proxy-trust"],
   ["cross_site_links=PASS", "cross-link-output"],
+  ["public_state_sanitization=PASS", "public-state-output"],
+  ["devapi_rollback_id=", "devapi-rollback-output"],
+  ["devbox_rollback_id=", "devbox-rollback-output"],
   ["values=masked", "secret-log-mask"],
-  ["authorization: `Bearer ${vercelToken}`", "rest-bearer-auth"]
+  ["authorization: `Bearer ${vercelToken}`", "rest-bearer-auth"],
+  ['"--skip-domain"', "staged-domain-skip"],
+  ["/promote/", "rest-promote"],
+  ["mode=staged-smoke-promote", "staged-mode-marker"],
+  ["V020_ROLLBACK_CAPTURE", "rollback-capture-marker"],
+  ["devbox-baseline", "devbox-baseline-stage"],
+  ["devbox-final", "devbox-final-stage"]
 ]) need(source, needle, id);
 
 for (const [needle, id] of [
@@ -32,15 +41,22 @@ for (const [needle, id] of [
   ["console.log(adminToken", "admin-token-log"]
 ]) forbid(source, needle, id);
 
-const devboxDeployIndex = source.indexOf("const devboxDeploy = runVercel");
-const devapiDeployIndex = source.indexOf("const devapiDeploy = runVercel");
-if (devboxDeployIndex < 0 || devapiDeployIndex < 0 || devboxDeployIndex >= devapiDeployIndex) {
-  throw new Error("V020_PROMOTER_VERIFY_FAIL:deployment-order-devbox-before-devapi");
+const devboxBaselineIndex = source.indexOf("const devboxBaseline = await stageDeployment");
+const devapiStageIndex = source.indexOf("const devapiStage = await stageDeployment");
+const devboxFinalIndex = source.indexOf("const devboxFinal = await stageDeployment");
+if (devboxBaselineIndex < 0 || devapiStageIndex < 0 || devboxFinalIndex < 0 || !(devboxBaselineIndex < devapiStageIndex && devapiStageIndex < devboxFinalIndex)) {
+  throw new Error("V020_PROMOTER_VERIFY_FAIL:deployment-order-devbox-baseline-devapi-devbox-final");
 }
-const devboxOriginIndex = source.indexOf("const devboxProductOrigin = await selectVerifiedProductOrigin");
+const devboxOriginIndex = source.indexOf("const devboxProductOrigin = await waitForPromotedAlias");
 const devapiEnvIndex = source.indexOf("await upsertProjectEnv(devapiProjectId");
 if (devboxOriginIndex < 0 || devapiEnvIndex < 0 || devboxOriginIndex >= devapiEnvIndex) {
   throw new Error("V020_PROMOTER_VERIFY_FAIL:devbox-origin-before-devapi-env");
+}
+const baselinePromoteIndex = source.indexOf('promoteDeployment(devboxProjectId, devboxBaseline.id, "devbox-baseline")');
+const devapiPromoteIndex = source.indexOf('promoteDeployment(devapiProjectId, devapiStage.id, "devapi")');
+const finalPromoteIndex = source.indexOf('promoteDeployment(devboxProjectId, devboxFinal.id, "devbox-final")');
+if (!(devboxBaselineIndex < baselinePromoteIndex && devapiStageIndex < devapiPromoteIndex && devboxFinalIndex < finalPromoteIndex)) {
+  throw new Error("V020_PROMOTER_VERIFY_FAIL:smoke-before-promote-structure");
 }
 
 const jobEnvStart = workflow.indexOf("    env:\n");
@@ -71,4 +87,4 @@ if (secretGateIndex < 0 || installIndex < 0 || sourceVerifyIndex < 0 || promoteI
   throw new Error("V020_PROMOTER_VERIFY_FAIL:workflow-order-secret-check-install-verify-promote");
 }
 
-console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean crossLinks=bidirectional proxy=verified evidenceArtifact=secret-free deploymentOrder=devbox-first");
+console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean stagedSmokePromote=required rollback=verified-baseline crossLinks=bidirectional proxy=verified evidenceArtifact=secret-free");
