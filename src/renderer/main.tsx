@@ -4,6 +4,7 @@ import { App } from "./App";
 import "./styles.css";
 import "./light-theme-v016.css";
 import "./remixrota-v016.css";
+import "./design-system-v2.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("DevBox renderer root was not found.");
