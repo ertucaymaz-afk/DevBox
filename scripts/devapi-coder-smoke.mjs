@@ -9,6 +9,7 @@ const hash = (value) => createHash("sha256").update(value).digest("hex");
 const root = await mkdtemp(path.join(os.tmpdir(), "devapi-coder-smoke-"));
 const source = path.join(root, "source");
 await mkdir(path.join(source, "docs"), { recursive: true });
+await mkdir("outputs", { recursive: true });
 const before = "# DevAPI Smoke\n\nsource-ready\n";
 await writeFile(path.join(source, "docs", "smoke.md"), before, "utf8");
 await writeFile(path.join(source, "check.mjs"), "console.log('coder-smoke-pass')\n", "utf8");
@@ -19,7 +20,7 @@ try {
   await workspace.materializeDirectory(source, "repo");
   const result = await runCodingAgent({
     taskId: randomUUID(),
-    sourceSha: "3ffa8aeba6d61020cfac3979080065302270363f",
+    sourceSha: String(process.env.DEVAPI_SOURCE_SHA || "3ffa8aeba6d61020cfac3979080065302270363f"),
     planEvidenceId: randomUUID(),
     approvalId: approval.approvalId,
     approval,
@@ -51,7 +52,22 @@ try {
   } catch (error) { scopeDenied = /CODER_PATH_OUT_OF_SCOPE|CODER_PATH_DENIED/u.test(String(error?.message)); }
   if (!scopeDenied) throw new Error("CODER_SMOKE_SCOPE_NOT_BLOCKED");
 
-  console.log(`DEVAPI_CODER_SMOKE_PASS changedFiles=${result.changedFiles.length} tests=${result.toolCalls.length} scope=verified modelRuntimeVerified=false patchDigest=${result.patchDigest}`);
+  const evidence = {
+    schemaVersion: 1,
+    state: "RUNTIME_VERIFIED",
+    runtimeScope: "bounded-worker-coding-executor",
+    modelRuntimeVerified: false,
+    sourceSha: result.sourceSha,
+    changedFiles: result.changedFiles.length,
+    tests: result.toolCalls.length,
+    scopeDenied,
+    patchDigest: result.patchDigest,
+    sessionId: result.sessionId,
+    approvalId: result.approvalId,
+    generatedAt: new Date().toISOString()
+  };
+  await writeFile("outputs/devapi-coder-smoke.json", JSON.stringify(evidence, null, 2) + "\n", "utf8");
+  console.log(`DEVAPI_CODER_SMOKE_PASS changedFiles=${evidence.changedFiles} tests=${evidence.tests} scope=verified modelRuntimeVerified=false patchDigest=${evidence.patchDigest}`);
 } finally {
   await workspace.destroy();
   await rm(root, { recursive: true, force: true });
