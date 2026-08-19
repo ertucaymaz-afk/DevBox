@@ -49,8 +49,10 @@ jobs:
           node --check desktop/devapi/preload.cjs
           node --check desktop/devapi/renderer/app.js
           $manifest = Get-Content cloud/devapi-sites/sites.manifest.json -Raw | ConvertFrom-Json
-          if ($manifest.requiredSuffix -ne '.vercel.app') { throw 'DEVAPI_DESKTOP_SITE_SUFFIX_INVALID' }
+          if ($manifest.domainPolicy.requiredSuffix -ne '.vercel.app') { throw 'DEVAPI_DESKTOP_SITE_SUFFIX_INVALID' }
+          if ($manifest.domainPolicy.customComDomains -ne $false) { throw 'DEVAPI_DESKTOP_CUSTOM_DOMAIN_POLICY_INVALID' }
           if ($manifest.canonicalDomainsVerified -ne $false) { throw 'DEVAPI_DESKTOP_CANONICAL_TRUTH_DRIFT' }
+          if (@($manifest.projects).Count -ne 5) { throw 'DEVAPI_DESKTOP_SURFACE_MANIFEST_COUNT_INVALID' }
           Write-Host 'DEVAPI_DESKTOP_SOURCE_PASS surfaces=5 truth=fail-closed suffix=.vercel.app'
 
       - name: Stage five bundled DevAPI surfaces
