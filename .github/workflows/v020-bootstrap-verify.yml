@@ -1,0 +1,61 @@
+name: v0.1.20 production bootstrap doğrulama
+
+on:
+  push:
+    branches:
+      - codex/v0.1.20-vercel-production-modernization
+    paths:
+      - scripts/bootstrap-v020-production-secrets.ps1
+      - .github/workflows/v020-bootstrap-verify.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/bootstrap-v020-production-secrets.ps1
+      - .github/workflows/v020-bootstrap-verify.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v020-bootstrap-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parse:
+    name: PowerShell bootstrap parse ve secret-leak guard
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: PowerShell AST parse
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = 'scripts/bootstrap-v020-production-secrets.ps1'
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "V020_BOOTSTRAP_PARSE_FAILED:$($errors.Count)"
+          }
+          Write-Host "V020_BOOTSTRAP_PARSE_PASS tokens=$($tokens.Count)"
+
+      - name: Secret handling static guard
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = Get-Content 'scripts/bootstrap-v020-production-secrets.ps1' -Raw
+          foreach ($required in @('VERCEL_TOKEN','DEVBOX_DATABASE_URL','DEVBOX_CONTROL_PLANE_TOKEN','DEVBOX_CONTROL_ADMIN_TOKEN')) {
+            if (-not $source.Contains($required)) { throw "V020_BOOTSTRAP_SECRET_NAME_MISSING:$required" }
+          }
+          foreach ($forbidden in @('Write-Host $vercelPlain','Write-Host $databasePlain','--body $Value','DEVBOX_CONTROL_PLANE_TOKEN=')) {
+            if ($source.Contains($forbidden)) { throw "V020_BOOTSTRAP_SECRET_LEAK_PATTERN:$forbidden" }
+          }
+          if (-not $source.Contains('RedirectStandardInput = $true')) { throw 'V020_BOOTSTRAP_STDIN_SECRET_WRITE_MISSING' }
+          if (-not $source.Contains('value=masked')) { throw 'V020_BOOTSTRAP_MASKED_EVIDENCE_MISSING' }
+          Write-Host 'V020_BOOTSTRAP_SECRET_GUARD_PASS values=not-embedded stdin=true'
