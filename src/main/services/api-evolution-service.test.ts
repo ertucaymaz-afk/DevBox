@@ -1,59 +1,52 @@
-import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { StateDatabase } from "./database.js";
+import { afterEach, describe, expect, it } from "vitest";
+import type { AgentService } from "./agent-service.js";
+import type { CommandRunner } from "./command-runner.js";
+import { DevelopmentSpecService } from "./development-spec-service.js";
+import type { GitService } from "./git-service.js";
 import { ApiEvolutionService, createAdaptiveEvolutionTask, shouldContinueEvolution } from "./api-evolution-service.js";
+import { StateDatabase } from "./database.js";
+import { ProjectService } from "./project-service.js";
+import { SettingsService } from "./settings-service.js";
 
 const temporaryDirectories: string[] = [];
 const openDatabases: StateDatabase[] = [];
 
 afterEach(async () => {
-  while (openDatabases.length > 0) {
-    try { openDatabases.pop()?.close(); } catch { /* best effort */ }
-  }
-  while (temporaryDirectories.length > 0) {
-    const directory = temporaryDirectories.pop();
-    if (directory) await rm(directory, { recursive: true, force: true });
-  }
+  for (const database of openDatabases.splice(0)) database.close();
+  await Promise.all(temporaryDirectories.splice(0).map(async (directory) => await rm(directory, { recursive: true, force: true })));
 });
 
-function createService(database: StateDatabase) {
-  return new ApiEvolutionService({
-    database,
-    developmentSpec: { start: () => {}, stop: () => {}, getSummary: () => ({ remainingCount: 0 }) } as never,
-    agent: {} as never,
-    commandRunner: {} as never,
-    git: {} as never,
-    project: {} as never,
-    settings: {} as never,
-    worktree: {} as never
-  });
+function createService(database: StateDatabase): ApiEvolutionService {
+  const projects = new ProjectService(database);
+  const settings = new SettingsService(database);
+  // This persistence test never executes an agent cycle. Keeping the collaborator
+  // intentionally empty makes an accidental provider call fail instead of hiding it.
+  const spec = new DevelopmentSpecService(database, path.resolve("specs", "development", "geliştirme-spec-task-graph.json"));
+  return new ApiEvolutionService(database, projects, {} as AgentService, settings, spec, {} as GitService, {} as CommandRunner);
 }
 
 describe("adaptive API evolution tasks", () => {
   it("continues immediately after the fixed graph while respecting adaptive blockers", () => {
-    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: "PASS", adaptiveState: null })).toBe(true);
-    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: "PASS", adaptiveState: "RECOVERY_REQUIRED" })).toBe(false);
-    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 1, gateState: "RECOVERY_REQUIRED", adaptiveState: null })).toBe(false);
-    expect(shouldContinueEvolution({ enabled: false, isRunning: false, remainingCount: 0, gateState: "PASS", adaptiveState: null })).toBe(false);
+    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: null })).toBe(true);
+    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: "FAILED" })).toBe(true);
+    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: "BLOCKED_EXTERNAL" })).toBe(false);
+    expect(shouldContinueEvolution({ enabled: true, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: "RECOVERY_REQUIRED" })).toBe(false);
+    expect(shouldContinueEvolution({ enabled: false, isRunning: false, remainingCount: 0, gateState: null, adaptiveState: null })).toBe(false);
   });
 
   it("recovers an interrupted adaptive RUNNING mission instead of leaving stale runtime state", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "devbox-evolution-recovery-"));
+    const directory = await mkdtemp(path.join(os.tmpdir(), "devbox-evolution-adaptive-recovery-"));
     temporaryDirectories.push(directory);
     const database = new StateDatabase(path.join(directory, "state.sqlite"));
     openDatabases.push(database);
-    const projectId = "project-evolution-recovery";
-    database.upsertProject({ id: projectId, name: "recovery-project", rootPath: directory, isGitRepository: true });
-    database.setSetting(`api-evolution:adaptive:${projectId}`, {
-      schemaVersion: 1,
-      sequence: 9,
-      completed: 8,
-      failed: 0,
-      current: { task: createAdaptiveEvolutionTask(9), state: "RUNNING", attempts: 1, retryAfterAt: null, lastError: null, updatedAt: new Date().toISOString() },
-      recent: []
-    });
+    const projectId = "project-adaptive-recovery";
+    const now = new Date().toISOString();
+    database.upsertProject({ id: projectId, name: "adaptive-recovery", rootPath: directory, isGitRepository: false, createdAt: now, updatedAt: now });
+    const task = createAdaptiveEvolutionTask(1);
+    database.setSetting(`api-evolution:adaptive:${projectId}`, { schemaVersion: 1, sequence: 1, completed: 0, failed: 0, current: { task, state: "RUNNING", attempts: 1, retryAfterAt: null, lastError: null, updatedAt: now }, recent: [] });
     const service = createService(database);
     service.start();
     try {
@@ -96,50 +89,53 @@ describe("API evolution persistence", () => {
       id: projectId,
       name: "persistent-project",
       rootPath: directory,
-      isGitRepository: true
-    });
-    firstDatabase.setSetting(`api-evolution:${projectId}`, {
-      maturityModelVersion: 1,
-      projectId,
-      enabled: true,
-      isRunning: false,
-      directive: "DevBox ürününü gerçek kanıtlarla geliştir ve sahte durum üretme. Bu eski kampanya migration davranışını doğrulamak için yeterince uzun bir direktiftir.",
-      routing: { mode: "AUTO", provider: "codex", model: "gpt-5.6-sol", reasoningEffort: "high", allowFallback: true },
-      score: 75,
-      level: 4,
-      stage: "legacy",
-      provider: "OpenAI Codex CLI",
-      model: "gpt-5.6-sol",
-      modelEffort: "high",
-      lastProvider: "OpenAI Codex CLI",
-      lastModel: "gpt-5.6-sol",
-      completedCycles: 4,
-      failedCycles: 0,
-      cyclesToday: 4,
-      cycleDay: now.slice(0, 10),
-      dailyCycleLimit: 4,
-      intervalMinutes: 60,
-      lastCycleAt: now,
-      nextCycleAt: now,
-      lastCycleDurationMs: 1_000,
-      lastError: null,
-      tasks: [],
-      learnings: [],
+      isGitRepository: false,
+      createdAt: now,
       updatedAt: now
     });
-    firstDatabase.close();
-    openDatabases.pop();
 
-    const reopened = new StateDatabase(databasePath);
-    openDatabases.push(reopened);
-    const service = createService(reopened);
-    const migrated = service.get(projectId);
-    expect(migrated.maturityModelVersion).toBe(2);
-    expect(migrated.completedCycles).toBeGreaterThanOrEqual(4);
-    expect(migrated.dailyCycleLimit).toBeNull();
-    expect(migrated.lifetimeLevel).toBeGreaterThanOrEqual(4);
-    expect(migrated.lifetimeEvidencePoints).toBeGreaterThanOrEqual(0);
-    expect(migrated.validatedImprovementCount).toBeGreaterThanOrEqual(0);
-    expect(migrated.stablePromotionCount).toBeGreaterThanOrEqual(0);
+    const firstService = createService(firstDatabase);
+    const initial = firstService.get(projectId);
+    expect(initial.tasks).toHaveLength(0);
+    expect(initial.spec.phaseCount).toBe(22);
+    expect(initial.spec.totalTaskCount).toBe(3362);
+    expect(initial.spec.remainingCount).toBe(3362);
+    expect(initial.dailyCycleLimit).toBeNull();
+    expect(initial.intervalMinutes).toBe(60);
+    expect(initial.provider).toContain("OpenAI Codex CLI");
+    expect(initial.model).toBe("gpt-5.6-sol");
+    expect(initial.modelEffort).toBe("high");
+
+    const directive = [
+      "DevBox API gelişimini kalıcı olarak izle; her iddiayı gerçek çalışma kanıtına bağla.",
+      "Kod, tasarım, güvenlik, performans ve yayın zinciri için uygulanabilir görevler ve kabul kriterleri üret."
+    ].join(" ");
+    const updated = firstService.setDirective(projectId, directive);
+    firstDatabase.setSetting(`api-evolution:${projectId}`, {
+      ...updated,
+      dailyCycleLimit: 4,
+      intervalMinutes: 360,
+      level: 7,
+      tasks: updated.tasks.slice(0, 1)
+    });
+
+    firstDatabase.close();
+    openDatabases.splice(openDatabases.indexOf(firstDatabase), 1);
+
+    const reopenedDatabase = new StateDatabase(databasePath);
+    openDatabases.push(reopenedDatabase);
+    const reopened = createService(reopenedDatabase).get(projectId);
+
+    expect(reopened.directive).toBe(directive);
+    expect(reopened.dailyCycleLimit).toBeNull();
+    expect(reopened.intervalMinutes).toBe(360);
+    expect(reopened.level).toBe(7);
+    expect(reopened.lifetimeLevel).toBe(7);
+    expect(reopened.migrationFloorLevel).toBe(7);
+    expect(reopened.tasks).toHaveLength(0);
+    expect(reopened.spec.totalTaskCount).toBe(3362);
+    expect(reopened.spec.queuePreview[0]?.taskId).toBe("MAX-01-001");
+    expect(reopened.provider).toContain("OpenAI Codex CLI");
+    expect(reopenedDatabase.integrityCheck()).toMatchObject({ ok: true, detail: "ok" });
   });
 });
