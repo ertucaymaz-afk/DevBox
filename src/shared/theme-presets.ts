@@ -1,7 +1,7 @@
 import type { DevBoxTheme } from "./contracts.js";
 
 export const DEVBOX_DAY_THEME: DevBoxTheme = {
-  version: 2,
+  version: 1,
   name: "Porcelain Flame",
   base: "light",
   accent: "#E9442C",
@@ -21,7 +21,7 @@ export const DEVBOX_DAY_THEME: DevBoxTheme = {
 };
 
 export const DEVBOX_OBSIDIAN_THEME: DevBoxTheme = {
-  version: 2,
+  version: 1,
   name: "Obsidian Flame",
   base: "dark",
   accent: "#FF4A2D",
