@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="color-scheme" content="dark light" />
-  <meta name="theme-color" content="#05070a" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#FF6A00" />
   <title>DevAPI · DevBox Ekosistemi</title>
   <meta name="description" content="DevBox ekosistemine bağlı DevAPI ürün yüzeyi. Gerçek durum, kaynak doğruluğu ve fail-closed ürün sözleşmeleri." />
   <link rel="stylesheet" href="/ecosystem.css" />
+  <link rel="stylesheet" href="/ecosystem-orange.css" />
 </head>
 <body class="eco-page">
   <div class="eco-grid-bg" aria-hidden="true"></div>
@@ -26,16 +27,18 @@
 
   <footer class="eco-footer">
     <div class="eco-footer-inner">
-      <small><strong>DevBox · DevAPI · HotAPI</strong><br />Gerçek kaynak, gerçek probe, fail-closed durum sözleşmesi.</small>
+      <small><strong>DevBox · DevAPI</strong><br />Gerçek kaynak, gerçek probe, fail-closed durum sözleşmesi.</small>
       <div class="eco-footer-links">
         <a href="/">Ana portal</a>
         <a href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">GitHub</a>
         <a href="https://devapi-virid.vercel.app" target="_blank" rel="noreferrer">DevAPI</a>
-        <a href="https://hotapi-six-gamma.vercel.app" target="_blank" rel="noreferrer">HotAPI</a>
+        <a href="/devapi-status">Durum</a>
+        <a href="/devapi-diagnostics">Diagnostics</a>
       </div>
     </div>
   </footer>
 
+  <script type="module" src="/ecosystem-theme.js"></script>
   <script type="module" src="/ecosystem-page.js"></script>
 </body>
 </html>
