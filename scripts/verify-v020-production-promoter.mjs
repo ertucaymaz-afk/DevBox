@@ -1,9 +1,11 @@
 import { readFile } from "node:fs/promises";
 
-const [source, workflow] = await Promise.all([
+const [sourceRaw, workflowRaw] = await Promise.all([
   readFile("scripts/v020-production-promote.mjs", "utf8"),
   readFile(".github/workflows/v020-production-promote.yml", "utf8")
 ]);
+const source = sourceRaw.replace(/\r\n/gu, "\n");
+const workflow = workflowRaw.replace(/\r\n/gu, "\n");
 const need = (input, needle, id) => { if (!input.includes(needle)) throw new Error(`V020_PROMOTER_VERIFY_FAIL:${id}`); };
 const forbid = (input, needle, id) => { if (input.includes(needle)) throw new Error(`V020_PROMOTER_VERIFY_FAIL:${id}`); };
 
@@ -94,4 +96,4 @@ if (secretGateIndex < 0 || installIndex < 0 || sourceVerifyIndex < 0 || promoteI
   throw new Error("V020_PROMOTER_VERIFY_FAIL:workflow-order-secret-check-install-verify-promote");
 }
 
-console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean stagedSmokePromote=required rollback=verified-baseline publicStateContract=pass desktopSanitization=pending-or-pass crossLinks=bidirectional proxy=verified evidenceArtifact=secret-free");
+console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean lineEndings=portable stagedSmokePromote=required rollback=verified-baseline publicStateContract=pass desktopSanitization=pending-or-pass crossLinks=bidirectional proxy=verified evidenceArtifact=secret-free");
