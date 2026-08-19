@@ -12,6 +12,7 @@ on:
       - scripts/v020-production-desktop-canary.mjs
       - scripts/verify-v020-desktop-canary.mjs
       - scripts/v020-vercel-runtime-scan.mjs
+      - scripts/v020-finalize-production-evidence.mjs
       - scripts/verify-production-evidence-v13.mjs
       - src/main/services/cloud-control-service.ts
       - src/main/services/cloud-control-idempotency.test.ts
@@ -27,6 +28,7 @@ on:
       - scripts/v020-production-desktop-canary.mjs
       - scripts/verify-v020-desktop-canary.mjs
       - scripts/v020-vercel-runtime-scan.mjs
+      - scripts/v020-finalize-production-evidence.mjs
       - scripts/verify-production-evidence-v13.mjs
       - src/main/services/cloud-control-service.ts
       - src/main/services/cloud-control-idempotency.test.ts
@@ -110,6 +112,7 @@ jobs:
           pnpm test:cloud-idempotency
           pnpm typecheck
           node --check scripts/v020-production-promote.mjs
+          node --check scripts/v020-finalize-production-evidence.mjs
 
       - name: DevAPI ve DevBox production promote
         id: promote
@@ -323,5 +326,84 @@ jobs:
             echo "- setEnabled/run/cancel ACK: \`${{ steps.canary.outputs.set_enabled_ack || 'BLOCKED' }}/${{ steps.canary.outputs.run_ack || 'BLOCKED' }}/${{ steps.canary.outputs.cancel_ack || 'BLOCKED' }}\`"
             echo "- Command idempotency/sequence: \`${{ steps.canary.outputs.command_idempotency || 'BLOCKED' }}/${{ steps.canary.outputs.command_sequence || 'BLOCKED' }}\`"
             echo "- Runtime error scan: \`${{ steps.runtime.outputs.runtime_error_scan || 'BLOCKED' }}\`"
-            echo '- Repository productionEvidence yalnız birleşik artifact repo evidence dosyasına doğrulanarak taşındıktan sonra PASS yapılacaktır.'
+            echo '- PASS sonrası ayrı write-scope job canlı probe ile repo production evidence dosyalarını atomik branch commitine taşır.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  sync-evidence:
+    name: Doğrulanmış production evidence repo senkronu
+    needs: promote
+    if: github.event_name != 'pull_request' && needs.promote.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - name: Kaynak branch'i yazılabilir ama sınırlı scope ile al
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Node.js 24 kullan
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Promotion evidence artifact indir
+        uses: actions/download-artifact@v8
+        with:
+          name: DevBox-v0.1.20-Production-Evidence
+          path: ${{ runner.temp }}/devbox-production-evidence
+
+      - name: Source head drift kapısı
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || { echo "V020_EVIDENCE_SYNC_BLOCKED checkout-sha-drift"; exit 1; }
+          git fetch origin "$GITHUB_REF_NAME" --depth=1
+          remote_sha="$(git rev-parse "origin/$GITHUB_REF_NAME")"
+          [[ "$remote_sha" == "$GITHUB_SHA" ]] || { echo "V020_EVIDENCE_SYNC_BLOCKED remote-head-drift expected=$GITHUB_SHA actual=$remote_sha"; exit 1; }
+          echo "V020_EVIDENCE_SYNC_HEAD_PASS sha=$GITHUB_SHA branch=$GITHUB_REF_NAME"
+
+      - name: Canlı probe ile repo production evidence finalize et
+        env:
+          V020_PROMOTION_EVIDENCE_PATH: ${{ runner.temp }}/devbox-production-evidence/v020-production-promotion.json
+        run: |
+          node --check scripts/v020-finalize-production-evidence.mjs
+          node scripts/v020-finalize-production-evidence.mjs
+          node scripts/verify-production-evidence-v13.mjs
+
+      - name: Evidence değişiklik sınırı ve secret-free kapısı
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          [[ -n "$changed" ]] || { echo 'V020_EVIDENCE_SYNC_BLOCKED no-repo-evidence-diff'; exit 1; }
+          while IFS= read -r path; do
+            case "$path" in
+              cloud/production-evidence.json|cloud/product-links.json) ;;
+              *) echo "V020_EVIDENCE_SYNC_BLOCKED unexpected-path=$path"; exit 1 ;;
+            esac
+          done <<< "$changed"
+          if grep -Eiq 'postgres(ql)?://|DEVBOX_CONTROL_(PLANE|ADMIN)_TOKEN|VERCEL_TOKEN|DATABASE_URL|Authorization[[:space:]]*[:=][[:space:]]*Bearer|BEGIN [A-Z ]*PRIVATE KEY' cloud/production-evidence.json cloud/product-links.json; then
+            echo 'V020_EVIDENCE_SYNC_BLOCKED secret-pattern-detected'
+            exit 1
+          fi
+          echo "V020_EVIDENCE_SYNC_BOUNDARY_PASS files=$(echo "$changed" | tr '\n' ',') secrets=0"
+
+      - name: Remote head'i yeniden doğrula ve iki evidence dosyasını commit et
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$GITHUB_REF_NAME" --depth=1
+          remote_sha="$(git rev-parse "origin/$GITHUB_REF_NAME")"
+          [[ "$remote_sha" == "$GITHUB_SHA" ]] || { echo "V020_EVIDENCE_SYNC_BLOCKED pre-push-head-drift expected=$GITHUB_SHA actual=$remote_sha"; exit 1; }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- cloud/production-evidence.json cloud/product-links.json
+          git diff --cached --check
+          git diff --cached --quiet && { echo 'V020_EVIDENCE_SYNC_BLOCKED empty-staged-diff'; exit 1; }
+          git commit -m 'chore(release): sync v0.1.20 production evidence'
+          git push origin "HEAD:$GITHUB_REF_NAME"
+          echo "V020_EVIDENCE_SYNC_PASS source=$GITHUB_SHA branch=$GITHUB_REF_NAME files=2"
