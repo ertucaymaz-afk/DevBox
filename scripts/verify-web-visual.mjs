@@ -135,6 +135,16 @@ try {
 
       if (route === "/") {
         await page.waitForFunction(() => document.querySelector("#livePill")?.textContent === "STALE", null, { timeout: 5_000 });
+        for (const selector of ["#ecoArchitectureExplorer", "#ecoSourceCapabilityMatrix", "#ecoEvolutionTracks"]) {
+          const node = page.locator(selector);
+          if (await node.count() !== 1 || !(await node.isVisible())) throw new Error(`WEB_VISUAL_V2_COMPONENT_MISSING:${selector}:${viewport.name}`);
+        }
+        const capabilityCount = await page.locator("#ecoSourceCapabilityMatrix .eco-capability-tile").count();
+        const architectureCount = await page.locator("#ecoArchitectureExplorer .eco-arch-node").count();
+        const evolutionTrackCount = await page.locator("#ecoEvolutionTracks article").count();
+        if (capabilityCount !== 12) throw new Error(`WEB_VISUAL_CAPABILITY_COUNT:${viewport.name}:${capabilityCount}`);
+        if (architectureCount !== 10) throw new Error(`WEB_VISUAL_ARCHITECTURE_COUNT:${viewport.name}:${architectureCount}`);
+        if (evolutionTrackCount !== 10) throw new Error(`WEB_VISUAL_EVOLUTION_TRACK_COUNT:${viewport.name}:${evolutionTrackCount}`);
       } else {
         await page.waitForFunction(() => document.querySelector("#ecoLiveState")?.textContent === "STALE", null, { timeout: 5_000 });
       }
@@ -161,6 +171,9 @@ try {
         horizontalOverflowPx: overflow,
         commandPalette: "PASS",
         truthFixture: "STALE",
+        architectureExplorer: route === "/" ? "PASS" : "N/A",
+        sourceCapabilityMatrix: route === "/" ? "12/12" : "N/A",
+        evolutionTracks: route === "/" ? "10/10" : "N/A",
         consoleErrors: 0,
         pageErrors: 0,
         screenshot: path.relative(root, screenshot).replaceAll("\\", "/"),
@@ -177,7 +190,7 @@ try {
 }
 
 const summary = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   product: "DevBox web ecosystem",
   sourceSha: process.env.GITHUB_SHA || null,
   generatedAt: new Date().toISOString(),
@@ -186,6 +199,9 @@ const summary = {
   viewports: viewports.length,
   expectedScreenshots: routes.length * viewports.length,
   capturedScreenshots: results.length,
+  architectureExplorer: "BROWSER_VERIFIED_ON_HOME",
+  sourceCapabilities: 12,
+  evolutionTracks: 10,
   reducedMotion: "VERIFIED_PER_CASE",
   status: failure ? "FAIL" : "PASS",
   error: failure instanceof Error ? failure.message : failure ? String(failure) : null,
@@ -195,4 +211,4 @@ fs.writeFileSync(path.join(outputRoot, "summary.json"), `${JSON.stringify(summar
 
 if (failure) throw failure;
 if (results.length !== routes.length * viewports.length) throw new Error(`WEB_VISUAL_MATRIX_INCOMPLETE:${results.length}`);
-console.log(`DEVBOX_WEB_VISUAL_VERIFY_PASS routes=${routes.length} viewports=${viewports.length} screenshots=${results.length} reducedMotion=verified truthFixture=STALE`);
+console.log(`DEVBOX_WEB_VISUAL_VERIFY_PASS routes=${routes.length} viewports=${viewports.length} screenshots=${results.length} architecture=10 capabilities=12 evolutionTracks=10 reducedMotion=verified truthFixture=STALE`);
