@@ -44,68 +44,22 @@ await replaceExact(
   `function evolutionStageLabel(value: string): string {\n  const labels: Record<string, string> = {\n    PROVIDER_CHECK: "Sağlayıcı doğrulanıyor",\n    AUTH_CHECK: "Oturum doğrulanıyor",\n    MODEL_ATTEMPT: "Model hazırlanıyor",\n    PLANNING: "Planlanıyor",\n    INSPECTING: "Kaynak inceleniyor",\n    EDITING: "Kodlanıyor",\n    RUNNING_COMMAND: "Komut yürütülüyor",\n    TESTING: "Test ediliyor",\n    VERIFYING: "Doğrulanıyor",\n    REVIEWING: "Kanıt inceleniyor",\n    WAITING: "Bekliyor",\n    BACKOFF: "Yeniden deneme bekleniyor",\n    COMPLETED: "Tamamlandı",\n    FAILED: "Başarısız",\n    BLOCKED_EXTERNAL: "Harici engel",\n    RECOVERY_REQUIRED: "Kurtarma gerekiyor",\n    CANCELLED: "Durduruldu",\n    IDLE: "Hazır"\n  };\n  return labels[value] ?? value.replaceAll("_", " ").toLocaleLowerCase("tr-TR");\n}\n\nfunction EmptyProject(): ReactNode {`
 );
 
-await replaceExact(
-  "src/renderer/AdvancedViews.tsx",
-  "evolution-summary-stage",
-  `<div><dt>Çalışma durumu</dt><dd>{campaign.runtime.stage}</dd></div>`,
-  `<div><dt>Çalışma durumu</dt><dd title={campaign.runtime.stage}>{evolutionStageLabel(campaign.runtime.stage)}</dd></div>`
-);
+await replaceExact("src/renderer/AdvancedViews.tsx", "evolution-summary-stage", `<div><dt>Çalışma durumu</dt><dd>{campaign.runtime.stage}</dd></div>`, `<div><dt>Çalışma durumu</dt><dd title={campaign.runtime.stage}>{evolutionStageLabel(campaign.runtime.stage)}</dd></div>`);
+await replaceExact("src/renderer/AdvancedViews.tsx", "evolution-live-stage", `<div><dt>Şu an</dt><dd>{campaign.runtime.stage}</dd></div>`, `<div><dt>Şu an</dt><dd title={campaign.runtime.stage}>{evolutionStageLabel(campaign.runtime.stage)}</dd></div>`);
+await replaceExact("src/renderer/AdvancedViews.tsx", "evolution-activity-stage", `<div><strong>{item.stage}</strong><p>{item.message}</p>`, `<div><strong title={item.stage}>{evolutionStageLabel(item.stage)}</strong><p>{item.message}</p>`);
 
-await replaceExact(
-  "src/renderer/AdvancedViews.tsx",
-  "evolution-live-stage",
-  `<div><dt>Şu an</dt><dd>{campaign.runtime.stage}</dd></div>`,
-  `<div><dt>Şu an</dt><dd title={campaign.runtime.stage}>{evolutionStageLabel(campaign.runtime.stage)}</dd></div>`
-);
-
-await replaceExact(
-  "src/renderer/AdvancedViews.tsx",
-  "evolution-activity-stage",
-  `<div><strong>{item.stage}</strong><p>{item.message}</p>`,
-  `<div><strong title={item.stage}>{evolutionStageLabel(item.stage)}</strong><p>{item.message}</p>`
-);
-
-await replaceExact(
-  "src/renderer/RemixRotaWorkspace.tsx",
-  "music-product-heading",
-  `<div className="advanced-heading music-heading"><div><span className="advanced-eyebrow">REMIXROTA COMPANION · PROTOCOL 1.0</span><h1>Müzik merkezi</h1><p>Oynatma durumunun tek sahibi RemixRota. DevBox yalnız dar izinli Windows named-pipe protokolünden okur ve desteklenen komutları gönderir; ayrı müzik state'i uydurmaz.</p></div>`,
-  `<div className="advanced-heading music-heading"><div><span className="advanced-eyebrow">DEVBOX MUSIC · YEREL MEDYA MERKEZİ</span><h1>Müzik merkezi</h1><p>Şimdi çalan, kütüphane, arama, favoriler ve kuyruk tek çalışma yüzeyinde. Yerel oynatıcı bağlantısı yoksa DevBox örnek parça veya sahte oynatma durumu üretmez.</p></div>`
-);
-
+await replaceExact("src/renderer/RemixRotaWorkspace.tsx", "music-eyebrow", `REMIXROTA COMPANION · PROTOCOL 1.0`, `DEVBOX MUSIC · YEREL MEDYA MERKEZİ`);
+await replaceExact("src/renderer/RemixRotaWorkspace.tsx", "music-heading-copy", `Oynatma durumunun tek sahibi RemixRota. DevBox yalnız dar izinli Windows named-pipe protokolünden okur ve desteklenen komutları gönderir; ayrı müzik state’i uydurmaz.`, `Şimdi çalan, kütüphane, arama, favoriler ve kuyruk tek çalışma yüzeyinde. Yerel oynatıcı bağlantısı yoksa DevBox örnek parça veya sahte oynatma durumu üretmez.`);
 await replaceExact(
   "src/renderer/RemixRotaWorkspace.tsx",
   "music-empty-copy",
   `  const currentTitle = player?.current?.title ?? "RemixRota bağlantısı bekleniyor";\n  const currentArtist = player?.current?.artist ?? "DevBox müzik motorunu kopyalamaz; gerçek companion durumunu gösterir.";`,
   `  const currentTitle = player?.current?.title ?? "Müzik kaynağı bağlı değil";\n  const currentArtist = player?.current?.artist ?? "Bağlantı ayarlarından yerel oynatıcıyı seçtiğinizde gerçek oynatma bilgisi burada görünür.";`
 );
-
-await replaceExact(
-  "src/renderer/RemixRotaWorkspace.tsx",
-  "music-diagnostics-collapse-open",
-  `    <div className="music-status-grid">`,
-  `    <details className="music-connection-details"><summary><Settings2 size={15} /><span>Bağlantı ve tanılama</span><small>{stateLabel(state)}</small></summary><div className="music-status-grid">`
-);
-
-await replaceExact(
-  "src/renderer/RemixRotaWorkspace.tsx",
-  "music-diagnostics-collapse-close",
-  `    </div>\n\n    <section className="music-now-playing">`,
-  `    </div></details>\n\n    <section className="music-now-playing">`
-);
-
-await replaceExact(
-  "src/renderer/RemixRotaWorkspace.tsx",
-  "music-connect-label",
-  `RemixRota.exe seç`,
-  `Bağlantı ayarları`
-);
-
-await replaceExact(
-  "src/renderer/RemixRotaWorkspace.tsx",
-  "music-companion-label",
-  `Companion'a bağlan`,
-  `Yerel oynatıcıya bağlan`
-);
+await replaceExact("src/renderer/RemixRotaWorkspace.tsx", "music-diagnostics-collapse-open", `    <div className="music-status-grid">`, `    <details className="music-connection-details"><summary><Settings2 size={15} /><span>Bağlantı ve tanılama</span><small>{stateLabel(state)}</small></summary><div className="music-status-grid">`);
+await replaceExact("src/renderer/RemixRotaWorkspace.tsx", "music-diagnostics-collapse-close", `    </div>\n\n    <section className="music-now-playing">`, `    </div></details>\n\n    <section className="music-now-playing">`);
+await replaceExact("src/renderer/RemixRotaWorkspace.tsx", "music-connect-label", `RemixRota.exe seç`, `Bağlantı ayarları`);
+await replaceExact("src/renderer/RemixRotaWorkspace.tsx", "music-companion-label", `Companion'a bağlan`, `Yerel oynatıcıya bağlan`);
 
 await replaceExact(
   "src/main/services/agent-service.test.ts",
@@ -113,7 +67,6 @@ await replaceExact(
   `import { AgentService, evolutionRoutePlan, isWorkspaceMutationRequest, parseCodexModelCatalog, parseEvolutionProviderOutcome, parseNvidiaModelCatalog, resolveCodexExecutable } from "./agent-service.js";`,
   `import { AgentService, evolutionRoutePlan, isInternalChatArtifact, isWorkspaceMutationRequest, parseCodexModelCatalog, parseEvolutionProviderOutcome, parseNvidiaModelCatalog, resolveCodexExecutable } from "./agent-service.js";`
 );
-
 await replaceExact(
   "src/main/services/agent-service.test.ts",
   "chat-filter-regression",
