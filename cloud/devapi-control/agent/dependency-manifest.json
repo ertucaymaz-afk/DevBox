@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": "primary-source-review",
+  "reviewedAt": "2026-08-19T10:56:00.000Z",
+  "runtime": {
+    "name": "@openai/agents",
+    "state": "SOURCE_REVIEWED",
+    "installState": "NOT_INTEGRATED",
+    "version": "0.14.3",
+    "tag": "v0.14.3",
+    "releaseCommit": "94a3edc3e5318fdbc4ceb045df4dad934ca4ab2b",
+    "packageBlobSha": "d943cf61c06655fdada00ba09ecea543b81ccbe7",
+    "license": "MIT",
+    "nodeRequirement": ">=22 documented for sandbox quickstart; DevAPI target Node 24",
+    "directPackageDependenciesAtTag": {
+      "@openai/agents-core": "0.14.3 via workspace release",
+      "@openai/agents-openai": "0.14.3 via workspace release",
+      "@openai/agents-realtime": "0.14.3 via workspace release",
+      "debug": "^4.4.0",
+      "openai": "^6.46.0"
+    },
+    "peerDependenciesAtTag": {
+      "zod": "^4.0.0"
+    },
+    "optionalCoreDependencies": {
+      "@modelcontextprotocol/sdk": "^1.26.0"
+    },
+    "securityPolicySourcePresent": true,
+    "transitiveLockState": "NOT_LOCKED",
+    "advisoryAuditState": "NOT_RUN",
+    "integrationDecision": "Do not install until exact lockfile and advisory gate are produced."
+  },
+  "schemaRuntime": {
+    "name": "zod",
+    "state": "SOURCE_REVIEWED",
+    "installState": "NOT_INTEGRATED",
+    "version": "4.4.3",
+    "tag": "v4.4.3",
+    "releaseCommit": "1fb56a5c18c27102dbc92260a4007c7732a0ccca",
+    "licenseReviewState": "SOURCE_REVIEW_REQUIRED_AT_INSTALL",
+    "reason": "Exact Zod v4 peer required by @openai/agents."
+  },
+  "truth": {
+    "supplyChainVerified": false,
+    "pinnedForInstallation": false,
+    "runtimeVerified": false,
+    "reason": "Primary-source version/tag/SHA reconciliation is complete, but transitive lock and advisory verification have not run."
+  }
+}
