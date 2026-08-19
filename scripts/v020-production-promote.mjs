@@ -21,6 +21,15 @@ function requireSecret(name, value, minimum = 1) {
   if (!value || value.length < minimum) fail("missing-or-invalid-secret", name);
 }
 
+function canonicalOrigin(value, label) {
+  let url;
+  try { url = new URL(String(value)); } catch { fail("canonical-url-invalid", label); }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+    fail("canonical-url-unsafe", label);
+  }
+  return url.origin;
+}
+
 requireSecret("VERCEL_TOKEN", vercelToken, 8);
 requireSecret("DATABASE_URL", databaseUrl, 16);
 requireSecret("DEVBOX_CONTROL_PLANE_TOKEN", desktopToken, 32);
@@ -29,6 +38,7 @@ requireSecret("DEVBOX_CONTROL_ADMIN_TOKEN", adminToken, 32);
 let parsedDatabaseUrl;
 try { parsedDatabaseUrl = new URL(databaseUrl); } catch { fail("database-url-invalid"); }
 if (!["postgres:", "postgresql:"].includes(parsedDatabaseUrl.protocol)) fail("database-url-protocol", parsedDatabaseUrl.protocol);
+const devapiOrigin = canonicalOrigin(devapiCanonicalUrl, "devapi");
 
 const packageJson = JSON.parse(await readFile("package.json", "utf8"));
 const version = String(packageJson.version ?? "");
@@ -121,7 +131,7 @@ await waitFor("devapi-deployment-health", `${devapiDeploymentUrl}/api/v1/health`
   }
 });
 
-await waitFor("devapi-canonical-health", `${devapiCanonicalUrl}/api/v1/health`, (response, text) => {
+await waitFor("devapi-canonical-health", `${devapiOrigin}/api/v1/health`, (response, text) => {
   if (response.status !== 200) return { ok: false, detail: `status=${response.status}` };
   try {
     const body = JSON.parse(text);
@@ -131,7 +141,7 @@ await waitFor("devapi-canonical-health", `${devapiCanonicalUrl}/api/v1/health`, 
   }
 });
 
-const publicProbe = await waitFor("devapi-public-state-contract", `${devapiCanonicalUrl}/api/v1/public-state`, (response, text) => {
+const publicProbe = await waitFor("devapi-public-state-contract", `${devapiOrigin}/api/v1/public-state`, (response, text) => {
   const marker = response.headers.get("x-devbox-public-state");
   if (marker !== "sanitized") return { ok: false, detail: `sanitize-header=${marker ?? "missing"}` };
   if (![200, 404].includes(response.status)) return { ok: false, detail: `status=${response.status}` };
@@ -145,6 +155,7 @@ const publicProbe = await waitFor("devapi-public-state-contract", `${devapiCanon
 
 const devboxDeploy = runVercel([
   "deploy", "--prod", "--yes", "--force", "--cwd", "cloud/devbox-site",
+  "--env", `DEVAPI_PUBLIC_URL=${devapiOrigin}`,
   "--meta", `devboxVersion=${version}`,
   "--meta", `sourceSha=${sourceSha}`
 ], { projectId: devboxProjectName, capture: true });
@@ -156,13 +167,37 @@ await waitFor("devbox-deployment-root", devboxDeploymentUrl, (response, text) =>
   detail: `status=${response.status}`
 }));
 
+await waitFor("devbox-product-links", `${devboxDeploymentUrl}/api/product-links`, (response, text) => {
+  if (response.status !== 200) return { ok: false, detail: `status=${response.status}` };
+  try {
+    const body = JSON.parse(text);
+    return { ok: body.schemaVersion === 1 && body.devapi === devapiOrigin, detail: `devapi=${body.devapi ?? "missing"}` };
+  } catch {
+    return { ok: false, detail: "invalid-json" };
+  }
+});
+
+const devboxProxyProbe = await waitFor("devbox-public-state-proxy", `${devboxDeploymentUrl}/api/public-state`, (response, text) => {
+  const marker = response.headers.get("x-devbox-public-state");
+  if (marker !== "sanitized-proxy") return { ok: false, detail: `proxy-header=${marker ?? "missing"}` };
+  if (response.status !== publicProbe.status) return { ok: false, detail: `status=${response.status} upstream=${publicProbe.status}` };
+  try {
+    const body = JSON.parse(text);
+    if (response.status === 404) return { ok: body.error === "PROJECT_NOT_FOUND", detail: body.error ?? "missing-error" };
+    return { ok: body?.product?.version === version, detail: body?.product?.version ?? "missing-version" };
+  } catch {
+    return { ok: false, detail: "invalid-json" };
+  }
+}, 12);
+
 if (githubOutput) {
   await appendFile(githubOutput, [
     `devapi_deployment_url=${devapiDeploymentUrl}`,
     `devapi_public_state_status=${publicProbe.status}`,
     `devbox_deployment_url=${devboxDeploymentUrl}`,
+    `devbox_public_state_status=${devboxProxyProbe.status}`,
     `product_version=${version}`
   ].join("\n") + "\n", "utf8");
 }
 
-console.log(`V020_PRODUCTION_PROMOTE_PARTIAL_PASS version=${version} devapi=ready publicStateHttp=${publicProbe.status} devbox=deployed desktopCanary=pending`);
+console.log(`V020_PRODUCTION_PROMOTE_PARTIAL_PASS version=${version} devapi=ready publicStateHttp=${publicProbe.status} devbox=deployed proxy=verified desktopCanary=pending`);
