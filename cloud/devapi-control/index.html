@@ -4,47 +4,70 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
-  <title>DevBox DevAPI Cloud Control</title>
-  <meta name="description" content="DevBox DevAPI gelişim, findings, release gate ve cloud continuity kontrol merkezi." />
+  <meta name="theme-color" content="#070a0e" />
+  <title>DevAPI · DevBox Cloud Control Plane</title>
+  <meta name="description" content="DevBox v0.1.20 DevAPI: API Evolution, findings, release gate, command ACK, learning ve kalıcı cloud state kontrol merkezi." />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
-  <header class="topbar">
-    <div class="brand"><span class="brand-mark">D</span><div><strong>DevBox</strong><small>DevAPI Cloud Control</small></div></div>
-    <div class="top-actions"><a class="pill" href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">DevBox kaynak</a><span id="health" class="pill pending">DENETLENİYOR</span><button id="theme" class="icon" title="Tema">☀</button></div>
-  </header>
+  <div class="mesh" aria-hidden="true"></div>
+  <div class="glow glow-a" aria-hidden="true"></div><div class="glow glow-b" aria-hidden="true"></div>
 
-  <main>
-    <section class="hero panel">
-      <div><span class="eyebrow">DURABLE CONTROL PLANE · v0.1.19</span><h1>DevAPI masaüstünden bağımsız yaşasın.</h1><p>Seviye, doğrulanmış iyileştirmeler, domain puanları, evolution görevleri, findings, release gate ve command ACK kayıtları kalıcı cloud state üzerinden izlenir. Bulut yapılandırılmamışsa bu ekran READY taklidi yapmaz.</p></div>
-      <div class="auth-box">
-        <label>Admin token<input id="adminToken" type="password" autocomplete="current-password" placeholder="DEVBOX_CONTROL_ADMIN_TOKEN" /></label>
-        <div class="project-discovery"><button id="discover">Cloud projelerini getir</button><select id="projectPicker" aria-label="Cloud projesi seç"><option value="">Önce proje envanterini doğrula</option></select></div>
-        <label>Project ID<input id="projectId" autocomplete="off" placeholder="DevBox proje kimliği" /></label>
-        <div><button id="connect" class="primary">Bağlan ve durumu doğrula</button><button id="refresh">Yenile</button></div>
-        <small>Admin token kod içine gömülmez; yalnız bu sekmenin sessionStorage alanında tutulur. Project ID doğrulanmış cloud envanterinden seçilebilir.</small>
+  <aside class="rail" aria-label="DevAPI bölümleri">
+    <a class="rail-brand" href="#overview" aria-label="DevAPI ana görünüm"><span>D/</span></a>
+    <nav><a class="active" href="#overview" title="Overview">OV</a><a href="#evolution" title="Evolution">EV</a><a href="#findings-section" title="Findings">FI</a><a href="#gate-section" title="Release Gate">RG</a><a href="#commands-section" title="Commands">CM</a></nav>
+    <button id="theme" class="rail-theme" title="Tema">☀</button>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><div><span class="eyebrow">DEVBOX CLOUD</span><strong>DevAPI Control Plane</strong></div><span class="version">v0.1.20</span></div>
+      <div class="top-actions">
+        <span id="health" class="pill pending">DENETLENİYOR</span>
+        <span class="cross-state" title="DevBox canonical proje sahipliği doğrulanmadan canlı link açılmaz">DevBox site · production pending</span>
+        <a class="ghost" href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">GitHub ↗</a>
       </div>
-    </section>
+    </header>
 
-    <section id="offline" class="notice hidden"></section>
-    <section class="metric-grid" aria-label="DevAPI ana metrikleri">
-      <article class="level-card panel"><div class="level-orbit"><strong id="level">—</strong><span>SEVİYE</span></div><div><span>Kalıcı gelişim</span><h2 id="stage">Bağlantı bekleniyor</h2><p id="evidence">Evidence state bekleniyor.</p></div></article>
-      <article class="panel"><span>Score</span><strong id="score">—</strong><small>anlık kapsama</small></article>
-      <article class="panel"><span>Core graph</span><strong id="coreProgress">—</strong><small id="coreDetail">22 faz / 3362 görev</small></article>
-      <article class="panel"><span>Açık findings</span><strong id="openFindings">—</strong><small id="blockingFindings">blocking: —</small></article>
-      <article class="panel"><span>Release gate</span><strong id="gateState">—</strong><small id="gateTime">kanıt bekleniyor</small></article>
-      <article class="panel"><span>Desktop heartbeat</span><strong id="heartbeat">—</strong><small id="instance">instance: —</small></article>
-    </section>
+    <main>
+      <section id="overview" class="hero panel">
+        <div class="hero-copy"><span class="eyebrow">DURABLE API EVOLUTION · 0.1.20</span><h1>API gelişimini <em>kanıtla, izle, kontrol et.</em></h1><p>DevAPI; masaüstünden gelen gerçek snapshot, finding, release gate ve command ACK kayıtlarını kalıcı cloud state üzerinde tutar. Masaüstü kapansa bile history korunur; veritabanı veya auth eksikse READY taklidi yapılmaz.</p><div class="contract"><span>HMAC SNAPSHOT</span><span>SEQUENCE + ACK</span><span>POSTGRES HISTORY</span><span>FAIL-CLOSED</span></div></div>
+        <div class="auth-box">
+          <header><div><span class="dot"></span><strong>Admin Session</strong></div><small>secret browser bundle’a gömülmez</small></header>
+          <label>Admin token<input id="adminToken" type="password" autocomplete="current-password" placeholder="DEVBOX_CONTROL_ADMIN_TOKEN" /></label>
+          <div class="project-discovery"><button id="discover">Projeleri getir</button><select id="projectPicker" aria-label="Cloud projesi seç"><option value="">Önce cloud envanterini doğrula</option></select></div>
+          <label>Project ID<input id="projectId" autocomplete="off" placeholder="DevBox proje kimliği" /></label>
+          <div class="auth-actions"><button id="connect" class="primary">Bağlan</button><button id="refresh">Yenile</button></div>
+          <small>Token yalnız bu sekmenin <code>sessionStorage</code> alanında tutulur. Command API arbitrary shell kabul etmez.</small>
+        </div>
+      </section>
 
-    <section class="control-bar panel"><div><strong>Evolution kontrolü</strong><span id="enabledText">state bekleniyor</span></div><div class="control-actions"><button id="enable">API’yi aç</button><button id="disable">API’yi kapat</button><button id="run" class="primary">Şimdi geliştir</button><button id="cancel" class="danger">Çalışmayı durdur</button></div></section>
-    <section class="two-col"><article class="panel"><header><div><span class="eyebrow">YETENEK MATRİSİ</span><h2>Kanıtlanmış domain seviyesi</h2></div></header><div id="domains" class="domains"></div></article><article class="panel"><header><div><span class="eyebrow">EVOLUTION RUNTIME</span><h2>Gerçek çalışma akışı</h2></div></header><dl id="runtime" class="runtime"></dl></article></section>
-    <section class="panel"><header class="section-head"><div><span class="eyebrow">FINDING REGISTRY</span><h2>Severity · ownership · lifecycle</h2></div><div id="findingStats" class="stats"></div></header><div id="findings" class="findings"><div class="empty">Cloud snapshot bekleniyor.</div></div></section>
-    <section class="two-col"><article class="panel"><header><div><span class="eyebrow">RELEASE GATE</span><h2>Son fail-closed kanıt</h2></div></header><div id="gateChecks" class="gate-checks"><div class="empty">Gate sonucu yok.</div></div></article><article class="panel"><header><div><span class="eyebrow">LEARNING LOG</span><h2>DevAPI ne öğrendi?</h2></div></header><div id="learnings" class="learnings"><div class="empty">Öğrenim kaydı yok.</div></div></article></section>
-    <section class="panel"><header class="section-head"><div><span class="eyebrow">COMMAND AUDIT</span><h2>Cloud komut kuyruğu ve desktop ACK</h2></div><span class="audit-legend">PENDING → RETRYING → APPLIED / FAILED</span></header><div id="commands" class="commands"><div class="empty">Cloud komut geçmişi yok.</div></div></section>
-    <section class="panel"><header><div><span class="eyebrow">CLOUD HISTORY</span><h2>Kalıcı seviye ve sağlık izi</h2></div></header><div id="history" class="history"></div></section>
-  </main>
-  <footer><span>DevBox DevAPI Cloud Control · v0.1.19</span><span>Gerçek state ve ACK yoksa READY yok.</span></footer>
+      <section id="offline" class="notice hidden"></section>
+
+      <section class="metric-grid" aria-label="DevAPI ana metrikleri">
+        <article class="level-card panel"><div class="level-orbit"><strong id="level">—</strong><span>LEVEL</span></div><div><span>Kalıcı gelişim</span><h2 id="stage">Bağlantı bekleniyor</h2><p id="evidence">Evidence state bekleniyor.</p></div></article>
+        <article class="panel metric"><span>Score</span><strong id="score">—</strong><small>anlık kapsama</small></article>
+        <article class="panel metric"><span>Core graph</span><strong id="coreProgress">—</strong><small id="coreDetail">22 faz / 3362 görev</small></article>
+        <article class="panel metric"><span>Açık findings</span><strong id="openFindings">—</strong><small id="blockingFindings">blocking: —</small></article>
+        <article class="panel metric"><span>Release gate</span><strong id="gateState">—</strong><small id="gateTime">kanıt bekleniyor</small></article>
+        <article class="panel metric"><span>Heartbeat</span><strong id="heartbeat">—</strong><small id="instance">instance: —</small></article>
+      </section>
+
+      <section id="evolution" class="control-bar panel"><div><span class="eyebrow">EVOLUTION COMMAND BUS</span><strong>API Geliştirme</strong><small id="enabledText">state bekleniyor</small></div><div class="control-actions"><button id="enable">API’yi aç</button><button id="disable">API’yi kapat</button><button id="run" class="primary">Şimdi geliştir</button><button id="cancel" class="danger">Durdur</button></div></section>
+
+      <section class="two-col"><article class="panel section-panel"><header><div><span class="eyebrow">CAPABILITY MATRIX</span><h2>Kanıtlanmış domain seviyesi</h2></div><small>0–100 evidence-backed</small></header><div id="domains" class="domains"></div></article><article class="panel section-panel"><header><div><span class="eyebrow">EVOLUTION RUNTIME</span><h2>Gerçek çalışma akışı</h2></div><span class="live-dot">LIVE WHEN SNAPSHOT</span></header><dl id="runtime" class="runtime"></dl></article></section>
+
+      <section id="findings-section" class="panel section-panel"><header class="section-head"><div><span class="eyebrow">FINDING REGISTRY</span><h2>Severity · ownership · lifecycle</h2></div><div id="findingStats" class="stats"></div></header><div id="findings" class="findings"><div class="empty">Cloud snapshot bekleniyor.</div></div></section>
+
+      <section class="two-col"><article id="gate-section" class="panel section-panel"><header><div><span class="eyebrow">RELEASE GATE</span><h2>Son fail-closed kanıt</h2></div><small>PREFLIGHT / FULL</small></header><div id="gateChecks" class="gate-checks"><div class="empty">Gate sonucu yok.</div></div></article><article class="panel section-panel"><header><div><span class="eyebrow">LEARNING LOG</span><h2>DevAPI ne öğrendi?</h2></div><small>kalıcı evidence</small></header><div id="learnings" class="learnings"><div class="empty">Öğrenim kaydı yok.</div></div></article></section>
+
+      <section id="commands-section" class="panel section-panel"><header class="section-head"><div><span class="eyebrow">COMMAND AUDIT</span><h2>Cloud kuyruğu ↔ Desktop ACK</h2></div><span class="audit-legend">PENDING → RETRYING → APPLIED / FAILED</span></header><div id="commands" class="commands"><div class="empty">Cloud komut geçmişi yok.</div></div></section>
+
+      <section class="two-col"><article class="panel section-panel"><header><div><span class="eyebrow">CLOUD HISTORY</span><h2>Seviye ve sağlık izi</h2></div></header><div id="history" class="history"></div></article><article class="panel section-panel protocol-card"><header><div><span class="eyebrow">PROTOCOL CONTRACT</span><h2>Desktop ↔ Cloud</h2></div></header><div class="protocol"><div><b>01</b><span>snapshot</span><small>HMAC + capturedAt</small></div><i></i><div><b>02</b><span>command</span><small>sequence + allowlist</small></div><i></i><div><b>03</b><span>ACK</span><small>idempotent terminal state</small></div></div><p>Cloud command yolu yalnız <code>evolution.setEnabled</code>, <code>evolution.run</code> ve <code>evolution.cancel</code> türlerini kabul eder.</p></article></section>
+    </main>
+
+    <footer><div><strong>DevAPI</strong><span>DevBox v0.1.20 cloud control plane</span></div><div><a href="https://github.com/ertucaymaz-afk/DevBox" target="_blank" rel="noreferrer">GitHub</a><span>DevBox product site: production ownership pending</span></div><small>Gerçek state ve ACK yoksa READY yok.</small></footer>
+  </div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>
