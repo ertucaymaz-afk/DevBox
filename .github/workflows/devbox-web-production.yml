@@ -10,12 +10,20 @@ on:
       - scripts/deploy-devbox-web-production.mjs
       - scripts/verify-web-ecosystem.mjs
       - cloud/devbox-site/**
+  pull_request:
+    branches:
+      - codex/v0.1.20-vercel-production-modernization
+    paths:
+      - .github/workflows/devbox-web-production.yml
+      - scripts/deploy-devbox-web-production.mjs
+      - scripts/verify-web-ecosystem.mjs
+      - cloud/devbox-site/**
 
 permissions:
   contents: read
 
 concurrency:
-  group: devbox-web-production-activation
+  group: devbox-web-production-activation-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
