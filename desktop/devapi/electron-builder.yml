@@ -13,7 +13,7 @@ files:
   - renderer/**/*
   - package.json
 extraResources:
-  - from: ../../cloud/devapi-sites
+  - from: resources/devapi-sites
     to: devapi-sites
     filter:
       - '**/*'
