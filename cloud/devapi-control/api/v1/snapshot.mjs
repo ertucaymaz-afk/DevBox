@@ -15,6 +15,16 @@ export default async function handler(req, res) {
     const { instanceId } = requireDesktopAuth(req, raw);
     const snapshot = JSON.parse(raw);
     if (!snapshot || typeof snapshot !== "object" || snapshot.schemaVersion !== 1) throw new Error("SNAPSHOT_SCHEMA_INVALID");
+    if (snapshot.product !== undefined) {
+      const product = snapshot.product;
+      if (!product || typeof product !== "object" || Array.isArray(product)) throw new Error("SNAPSHOT_PRODUCT_INVALID");
+      const productName = String(product.name ?? "").trim();
+      const productVersion = String(product.version ?? "").trim();
+      const cloudProtocol = Number(product.cloudProtocol);
+      if (productName !== "DevBox" || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u.test(productVersion) || cloudProtocol !== 1) {
+        throw new Error("SNAPSHOT_PRODUCT_INVALID");
+      }
+    }
     const projectId = String(snapshot.project?.id ?? "").trim();
     const projectName = String(snapshot.project?.name ?? "").trim();
     if (projectId.length < 8 || projectId.length > 128 || !projectName || projectName.length > 240) throw new Error("SNAPSHOT_PROJECT_INVALID");
