@@ -7,12 +7,18 @@ on:
     paths:
       - scripts/patch-v020-bootstrap-preflight.mjs
       - .github/workflows/v020-bootstrap-preflight-materialize.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/patch-v020-bootstrap-preflight.mjs
+      - .github/workflows/v020-bootstrap-preflight-materialize.yml
 
 permissions:
   contents: write
 
 concurrency:
-  group: v020-bootstrap-preflight-materialize
+  group: v020-bootstrap-preflight-materialize-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -66,6 +72,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'PRODUCT_VERIFY_FAILED' }
 
       - name: Doğrulanmış bootstrap patch'ini branch'e yaz
+        if: github.event_name == 'push'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
