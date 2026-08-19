@@ -1,3 +1,5 @@
+import "./experience-v2.js";
+
 const ENDPOINT = "/api/public-state";
 const $ = (id) => document.getElementById(id);
 const fields = {
