@@ -12,13 +12,15 @@ assert(manifest.runtime.version === "0.14.3", "DEVAPI_AGENTS_VERSION_PIN_REVIEW"
 assert(manifest.runtime.tag === "v0.14.3", "DEVAPI_AGENTS_TAG_PIN_REVIEW");
 assert(manifest.runtime.releaseCommit === "94a3edc3e5318fdbc4ceb045df4dad934ca4ab2b", "DEVAPI_AGENTS_RELEASE_SHA");
 assert(manifest.runtime.license === "MIT", "DEVAPI_AGENTS_LICENSE");
-assert(manifest.runtime.transitiveLockState === "NOT_LOCKED", "DEVAPI_AGENTS_LOCK_TRUTH");
-assert(manifest.truth.supplyChainVerified === false && manifest.truth.runtimeVerified === false, "DEVAPI_AGENTS_NO_FAKE_VERIFICATION");
+assert(["GENERATION_PENDING_CI", "LOCKED"].includes(manifest.runtime.transitiveLockState), "DEVAPI_AGENTS_LOCK_TRUTH");
+assert(manifest.truth.runtimeVerified === false, "DEVAPI_AGENTS_NO_FAKE_RUNTIME");
 assert(manifest.schemaRuntime.version === "4.4.3", "DEVAPI_ZOD_VERSION_REVIEW");
 assert(manifest.schemaRuntime.releaseCommit === "1fb56a5c18c27102dbc92260a4007c7732a0ccca", "DEVAPI_ZOD_RELEASE_SHA");
 
 const packageJson = JSON.parse(await readFile("cloud/devapi-control/package.json", "utf8"));
-assert(!packageJson.dependencies?.["@openai/agents"], "DEVAPI_AGENTS_NOT_LOCKED_BUT_INSTALLED");
+assert(packageJson.dependencies?.["@openai/agents"] === "0.14.3", "DEVAPI_AGENTS_EXACT_PIN");
+assert(packageJson.dependencies?.zod === "4.4.3", "DEVAPI_ZOD_EXACT_PIN");
+if (manifest.truth.supplyChainVerified === false) assert(manifest.runtime.installState === "PIN_CANDIDATE", "DEVAPI_AGENTS_PRELOCK_STATE");
 
 assert(TASK_STATES.includes("CREATED") && TASK_STATES.includes("SOURCE_VERIFIED") && TASK_STATES.includes("ROLLED_BACK"), "DEVAPI_TASK_STATES_INCOMPLETE");
 assertTaskTransition("CREATED", "TRIAGED");
@@ -90,22 +92,27 @@ assert(JSON.stringify(sourceRoutes) === JSON.stringify(contractRoutes), `DEVAPI_
 let operationCount = 0;
 for (const item of Object.values(openapi.paths)) for (const method of Object.keys(item)) if (["get","post","put","patch","delete","head","options"].includes(method)) operationCount += 1;
 assert(openapi["x-devapi-runtime-state"] === "STALE", "DEVAPI_HISTORICAL_SERVER_MUST_BE_STALE");
-assert(sourceRoutes.includes("/api/v1/agent-tasks") && sourceRoutes.includes("/api/v1/agent-runtime"), "DEVAPI_AGENT_ROUTES_MISSING");
+for (const route of ["/api/v1/agent-tasks","/api/v1/agent-runtime","/api/v1/agent-approvals","/api/v1/agent-orchestrator"]) assert(sourceRoutes.includes(route), `DEVAPI_AGENT_ROUTE_MISSING:${route}`);
 
 for (const file of [
   "cloud/devapi-control/agent/dependency-manifest.json",
   "cloud/devapi-control/agent/task-state.mjs",
   "cloud/devapi-control/agent/runtime.mjs",
+  "cloud/devapi-control/agent/orchestrator.mjs",
   "cloud/devapi-control/lib/agent-store.mjs",
+  "cloud/devapi-control/lib/approval-store.mjs",
+  "cloud/devapi-control/lib/migration-ledger.mjs",
   "cloud/devapi-control/worker/approval.mjs",
   "cloud/devapi-control/worker/workspace.mjs",
   "cloud/devapi-control/worker/git-worktree.mjs",
   "cloud/devapi-control/browser/system-chrome.mjs",
   "cloud/devapi-control/api/v1/agent-tasks.mjs",
-  "cloud/devapi-control/api/v1/agent-runtime.mjs"
+  "cloud/devapi-control/api/v1/agent-runtime.mjs",
+  "cloud/devapi-control/api/v1/agent-approvals.mjs",
+  "cloud/devapi-control/api/v1/agent-orchestrator.mjs"
 ]) {
   const text = await readFile(file, "utf8");
   assert(!/HotAPI/iu.test(text), `DEVAPI_SCOPE_LEAK:${file}`);
 }
 
-console.log(`DEVAPI_AUTONOMOUS_V2_VERIFY_PASS tools=${tools.length} routes=${sourceRoutes.length} operations=${operationCount} taskState=verified persistence=8-tables workerRuntime=verified worktreeRuntime=verified conflictQueue=verified browserRuntime=verified-readonly modelRuntime=not-verified agentsSdk=source-reviewed-not-installed`);
+console.log(`DEVAPI_AUTONOMOUS_V2_VERIFY_PASS tools=${tools.length} routes=${sourceRoutes.length} operations=${operationCount} taskState=verified persistence=8-tables workerRuntime=verified worktreeRuntime=verified conflictQueue=verified browserRuntime=verified-readonly modelRuntime=not-verified agentsSdk=pin-candidate-lock-pending`);
