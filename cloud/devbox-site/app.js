@@ -49,8 +49,10 @@ async function hydrateDevApiLinks() {
     if (!response.ok || typeof body.devapi !== "string") return;
     const url = new URL(body.devapi);
     if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return;
-    document.querySelectorAll('a[href^="https://devapi-virid.vercel.app"]').forEach((anchor) => {
-      if (anchor instanceof HTMLAnchorElement) anchor.href = url.origin;
+    document.querySelectorAll("a").forEach((anchor) => {
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      const label = (anchor.textContent ?? "").toLocaleLowerCase("tr-TR");
+      if (anchor.id === "devapiLink" || label.includes("devapi") || label.includes("control plane")) anchor.href = url.origin;
     });
   } catch {
     // Canonical fallback links remain usable; live metrics still fail closed through the same-origin proxy.
