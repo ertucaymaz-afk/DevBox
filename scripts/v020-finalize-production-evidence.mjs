@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 const VERSION = "0.1.20";
 const REPOSITORY = "ertucaymaz-afk/DevBox";
 const BRANCH = "codex/v0.1.20-vercel-production-modernization";
+const candidatePath = process.env.V020_PROMOTION_EVIDENCE_PATH?.trim() || "outputs/v020-production-promotion.json";
 
 function fail(code, detail = "") {
   throw new Error(`V020_FINALIZE_EVIDENCE_FAIL:${code}${detail ? `:${String(detail).slice(0, 500)}` : ""}`);
@@ -68,7 +69,7 @@ async function jsonProbe(url, label, verify, expectedMarker = null) {
 
 const [packageRaw, candidateRaw, previousRaw, linksRaw] = await Promise.all([
   readFile("package.json", "utf8"),
-  readFile("outputs/v020-production-promotion.json", "utf8"),
+  readFile(candidatePath, "utf8"),
   readFile("cloud/production-evidence.json", "utf8"),
   readFile("cloud/product-links.json", "utf8")
 ]);
@@ -241,4 +242,4 @@ secretFree(evidenceSerialized, "evidence-secret-pattern");
 secretFree(linksSerialized, "links-secret-pattern");
 await writeFile("cloud/production-evidence.json", evidenceSerialized, "utf8");
 await writeFile("cloud/product-links.json", linksSerialized, "utf8");
-console.log(`V020_FINALIZE_EVIDENCE_PASS source=${candidate.sourceSha} run=${candidate.workflowRunId} devapi=${devapiDeploymentId} devbox=${devboxDeploymentId} liveProbes=6 publicState=sanitized idleIsolation=pass runtimeErrors=0 secrets=0`);
+console.log(`V020_FINALIZE_EVIDENCE_PASS candidate=${candidatePath} source=${candidate.sourceSha} run=${candidate.workflowRunId} devapi=${devapiDeploymentId} devbox=${devboxDeploymentId} liveProbes=6 publicState=sanitized idleIsolation=pass runtimeErrors=0 secrets=0`);
