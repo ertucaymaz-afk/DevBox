@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "product": "DevAPI Main Product Site",
+  "capturedAt": "2026-08-19T13:31:00.000Z",
+  "policy": {
+    "noFloatingRuntimeDependency": true,
+    "noRemoteRuntimeScript": true,
+    "licenseReviewRequired": true,
+    "sourceReferenceDoesNotEqualIntegration": true,
+    "copyPasteLibraryBundle": false
+  },
+  "nativeRuntime": {
+    "css": "browser-native",
+    "animation": "CSS + Web Animations API",
+    "intersection": "IntersectionObserver",
+    "runtimeDependencyCount": 0,
+    "reason": "Ana tanıtım yüzeyi statik ve güvenlik-kritik tutuldu; premium hareket ve etkileşimler uzak CDN veya floating package eklenmeden uygulanır."
+  },
+  "items": [
+    {
+      "name": "Lucide",
+      "source": "https://github.com/lucide-icons/lucide",
+      "sourceCommit": "59978cecf84986af59f1f9f503bcebdc89c6d166",
+      "license": "ISC (Feather-derived portions MIT)",
+      "state": "INTEGRATED_LOCAL_CURATED_SVG",
+      "runtimeDependency": false,
+      "usedAssets": [
+        "activity",
+        "shield-check",
+        "git-branch",
+        "database",
+        "workflow",
+        "brain-circuit",
+        "rocket"
+      ],
+      "artifact": "icons.svg"
+    },
+    {
+      "name": "Motion",
+      "source": "https://github.com/motiondivision/motion",
+      "sourceCommit": "bbabb0066427bc4d91850504e01e3949f03f8857",
+      "observedDocsVersion": "13.0.0",
+      "license": "MIT",
+      "state": "SOURCE_REVIEWED_REFERENCE_ONLY",
+      "runtimeDependency": false,
+      "decision": "Motion'ın transform/opacity ve reduced-motion performans prensipleri referans alındı; exact package admission yapılmadan runtime bundle eklenmedi."
+    },
+    {
+      "name": "Magic UI",
+      "source": "https://github.com/magicuidesign/magicui",
+      "sourceCommit": "2d671cc6c0e0f40e28682c9cbddd16694dcfe627",
+      "license": "MIT",
+      "state": "SOURCE_REVIEWED_REFERENCE_ONLY",
+      "runtimeDependency": false,
+      "decision": "Animated border, glow ve reveal yaklaşımı tasarım referansı olarak incelendi; React/Next bileşen paketi bu statik yüzeye kopyalanmadı."
+    },
+    {
+      "name": "shadcn/ui",
+      "source": "https://github.com/shadcn-ui/ui",
+      "sourceCommit": "25be24cca34d06eed29a4779c3f48c4816aa812c",
+      "license": "MIT",
+      "state": "SOURCE_REVIEWED_REFERENCE_ONLY",
+      "runtimeDependency": false,
+      "decision": "Accessible card, badge, button ve information hierarchy kalıpları referans alındı; framework bağımlılığı eklenmedi."
+    }
+  ]
+}
