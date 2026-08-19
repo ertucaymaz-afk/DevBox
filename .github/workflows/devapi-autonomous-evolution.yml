@@ -12,6 +12,7 @@ on:
       - scripts/devapi-worktree-smoke.mjs
       - scripts/devapi-browser-smoke.mjs
       - scripts/devapi-provider-smoke.mjs
+      - scripts/devapi-reviewer-smoke.mjs
       - scripts/devapi-db-runtime-smoke.mjs
       - scripts/devapi-agents-supply-chain.mjs
       - scripts/verify-devapi-sites-v1.mjs
@@ -39,7 +40,7 @@ concurrency:
 
 jobs:
   verify:
-    name: dependency + task + worker + worktree + browser + provider + db + contract + sites truth gate
+    name: dependency + task + worker + worktree + browser + planner + reviewer + db + contract + sites truth gate
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -81,6 +82,7 @@ jobs:
             cloud/devapi-control/agent/task-policy.mjs \
             cloud/devapi-control/agent/task-state.mjs \
             cloud/devapi-control/agent/runtime.mjs \
+            cloud/devapi-control/agent/reviewer.mjs \
             cloud/devapi-control/agent/orchestrator.mjs \
             cloud/devapi-control/lib/openai-web-research.mjs \
             cloud/devapi-control/lib/agent-store.mjs \
@@ -98,6 +100,7 @@ jobs:
             cloud/devapi-control/api/v1/agent-runtime.mjs \
             cloud/devapi-control/api/v1/agent-tasks.mjs \
             scripts/devapi-provider-smoke.mjs \
+            scripts/devapi-reviewer-smoke.mjs \
             scripts/devapi-db-runtime-smoke.mjs \
             scripts/verify-devapi-sites-v1.mjs \
             scripts/verify-devapi-autonomous-v3.mjs; do node --check "$file"; done
@@ -114,8 +117,11 @@ jobs:
       - name: Real read-only browser smoke
         run: node scripts/devapi-browser-smoke.mjs
 
-      - name: Provider runtime smoke or explicit external blocker
+      - name: Planner provider runtime smoke or explicit external blocker
         run: node scripts/devapi-provider-smoke.mjs
+
+      - name: Independent reviewer runtime smoke or explicit external blocker
+        run: node scripts/devapi-reviewer-smoke.mjs
 
       - name: Database runtime smoke or explicit external blocker
         run: node scripts/devapi-db-runtime-smoke.mjs
@@ -154,6 +160,7 @@ jobs:
             outputs/devapi-worktree-smoke.json
             outputs/devapi-browser-smoke.json
             outputs/devapi-provider-smoke.json
+            outputs/devapi-reviewer-smoke.json
             outputs/devapi-db-runtime-smoke.json
             outputs/devapi-agents-supply-chain.json
             outputs/devapi-npm-audit.json
