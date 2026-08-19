@@ -13,6 +13,7 @@ on:
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
       - scripts/verify-devapi-worker-security.mjs
+      - scripts/verify-devapi-tool-catalog-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
   pull_request:
     branches:
@@ -26,6 +27,7 @@ on:
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
       - scripts/verify-devapi-worker-security.mjs
+      - scripts/verify-devapi-tool-catalog-v2.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
 
 permissions:
@@ -37,7 +39,7 @@ concurrency:
 
 jobs:
   verify:
-    name: task + worker + worktree + browser + agent + contract + security truth gate
+    name: task + worker + worktree + browser + agent + contract + security + research truth gate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -78,6 +80,7 @@ jobs:
           node --check scripts/verify-devapi-autonomous-v1.mjs
           node --check scripts/verify-devapi-autonomous-v2.mjs
           node --check scripts/verify-devapi-worker-security.mjs
+          node --check scripts/verify-devapi-tool-catalog-v2.mjs
 
       - name: Build real repository inventory
         shell: bash
@@ -114,6 +117,12 @@ jobs:
           set -euo pipefail
           node scripts/verify-devapi-worker-security.mjs
 
+      - name: Research catalog truth gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-devapi-tool-catalog-v2.mjs
+
       - name: Autonomous v1 regression verification
         shell: bash
         run: |
@@ -148,5 +157,6 @@ jobs:
             outputs/devapi-worktree-smoke.json
             outputs/devapi-browser-smoke.json
             cloud/devapi-control/agent/dependency-manifest.json
+            cloud/devapi-control/research/tool-catalog.v2.json
           if-no-files-found: error
           retention-days: 14
