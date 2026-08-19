@@ -20,7 +20,9 @@ for (const [needle, id] of [
   ["/api/product-links", "devbox-product-link-probe"],
   ["sanitized-proxy", "devbox-proxy-trust"],
   ["cross_site_links=PASS", "cross-link-output"],
-  ["public_state_sanitization=PASS", "public-state-output"],
+  ["public_state_contract=PASS", "public-state-contract-output"],
+  ["PENDING_DESKTOP_SNAPSHOT", "public-state-pending-truth"],
+  ["public_state_sanitization=${publicStateSanitizationState}", "public-state-dynamic-canary-output"],
   ["devapi_rollback_id=", "devapi-rollback-output"],
   ["devbox_rollback_id=", "devbox-rollback-output"],
   ["values=masked", "secret-log-mask"],
@@ -73,11 +75,16 @@ for (const [needle, id] of [
   ["VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}", "vercel-secret-step-env"],
   ["exec node scripts/v020-production-promote.mjs", "promotion-exec"],
   ["pnpm production:promoter:verify", "promoter-self-gate"],
+  ["OUT_PUBLIC_STATE_CONTRACT", "workflow-public-state-contract"],
+  ["PENDING_DESKTOP_SNAPSHOT", "workflow-pending-sanitization"],
+  ["deploymentContract", "evidence-contract-section"],
   ["outputs/v020-production-promotion.json", "promotion-evidence-json"],
   ["actions/upload-artifact@v6", "promotion-evidence-upload"],
   ["PARTIAL_PASS_CANARY_PENDING", "partial-pass-truth-state"],
   ["secrets=0", "evidence-no-secret-marker"]
 ]) need(workflow, needle, id);
+
+forbid(workflow, "PROMOTION_EVIDENCE_SANITIZATION_NOT_PASS", "workflow-false-sanitization-requirement");
 
 const secretGateIndex = workflow.indexOf("- name: Production secret gerçeklik kapısı");
 const installIndex = workflow.indexOf("- name: Kilitli bağımlılıkları kur");
@@ -87,4 +94,4 @@ if (secretGateIndex < 0 || installIndex < 0 || sourceVerifyIndex < 0 || promoteI
   throw new Error("V020_PROMOTER_VERIFY_FAIL:workflow-order-secret-check-install-verify-promote");
 }
 
-console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean stagedSmokePromote=required rollback=verified-baseline crossLinks=bidirectional proxy=verified evidenceArtifact=secret-free");
+console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean stagedSmokePromote=required rollback=verified-baseline publicStateContract=pass desktopSanitization=pending-or-pass crossLinks=bidirectional proxy=verified evidenceArtifact=secret-free");
