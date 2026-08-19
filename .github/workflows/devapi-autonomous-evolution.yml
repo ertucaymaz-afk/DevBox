@@ -48,7 +48,9 @@ jobs:
           node --check cloud/devapi-control/agent/tool-registry.mjs
           node --check cloud/devapi-control/agent/task-policy.mjs
           node --check cloud/devapi-control/research/evidence.mjs
+          node --check cloud/devapi-control/lib/openai-web-research.mjs
           node --check cloud/devapi-control/api/v1/agent-capabilities.mjs
+          node --check cloud/devapi-control/api/v1/agent-research.mjs
           node --check scripts/build-devapi-repo-inventory.mjs
           node --check scripts/verify-devapi-autonomous-v1.mjs
 
