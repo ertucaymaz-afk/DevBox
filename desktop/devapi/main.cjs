@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, session, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, protocol, net, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
@@ -25,6 +25,9 @@ const SURFACES = Object.freeze({
   console: { label: 'Agent Console', folder: 'console' }
 });
 
+const MAX_TASKS = 50;
+const MAX_TASK_TEXT = 6000;
+const MAX_RECENT_PROJECTS = 8;
 let mainWindow = null;
 
 function rendererRoot() {
@@ -41,6 +44,10 @@ function integrityPath() {
   return app.isPackaged
     ? path.join(process.resourcesPath, 'integrity.json')
     : path.join(__dirname, 'resources', 'integrity.json');
+}
+
+function statePath() {
+  return path.join(app.getPath('userData'), 'desktop-state.json');
 }
 
 function redact(value) {
@@ -204,6 +211,99 @@ function verifyIntegrity() {
   }
 }
 
+function defaultLocalState() {
+  return {
+    schemaVersion: 1,
+    tasks: [],
+    recentProjects: [],
+    lastProject: null,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function normalizeLocalState(value) {
+  const base = defaultLocalState();
+  const tasks = Array.isArray(value?.tasks) ? value.tasks.slice(0, MAX_TASKS) : [];
+  const recentProjects = Array.isArray(value?.recentProjects) ? value.recentProjects.slice(0, MAX_RECENT_PROJECTS) : [];
+  return {
+    ...base,
+    tasks,
+    recentProjects,
+    lastProject: value?.lastProject && typeof value.lastProject === 'object' ? value.lastProject : recentProjects[0] ?? null,
+    updatedAt: String(value?.updatedAt ?? base.updatedAt)
+  };
+}
+
+function readLocalState() {
+  try {
+    const file = statePath();
+    if (!fs.existsSync(file)) return defaultLocalState();
+    return normalizeLocalState(JSON.parse(fs.readFileSync(file, 'utf8')));
+  } catch (error) {
+    logFailure('local-state-read', error);
+    return defaultLocalState();
+  }
+}
+
+function writeLocalState(nextState) {
+  const normalized = normalizeLocalState({ ...nextState, updatedAt: new Date().toISOString() });
+  const file = statePath();
+  const temp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(temp, JSON.stringify(normalized, null, 2), { encoding: 'utf8', flag: 'wx' });
+  fs.renameSync(temp, file);
+  return normalized;
+}
+
+function sanitizeTaskText(raw) {
+  const text = String(raw ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
+  if (text.length < 2) throw new Error('DEVAPI_TASK_TEXT_TOO_SHORT');
+  if (text.length > MAX_TASK_TEXT) throw new Error('DEVAPI_TASK_TEXT_TOO_LONG');
+  return text;
+}
+
+function createDraftTask(raw) {
+  const text = sanitizeTaskText(raw);
+  const state = readLocalState();
+  const task = {
+    taskId: `local_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    title: text.length > 58 ? `${text.slice(0, 55)}…` : text,
+    request: text,
+    state: 'WAITING_RUNTIME',
+    runtimeState: 'BLOCKED_EXTERNAL',
+    reasonCode: 'MODEL_RUNTIME_NOT_CONNECTED_TO_DESKTOP',
+    project: state.lastProject,
+    createdAt: new Date().toISOString()
+  };
+  state.tasks.unshift(task);
+  state.tasks = state.tasks.slice(0, MAX_TASKS);
+  writeLocalState(state);
+  return task;
+}
+
+async function pickProjectDirectory() {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'DevAPI ile çalışılacak proje klasörünü seç',
+    buttonLabel: 'Klasörü Aç',
+    properties: ['openDirectory', 'dontAddToRecent']
+  });
+  if (result.canceled || !result.filePaths[0]) return null;
+  const selected = path.resolve(result.filePaths[0]);
+  const stat = fs.statSync(selected, { throwIfNoEntry: false });
+  if (!stat?.isDirectory()) throw new Error('DEVAPI_PROJECT_DIRECTORY_INVALID');
+  const descriptor = {
+    name: path.basename(selected) || selected,
+    path: selected,
+    selectedAt: new Date().toISOString()
+  };
+  const state = readLocalState();
+  state.recentProjects = [descriptor, ...state.recentProjects.filter((item) => item?.path !== selected)].slice(0, MAX_RECENT_PROJECTS);
+  state.lastProject = descriptor;
+  writeLocalState(state);
+  return descriptor;
+}
+
 function userDataWritable() {
   try {
     const dir = app.getPath('userData');
@@ -249,7 +349,8 @@ function healthSnapshot() {
       nodeVersion: process.versions.node,
       packaged: app.isPackaged,
       platform: process.platform,
-      arch: process.arch
+      arch: process.arch,
+      modelRuntime: 'BLOCKED_EXTERNAL'
     },
     checkedAt: new Date().toISOString()
   };
@@ -298,9 +399,9 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1480,
     height: 920,
-    minWidth: 980,
-    minHeight: 680,
-    backgroundColor: '#f7f8fa',
+    minWidth: 1040,
+    minHeight: 700,
+    backgroundColor: '#f2f2f1',
     title: 'DevAPI',
     show: false,
     autoHideMenuBar: true,
@@ -348,6 +449,9 @@ if (!hasSingleInstanceLock) {
     ipcMain.handle('devapi:get-surface', (event, key) => { trustedSender(event); return surfaceDescriptor(String(key)); });
     ipcMain.handle('devapi:get-manifest', (event) => { trustedSender(event); return manifestSnapshot(); });
     ipcMain.handle('devapi:get-health', (event) => { trustedSender(event); return healthSnapshot(); });
+    ipcMain.handle('devapi:get-local-state', (event) => { trustedSender(event); return readLocalState(); });
+    ipcMain.handle('devapi:create-draft-task', (event, text) => { trustedSender(event); return createDraftTask(text); });
+    ipcMain.handle('devapi:pick-project', async (event) => { trustedSender(event); return pickProjectDirectory(); });
     ipcMain.handle('devapi:get-build-info', (event) => {
       trustedSender(event);
       return {
