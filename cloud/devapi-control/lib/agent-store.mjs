@@ -12,6 +12,12 @@ function connectionString() {
 function sql() { return neon(connectionString()); }
 function json(value) { return JSON.stringify(value ?? {}); }
 
+export const EVIDENCE_TYPES = Object.freeze([
+  "REPO", "RESEARCH", "PLAN", "APPROVAL", "WORKSPACE", "LEASE", "PATCH", "SHELL", "TEST", "REVIEW",
+  "CONTRACT", "SECURITY", "BROWSER", "PREVIEW", "CANARY", "PRODUCTION", "ROLLBACK"
+]);
+const EVIDENCE_TYPE_SET = new Set(EVIDENCE_TYPES);
+
 export async function ensureAgentSchema() {
   if (schemaReady) return await schemaReady;
   schemaReady = (async () => {
@@ -197,7 +203,7 @@ export async function appendAgentEvidence(input = {}) {
   const state = String(input.state ?? "").trim().toUpperCase();
   const digest = String(input.digest ?? "").trim().toLowerCase();
   if (!/^[0-9a-f-]{36}$/iu.test(taskId)) throw new Error("TASK_ID_INVALID");
-  if (!/^(REPO|RESEARCH|PATCH|SHELL|TEST|CONTRACT|SECURITY|BROWSER|PREVIEW|CANARY|PRODUCTION|ROLLBACK)$/u.test(type)) throw new Error("EVIDENCE_TYPE_INVALID");
+  if (!EVIDENCE_TYPE_SET.has(type)) throw new Error("EVIDENCE_TYPE_INVALID");
   if (!/^[0-9a-f]{40}$/u.test(sourceSha)) throw new Error("EVIDENCE_SOURCE_SHA_INVALID");
   if (!/^[a-z0-9_-]{3,40}$/iu.test(state)) throw new Error("EVIDENCE_STATE_INVALID");
   if (!/^[0-9a-f]{64}$/u.test(digest)) throw new Error("EVIDENCE_DIGEST_INVALID");
