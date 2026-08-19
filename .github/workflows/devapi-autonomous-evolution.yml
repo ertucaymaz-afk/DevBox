@@ -100,6 +100,7 @@ jobs:
             cloud/devapi-control/lib/migration-ledger.mjs \
             cloud/devapi-control/lib/http-response.mjs \
             cloud/devapi-control/worker/approval.mjs \
+            cloud/devapi-control/worker/shell-policy.mjs \
             cloud/devapi-control/worker/workspace.mjs \
             cloud/devapi-control/worker/file-lease.mjs \
             cloud/devapi-control/worker/git-worktree.mjs \
