@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "product": "DevAPI",
+  "state": "SOURCE_READY",
+  "deploymentState": "NOT_RUN",
+  "canonicalDomainsVerified": false,
+  "projects": [
+    { "id": "main", "root": "cloud/devapi-sites/main", "role": "Main Product", "slugCandidate": "devapi" },
+    { "id": "runtime", "root": "cloud/devapi-sites/runtime", "role": "API Runtime", "slugCandidate": "devapi-api" },
+    { "id": "docs", "root": "cloud/devapi-sites/docs", "role": "Docs", "slugCandidate": "devapi-docs" },
+    { "id": "status", "root": "cloud/devapi-sites/status", "role": "Status", "slugCandidate": "devapi-status" },
+    { "id": "console", "root": "cloud/devapi-sites/console", "role": "Console", "slugCandidate": "devapi-console" }
+  ],
+  "truth": {
+    "sourceReadyDoesNotMeanPreviewVerified": true,
+    "previewVerifiedDoesNotMeanProductionVerified": true,
+    "domainCandidatesAreNotCanonical": true
+  }
+}
