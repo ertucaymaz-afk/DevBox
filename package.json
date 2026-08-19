@@ -27,6 +27,7 @@
     "build": "pnpm clean && pnpm icon:generate && pnpm research:generate && pnpm build:main && pnpm build:renderer && pnpm truth:audit",
     "typecheck": "tsc -p config/tsconfig.node.json --noEmit && tsc -p config/tsconfig.renderer.json --noEmit",
     "test": "vitest run --config config/vitest.config.ts --maxWorkers=1 --no-file-parallelism",
+    "test:cloud-idempotency": "vitest run src/main/services/cloud-control-idempotency.test.ts --config config/vitest.config.ts --maxWorkers=1 --no-file-parallelism",
     "test:watch": "vitest --config config/vitest.config.ts",
     "test:e2e": "pnpm build && playwright test --config config/playwright.config.ts",
     "test:failure": "pnpm build:main && node scripts/failure-injection.mjs",
