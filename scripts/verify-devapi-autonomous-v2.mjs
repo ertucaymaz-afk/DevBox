@@ -47,10 +47,9 @@ assert(storeSource.includes("agent_task_events"), "DEVAPI_APPEND_ONLY_EVENT_LEDG
 const tools = listToolCapabilities();
 assert(tools.length >= 11, "DEVAPI_TOOL_REGISTRY_V2_TOO_SMALL");
 assert(tools.filter((tool) => tool.state === "RUNTIME_VERIFIED").length === 0, "DEVAPI_STATIC_REGISTRY_FAKE_RUNTIME");
-for (const id of ["agent.runtime", "workspace.create", "shell.exec", "fs.patch", "git.worktree.create"]) {
+for (const id of ["agent.runtime", "workspace.create", "shell.exec", "fs.patch", "git.worktree.create", "browser.inspect"]) {
   assert(tools.some((tool) => tool.toolId === id && tool.state === "SOURCE_READY"), `DEVAPI_TOOL_SOURCE_NOT_READY:${id}`);
 }
-assert(tools.some((tool) => tool.toolId === "browser.inspect" && tool.state === "UNAVAILABLE"), "DEVAPI_BROWSER_FAKE_READY");
 
 const runtime = await agentRuntimeConfiguration();
 assert(runtime.provider === "openai-agents-sdk" && runtime.sourceState === "SOURCE_READY", "DEVAPI_AGENT_RUNTIME_SOURCE");
@@ -59,17 +58,29 @@ assert(runtime.runtimeState !== "RUNTIME_VERIFIED", "DEVAPI_AGENT_RUNTIME_FAKE_V
 const smoke = JSON.parse(await readFile("outputs/devapi-worker-smoke.json", "utf8"));
 assert(smoke.workerRuntimeVerified === true, "DEVAPI_WORKER_RUNTIME_NOT_VERIFIED");
 assert(smoke.runtimeAgentVerified === false, "DEVAPI_WORKER_MUST_NOT_VERIFY_MODEL_AGENT");
+assert(smoke.approval.missingApprovalBlocked === true, "DEVAPI_WORKER_APPROVAL_NOT_ENFORCED");
+assert(smoke.patch.approvalId === smoke.approval.approvalId && smoke.command.approvalId === smoke.approval.approvalId, "DEVAPI_WORKER_APPROVAL_EVIDENCE_MISMATCH");
 assert(smoke.patch.beforeSha256 !== smoke.patch.afterSha256, "DEVAPI_WORKER_PATCH_NO_CHANGE");
 assert(smoke.command.exitCode === 0 && smoke.command.timedOut === false, "DEVAPI_WORKER_SHELL_FAILED");
-assert(smoke.containment.pathEscapeBlocked && smoke.containment.unapprovedExecutableBlocked, "DEVAPI_WORKER_CONTAINMENT_FAILED");
+assert(smoke.containment.pathEscapeBlocked && smoke.containment.unapprovedExecutableBlocked && smoke.containment.gitPushBlocked, "DEVAPI_WORKER_CONTAINMENT_FAILED");
 
 const worktree = JSON.parse(await readFile("outputs/devapi-worktree-smoke.json", "utf8"));
 assert(worktree.worktreeRuntimeVerified === true, "DEVAPI_WORKTREE_RUNTIME_NOT_VERIFIED");
 assert(worktree.modelRuntimeVerified === false, "DEVAPI_WORKTREE_MUST_NOT_VERIFY_MODEL_AGENT");
+assert(worktree.approval.missingApprovalBlocked === true, "DEVAPI_WORKTREE_APPROVAL_NOT_ENFORCED");
+assert(worktree.diff.approvalId === worktree.approval.approvalId, "DEVAPI_WORKTREE_APPROVAL_EVIDENCE_MISMATCH");
 assert(worktree.singleWriter.conflictQueued === true, "DEVAPI_SINGLE_WRITER_CONFLICT_QUEUE_FAILED");
 assert(worktree.patch.beforeSha256 !== worktree.patch.afterSha256, "DEVAPI_WORKTREE_PATCH_NO_CHANGE");
 assert(worktree.diff.bytes > 0 && /^[0-9a-f]{64}$/u.test(worktree.diff.sha256), "DEVAPI_WORKTREE_DIFF_EVIDENCE_INVALID");
 assert(/^devapi\/evolution\/[0-9a-f]{8}-/u.test(worktree.branch), "DEVAPI_WORKTREE_BRANCH_INVALID");
+
+const browser = JSON.parse(await readFile("outputs/devapi-browser-smoke.json", "utf8"));
+assert(browser.state === "RUNTIME_VERIFIED", "DEVAPI_BROWSER_RUNTIME_NOT_VERIFIED");
+assert(browser.runtime === "system-chrome-headless", "DEVAPI_BROWSER_RUNTIME_INVALID");
+assert(browser.dom.bytes > 0 && /^[0-9a-f]{64}$/u.test(browser.dom.sha256), "DEVAPI_BROWSER_DOM_EVIDENCE_INVALID");
+assert(browser.screenshot.bytes > 100 && /^[0-9a-f]{64}$/u.test(browser.screenshot.sha256), "DEVAPI_BROWSER_SCREENSHOT_EVIDENCE_INVALID");
+assert(browser.security.privateNetworkDeniedWithoutExplicitLoopback === true && browser.security.browserActions === "READ_ONLY", "DEVAPI_BROWSER_SECURITY_EVIDENCE_INVALID");
+assert(browser.truth.doesNotApplyTo.includes("browser.click") && browser.truth.doesNotApplyTo.includes("openai-agent-runtime"), "DEVAPI_BROWSER_SCOPE_OVERCLAIM");
 
 const apiRoot = path.resolve("cloud/devapi-control/api/v1");
 const sourceRoutes = (await readdir(apiRoot)).filter((name) => name.endsWith(".mjs")).map((name) => `/api/v1/${name.replace(/\.mjs$/u, "")}`).sort();
@@ -86,8 +97,10 @@ for (const file of [
   "cloud/devapi-control/agent/task-state.mjs",
   "cloud/devapi-control/agent/runtime.mjs",
   "cloud/devapi-control/lib/agent-store.mjs",
+  "cloud/devapi-control/worker/approval.mjs",
   "cloud/devapi-control/worker/workspace.mjs",
   "cloud/devapi-control/worker/git-worktree.mjs",
+  "cloud/devapi-control/browser/system-chrome.mjs",
   "cloud/devapi-control/api/v1/agent-tasks.mjs",
   "cloud/devapi-control/api/v1/agent-runtime.mjs"
 ]) {
@@ -95,4 +108,4 @@ for (const file of [
   assert(!/HotAPI/iu.test(text), `DEVAPI_SCOPE_LEAK:${file}`);
 }
 
-console.log(`DEVAPI_AUTONOMOUS_V2_VERIFY_PASS tools=${tools.length} routes=${sourceRoutes.length} operations=${operationCount} taskState=verified persistence=8-tables workerRuntime=verified worktreeRuntime=verified conflictQueue=verified modelRuntime=not-verified agentsSdk=source-reviewed-not-installed browser=unavailable`);
+console.log(`DEVAPI_AUTONOMOUS_V2_VERIFY_PASS tools=${tools.length} routes=${sourceRoutes.length} operations=${operationCount} taskState=verified persistence=8-tables workerRuntime=verified worktreeRuntime=verified conflictQueue=verified browserRuntime=verified-readonly modelRuntime=not-verified agentsSdk=source-reviewed-not-installed`);
