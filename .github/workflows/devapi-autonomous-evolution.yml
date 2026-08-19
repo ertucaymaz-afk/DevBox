@@ -11,6 +11,7 @@ on:
       - scripts/devapi-worktree-smoke.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
+      - scripts/verify-devapi-worker-security.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
   pull_request:
     branches:
@@ -22,6 +23,7 @@ on:
       - scripts/devapi-worktree-smoke.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
       - scripts/verify-devapi-autonomous-v2.mjs
+      - scripts/verify-devapi-worker-security.mjs
       - .github/workflows/devapi-autonomous-evolution.yml
 
 permissions:
@@ -33,7 +35,7 @@ concurrency:
 
 jobs:
   verify:
-    name: task + worker + worktree + agent + contract truth gate
+    name: task + worker + worktree + agent + contract + security truth gate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -59,6 +61,7 @@ jobs:
           node --check cloud/devapi-control/research/evidence.mjs
           node --check cloud/devapi-control/lib/openai-web-research.mjs
           node --check cloud/devapi-control/lib/agent-store.mjs
+          node --check cloud/devapi-control/worker/approval.mjs
           node --check cloud/devapi-control/worker/workspace.mjs
           node --check cloud/devapi-control/worker/git-worktree.mjs
           node --check cloud/devapi-control/api/v1/agent-capabilities.mjs
@@ -70,6 +73,7 @@ jobs:
           node --check scripts/devapi-worktree-smoke.mjs
           node --check scripts/verify-devapi-autonomous-v1.mjs
           node --check scripts/verify-devapi-autonomous-v2.mjs
+          node --check scripts/verify-devapi-worker-security.mjs
 
       - name: Build real repository inventory
         shell: bash
@@ -92,6 +96,12 @@ jobs:
           node scripts/devapi-worktree-smoke.mjs
           test -s outputs/devapi-worktree-smoke.json
           git worktree list --porcelain
+
+      - name: Worker security gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-devapi-worker-security.mjs
 
       - name: Autonomous v1 regression verification
         shell: bash
