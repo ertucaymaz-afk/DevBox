@@ -7,17 +7,22 @@ npmRebuild: false
 asar: true
 directories:
   output: ../../release-devapi
+  buildResources: build
 files:
   - main.cjs
   - preload.cjs
   - renderer/**/*
+  - build/icon.svg
   - package.json
 extraResources:
   - from: resources/devapi-sites
     to: devapi-sites
     filter:
       - '**/*'
+  - from: resources/integrity.json
+    to: integrity.json
 win:
+  icon: build/icon.svg
   target:
     - target: nsis
       arch:
