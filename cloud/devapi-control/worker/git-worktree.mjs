@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, open, readFile, realpath, rm, unlink } from "node:fs/promises";
+import { mkdir, mkdtemp, open, realpath, rm, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { assertWorkerApproval } from "./approval.mjs";
 
 const MAX_OUTPUT = 512 * 1024;
 function digest(value) { return createHash("sha256").update(value).digest("hex"); }
@@ -39,13 +40,15 @@ async function execGit(repoRoot, args, timeoutMs = 60_000) {
 }
 
 export class GitWorktreeManager {
-  constructor(repoRoot, lockRoot) {
+  constructor(repoRoot, lockRoot, approval) {
     this.repoRoot = repoRoot;
     this.lockRoot = lockRoot;
+    this.approval = approval;
     this.claims = new Map();
   }
 
-  static async fromRepository(repoRoot = process.cwd()) {
+  static async fromRepository(repoRoot = process.cwd(), { approval } = {}) {
+    const verifiedApproval = assertWorkerApproval(approval, "R2");
     const root = await realpath(repoRoot);
     const probe = await execGit(root, ["rev-parse", "--show-toplevel"]);
     const top = await realpath(probe.stdout.trim());
@@ -54,10 +57,11 @@ export class GitWorktreeManager {
     const commonDir = path.resolve(root, common.stdout.trim());
     const lockRoot = path.join(commonDir, "devapi-agent-locks");
     await mkdir(lockRoot, { recursive: true });
-    return new GitWorktreeManager(root, lockRoot);
+    return new GitWorktreeManager(root, lockRoot, verifiedApproval);
   }
 
   async create({ taskId = randomUUID(), slug, base = "HEAD" } = {}) {
+    const approval = assertWorkerApproval(this.approval, "R2");
     if (!/^[0-9a-f-]{36}$/iu.test(String(taskId))) throw new Error("WORKTREE_TASK_ID_INVALID");
     const cleanSlug = safeSlug(slug);
     const parent = await mkdtemp(path.join(os.tmpdir(), "devapi-worktree-"));
@@ -66,7 +70,7 @@ export class GitWorktreeManager {
     try {
       await execGit(this.repoRoot, ["worktree", "add", "-b", branch, worktreePath, String(base)]);
       const sourceSha = (await execGit(worktreePath, ["rev-parse", "HEAD"])).stdout.trim();
-      return { taskId: String(taskId), branch, path: worktreePath, parent, sourceSha, state: "CREATED" };
+      return { taskId: String(taskId), branch, path: worktreePath, parent, sourceSha, state: "CREATED", approvalId: approval.approvalId };
     } catch (error) {
       await rm(parent, { recursive: true, force: true });
       throw error;
@@ -74,6 +78,7 @@ export class GitWorktreeManager {
   }
 
   async claimFiles(worktree, files = []) {
+    assertWorkerApproval(this.approval, "R2");
     const claims = [];
     try {
       for (const file of files.map(safeRelative)) {
@@ -83,7 +88,7 @@ export class GitWorktreeManager {
           if (error?.code === "EEXIST") throw new Error(`CONFLICT_QUEUE:${file}`);
           throw error;
         });
-        await handle.writeFile(`${worktree.taskId}\n${worktree.branch}\n${file}\n`, "utf8");
+        await handle.writeFile(`${worktree.taskId}\n${worktree.branch}\n${file}\n${this.approval.approvalId}\n`, "utf8");
         await handle.close();
         this.claims.set(lockPath, file);
         claims.push({ file, lockPath });
@@ -96,8 +101,9 @@ export class GitWorktreeManager {
   }
 
   async diff(worktree) {
+    assertWorkerApproval(this.approval, "R2");
     const result = await execGit(worktree.path, ["diff", "--no-ext-diff", "--binary"]);
-    return { text: result.stdout, sha256: digest(result.stdout), bytes: Buffer.byteLength(result.stdout) };
+    return { text: result.stdout, sha256: digest(result.stdout), bytes: Buffer.byteLength(result.stdout), approvalId: this.approval.approvalId };
   }
 
   async releaseClaims() {
@@ -106,6 +112,7 @@ export class GitWorktreeManager {
   }
 
   async remove(worktree) {
+    assertWorkerApproval(this.approval, "R2");
     await this.releaseClaims();
     await execGit(this.repoRoot, ["worktree", "remove", "--force", worktree.path]).catch(() => {});
     await execGit(this.repoRoot, ["branch", "-D", worktree.branch]).catch(() => {});
