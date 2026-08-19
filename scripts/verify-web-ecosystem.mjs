@@ -84,6 +84,7 @@ if (manifest?.canonicalOrigin !== "https://devbox.vercel.app") fail("WEB_ECOSYST
 if (manifest?.truthPolicy?.fakeReady !== false) fail("WEB_ECOSYSTEM_FAKE_READY_POLICY_INVALID");
 if (manifest?.truthPolicy?.productionStateRequiresLiveEvidence !== true) fail("WEB_ECOSYSTEM_LIVE_EVIDENCE_POLICY_MISSING");
 if (manifest?.truthPolicy?.publicStateTrustedValue !== "sanitized-proxy") fail("WEB_ECOSYSTEM_PUBLIC_STATE_MARKER_INVALID");
+if (manifest?.truthPolicy?.visualPassRequiresBrowserEvidence !== true) fail("WEB_ECOSYSTEM_VISUAL_EVIDENCE_POLICY_MISSING");
 
 for (const route of expectedRoutes) {
   const slug = route.slice(1);
@@ -110,13 +111,19 @@ const research = Array.isArray(manifest.researchSources) ? manifest.researchSour
 const expectedResearch = new Map([
   ["Magic UI", "MIT"],
   ["shadcn/ui", "MIT"],
-  ["Lucide", "ISC"],
+  ["Lucide", "ISC; Feather-derived icon subset MIT"],
+  ["Tabler Icons", "MIT"],
   ["Motion", "MIT"],
-  ["Kibo UI", "MIT"]
+  ["Kibo UI", "MIT"],
+  ["Microsoft Playwright", "Apache-2.0"]
 ]);
 for (const [name, license] of expectedResearch) {
   const entry = research.find((item) => item?.name === name);
   if (!entry || entry.license !== license) fail("WEB_ECOSYSTEM_RESEARCH_SOURCE_MISSING", name);
 }
+const playwright = research.find((item) => item?.name === "Microsoft Playwright");
+if (playwright?.ciOnly !== true || playwright?.exactPackage !== "@playwright/test@1.62.1") fail("WEB_ECOSYSTEM_PLAYWRIGHT_PROVENANCE_INVALID");
+const lucide = research.find((item) => item?.name === "Lucide");
+if (lucide?.runtimeDependency !== false) fail("WEB_ECOSYSTEM_ICON_BLOAT_POLICY_INVALID");
 
-console.log(`WEB_ECOSYSTEM_VERIFY_PASS surfaces=${surfaces.length} routes=${expectedRoutes.length} architecture=10 capabilities=12 evolutionTracks=10 csp=fail-closed liveState=sanitized-proxy research=${research.length}`);
+console.log(`WEB_ECOSYSTEM_VERIFY_PASS surfaces=${surfaces.length} routes=${expectedRoutes.length} architecture=10 capabilities=12 evolutionTracks=10 csp=fail-closed liveState=sanitized-proxy research=${research.length} browserEvidence=required`);
