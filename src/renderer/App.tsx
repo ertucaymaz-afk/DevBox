@@ -81,17 +81,17 @@ import type {
 import { DEVBOX_DAY_THEME, DEVBOX_OBSIDIAN_THEME } from "../shared/theme-presets";
 import {
   AutomationWorkspace,
-  CatalogWorkspace,
   IntegrationWorkspace,
-  SettingsWorkspace,
   TerminalWorkspace,
-  WorktreeWorkspace,
-  themeStyle
+  WorktreeWorkspace
 } from "./AdvancedViews";
+import { SettingsWorkspaceV2 } from "./SettingsWorkspaceV2";
+import { themeStyleV2 } from "./theme-style-v2";
 import { WhatsNewWorkspace } from "./WhatsNewWorkspace";
 import { CanvasInspector } from "./CanvasInspector";
 import { DevApiControlWorkspace } from "./DevApiControlWorkspace";
 import { RemixRotaWorkspace } from "./RemixRotaWorkspace";
+import { CatalogWorkspaceV2 } from "./CatalogWorkspaceV2";
 
 type View = "thread" | "files" | "git" | "runs" | "sites" | "capabilities" | "settings" | "terminal" | "worktrees" | "devapi" | "music" | "automations" | "integrations" | "skills" | "pullRequests" | "whatsNew";
 type PromptState = {
@@ -1242,7 +1242,7 @@ export function App(): ReactNode {
   if (!bootstrap) return <div className="boot-error" role="alert"><AlertTriangle size={24} /><strong>DevBox yerel çalışma alanını açamadı</strong><span>{notice ?? "Başlangıç verisi alınamadı."}</span></div>;
 
   return (
-    <div data-theme-base={resolvedThemeBase} style={themeStyle(appSettings)} className={`app-shell ${sidebarVisible ? "" : "sidebar-hidden"} ${inspectorVisible ? "inspector-visible" : ""} ${appSettings?.reduceMotion ? "reduced-motion" : ""} ${appSettings?.theme.contrast === "high" ? "high-contrast" : ""}`}>
+    <div data-theme-base={resolvedThemeBase} style={themeStyleV2(appSettings)} className={`app-shell ${sidebarVisible ? "" : "sidebar-hidden"} ${inspectorVisible ? "inspector-visible" : ""} ${appSettings?.reduceMotion ? "reduced-motion" : ""} ${appSettings?.theme.contrast === "high" ? "high-contrast" : ""}`}>
       <header className="system-bar">
         <div className="system-left"><button onClick={() => setSidebarVisible((value) => !value)} aria-label="Kenar çubuğu"><LayoutPanelLeft size={16} /></button><button disabled={view === "thread" && historyIndex <= 0} onClick={() => void navigateHistory(-1)} aria-label="Geri" title={view === "thread" ? "Önceki sohbete dön" : "Sohbete dön"}><ArrowLeft size={17} /></button><button disabled={view !== "thread" || historyIndex < 0 || historyIndex >= history.length - 1} onClick={() => void navigateHistory(1)} aria-label="İleri" title="Sonraki sohbete git"><ArrowRight size={17} /></button><nav aria-label="Uygulama menüsü"><button onClick={() => void handleMenu("file")}>Dosya</button><button onClick={() => void handleMenu("edit")}>Düzenle</button><button onClick={() => void handleMenu("view")}>Görünüm</button><button onClick={() => void handleMenu("help")}>Yardım</button></nav></div><div className="system-theme"><button onClick={() => { if (!appSettings) return; void window.devbox.patchSettings({ theme: resolvedThemeBase === "light" ? DEVBOX_OBSIDIAN_THEME : DEVBOX_DAY_THEME }).then((nextSettings) => { setAppSettings(nextSettings); setPermission(nextSettings.permissionProfile); }); }} title={resolvedThemeBase === "light" ? "Koyu moda geç" : "Gündüz moduna geç"} aria-label="Tema modunu değiştir">{resolvedThemeBase === "light" ? <Moon size={15} /> : <Sun size={15} />}</button></div>
       </header>
@@ -1312,10 +1312,10 @@ export function App(): ReactNode {
             {view === "music" && <RemixRotaWorkspace />}
             {view === "automations" && <AutomationWorkspace project={selfDevelopmentProject ?? selectedProject} />}
             {view === "integrations" && <IntegrationWorkspace project={selectedProject} />}
-            {view === "skills" && <CatalogWorkspace />}
+            {view === "skills" && <CatalogWorkspaceV2 />}
             {view === "pullRequests" && <IntegrationWorkspace project={selectedProject} scope="github" />}
             {view === "whatsNew" && <WhatsNewWorkspace />}
-            {view === "settings" && <SettingsWorkspace settings={appSettings} onSettings={(next) => { setAppSettings(next); setPermission(next.permissionProfile); }} onClose={() => setView(thread ? "thread" : selectedProject ? "files" : "thread")} />}
+            {view === "settings" && <SettingsWorkspaceV2 settings={appSettings} onSettings={(next) => { setAppSettings(next); setPermission(next.permissionProfile); }} onClose={() => setView(thread ? "thread" : selectedProject ? "files" : "thread")} />}
           </div>
 
           {inspectorVisible && <CanvasInspector project={selectedProject} result={workspaceResult} liveTargetPath={liveWorkspacePath} liveActive={liveWorkspaceActive} threadTitle={thread?.thread.title ?? null} threadState={thread?.thread.state ?? null} gitBranch={gitStatus?.branch ?? null} coreState={bootstrap?.core.state ?? "FAILED"} onClose={() => setInspectorVisible(false)} onRefresh={async () => { if (selectedProject) await loadProject(selectedProject); }} />}

@@ -34,15 +34,15 @@
         <div class="hero-copy"><span class="eyebrow">DURABLE API EVOLUTION · 0.1.20</span><h1>API gelişimini <em>kanıtla, izle, kontrol et.</em></h1><p>DevAPI; masaüstünden gelen gerçek snapshot, finding, release gate ve command ACK kayıtlarını kalıcı cloud state üzerinde tutar. Masaüstü kapansa bile history korunur; veritabanı veya auth eksikse READY taklidi yapılmaz.</p><div class="contract"><span>HMAC SNAPSHOT</span><span>SEQUENCE + ACK</span><span>POSTGRES HISTORY</span><span>FAIL-CLOSED</span></div></div>
         <div class="auth-box">
           <header><div><span class="dot"></span><strong>Admin Session</strong></div><small>secret browser bundle’a gömülmez</small></header>
-          <label>Admin token<input id="adminToken" type="password" autocomplete="current-password" placeholder="DEVBOX_CONTROL_ADMIN_TOKEN" /></label>
+          <label>Admin token<input id="adminToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="DEVBOX_CONTROL_ADMIN_TOKEN" /></label>
           <div class="project-discovery"><button id="discover">Projeleri getir</button><select id="projectPicker" aria-label="Cloud projesi seç"><option value="">Önce cloud envanterini doğrula</option></select></div>
           <label>Project ID<input id="projectId" autocomplete="off" placeholder="DevBox proje kimliği" /></label>
           <div class="auth-actions"><button id="connect" class="primary">Bağlan</button><button id="refresh">Yenile</button></div>
-          <small>Token yalnız bu sekmenin <code>sessionStorage</code> alanında tutulur. Command API arbitrary shell kabul etmez.</small>
+          <small>Admin token yalnız bu sayfanın belleğinde tutulur ve yenilemede silinir. Project ID sekme içinde korunabilir. Command API arbitrary shell kabul etmez.</small>
         </div>
       </section>
 
-      <section id="offline" class="notice hidden"></section>
+      <section id="offline" class="notice hidden" role="status" aria-live="polite"></section>
 
       <section class="metric-grid" aria-label="DevAPI ana metrikleri">
         <article class="level-card panel"><div class="level-orbit"><strong id="level">—</strong><span>LEVEL</span></div><div><span>Kalıcı gelişim</span><h2 id="stage">Bağlantı bekleniyor</h2><p id="evidence">Evidence state bekleniyor.</p></div></article>

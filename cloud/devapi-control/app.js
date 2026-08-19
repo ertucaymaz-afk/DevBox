@@ -1,17 +1,40 @@
+import "./experience-v2.js";
+
 const $ = (id) => document.getElementById(id);
+sessionStorage.removeItem("devbox.adminToken");
 const state = {
   projectId: sessionStorage.getItem("devbox.projectId") ?? "",
-  token: sessionStorage.getItem("devbox.adminToken") ?? "",
+  token: "",
   current: null,
   projects: [],
   timer: null
 };
 $("projectId").value = state.projectId;
-$("adminToken").value = state.token;
+$("adminToken").value = "";
 
 function escapeText(value) { return String(value ?? ""); }
 function date(value) { return value ? new Date(value).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "medium" }) : "—"; }
 function setText(id, value) { $(id).textContent = escapeText(value); }
+const STAGE_LABELS = Object.freeze({
+  IDLE: "Hazır", QUEUEING: "Kuyruğa alınıyor", PREPARING: "Hazırlanıyor", PROVIDER_CHECK: "Sağlayıcı doğrulanıyor",
+  AUTH_CHECK: "Oturum doğrulanıyor", MODEL_ATTEMPT: "Model hazırlanıyor", PLANNING: "Planlanıyor", INSPECTING: "Kaynak inceleniyor",
+  EDITING: "Kodlanıyor", RUNNING_COMMAND: "Komut yürütülüyor", TESTING: "Test ediliyor", VERIFYING: "Doğrulanıyor",
+  REVIEWING: "Kanıt inceleniyor", WAITING: "Bekliyor", BACKOFF: "Yeniden deneme bekleniyor", SETTLING: "Sonuçlandırılıyor",
+  COMPLETED: "Tamamlandı", FAILED: "Başarısız", BLOCKED_EXTERNAL: "Harici engel", CANCELLED: "Durduruldu", RECOVERY_REQUIRED: "Kurtarma gerekiyor"
+});
+function stageLabel(value) {
+  const key = String(value ?? "").trim();
+  return STAGE_LABELS[key] ?? (key ? key.replaceAll("_", " ").toLocaleLowerCase("tr-TR") : "—");
+}
+function syncSnapshotFreshness(capturedAt) {
+  const captured = Date.parse(String(capturedAt ?? ""));
+  const ageMs = Number.isFinite(captured) ? Math.max(0, Date.now() - captured) : Number.POSITIVE_INFINITY;
+  const stale = ageMs > 120_000;
+  document.body.classList.toggle("runtime-connected", Number.isFinite(captured));
+  document.body.classList.toggle("runtime-stale", stale);
+  const heartbeat = $("heartbeat");
+  if (heartbeat) heartbeat.title = Number.isFinite(captured) ? Math.round(ageMs / 1000) + " saniye önce yakalandı" : "Snapshot zamanı doğrulanamadı";
+}
 function authHeaders() { return { authorization: `Bearer ${state.token}` }; }
 function showNotice(message, failed = true) {
   const el = $("offline");
@@ -45,19 +68,21 @@ async function health() {
     const data = await response.json().catch(() => ({ state: `HTTP_${response.status}` }));
     pill.textContent = data.state ?? `HTTP_${response.status}`;
     pill.className = `pill ${String(data.state ?? "failed").toLowerCase()}`;
+    document.body.classList.toggle("runtime-failed", data.state !== "READY");
     if (data.state !== "READY") showNotice("Cloud control plane henüz READY değil. Kalıcı backend veya güvenlik yapılandırması tamamlanmadan sistem hazır görünmez.");
   } catch {
     pill.textContent = "FAILED";
     pill.className = "pill failed";
+    document.body.classList.add("runtime-failed");
   }
 }
 
 function syncCredentials() {
   state.token = $("adminToken").value.trim();
   state.projectId = $("projectId").value.trim();
-  if (state.token.length >= 32) sessionStorage.setItem("devbox.adminToken", state.token);
-  else sessionStorage.removeItem("devbox.adminToken");
+  sessionStorage.removeItem("devbox.adminToken");
   if (state.projectId.length >= 8) sessionStorage.setItem("devbox.projectId", state.projectId);
+  else sessionStorage.removeItem("devbox.projectId");
 }
 
 async function discoverProjects() {
@@ -107,7 +132,7 @@ function renderRuntime(runtime = {}) {
   $("runtime").replaceChildren(...fields.map(([key,label]) => {
     const div=document.createElement("div");
     const dt=document.createElement("dt"); dt.textContent=label;
-    const dd=document.createElement("dd"); dd.textContent=key==="updatedAt"?date(runtime[key]):escapeText(runtime[key]??"—");
+    const dd=document.createElement("dd"); dd.textContent=key==="updatedAt"?date(runtime[key]):key==="stage"?stageLabel(runtime[key]):escapeText(runtime[key]??"—");
     div.append(dt,dd); return div;
   }));
 }
@@ -202,8 +227,9 @@ function render(data) {
   const findings = snapshot.findings ?? {};
   const gate = snapshot.releaseGate ?? null;
   setText("level", evolution.lifetimeLevel ?? evolution.level ?? "—");
-  setText("stage", evolution.stage ?? "—");
+  setText("stage", stageLabel(evolution.runtime?.stage ?? evolution.stage));
   setText("score", evolution.score ?? "—");
+  syncSnapshotFreshness(row.captured_at);
   setText("evidence", `${Number(evolution.lifetimeEvidencePoints||0).toLocaleString("tr-TR")} evidence point · ${Number(evolution.validatedImprovementCount||0)} doğrulanmış iyileştirme · ${Number(evolution.stablePromotionCount||0)} promotion`);
   setText("coreProgress", `${Number(evolution.spec?.passCount||0).toLocaleString("tr-TR")} / ${Number(evolution.spec?.totalTaskCount||3362).toLocaleString("tr-TR")}`);
   setText("coreDetail", Number(evolution.spec?.remainingCount||0)===0?"22 faz tamam · adaptif bakım":`${Number(evolution.spec?.remainingCount||0).toLocaleString("tr-TR")} görev kaldı`);
