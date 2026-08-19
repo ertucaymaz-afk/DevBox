@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, open, realpath, rm, unlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { assertWorkerApproval } from "./approval.mjs";
+import { FileLeaseRegistry } from "./file-lease.mjs";
 
 const MAX_OUTPUT = 512 * 1024;
 function digest(value) { return createHash("sha256").update(value).digest("hex"); }
@@ -40,14 +41,14 @@ async function execGit(repoRoot, args, timeoutMs = 60_000) {
 }
 
 export class GitWorktreeManager {
-  constructor(repoRoot, lockRoot, approval) {
+  constructor(repoRoot, leaseRegistry, approval) {
     this.repoRoot = repoRoot;
-    this.lockRoot = lockRoot;
+    this.leaseRegistry = leaseRegistry;
     this.approval = approval;
     this.claims = new Map();
   }
 
-  static async fromRepository(repoRoot = process.cwd(), { approval } = {}) {
+  static async fromRepository(repoRoot = process.cwd(), { approval, leaseTtlMs = 45_000 } = {}) {
     const verifiedApproval = assertWorkerApproval(approval, "R2");
     const root = await realpath(repoRoot);
     const probe = await execGit(root, ["rev-parse", "--show-toplevel"]);
@@ -57,7 +58,8 @@ export class GitWorktreeManager {
     const commonDir = path.resolve(root, common.stdout.trim());
     const lockRoot = path.join(commonDir, "devapi-agent-locks");
     await mkdir(lockRoot, { recursive: true });
-    return new GitWorktreeManager(root, lockRoot, verifiedApproval);
+    const leaseRegistry = await new FileLeaseRegistry(lockRoot, { ownerId: randomUUID(), ttlMs: leaseTtlMs }).init();
+    return new GitWorktreeManager(root, leaseRegistry, verifiedApproval);
   }
 
   async create({ taskId = randomUUID(), slug, base = "HEAD" } = {}) {
@@ -79,25 +81,34 @@ export class GitWorktreeManager {
 
   async claimFiles(worktree, files = []) {
     assertWorkerApproval(this.approval, "R2");
-    const claims = [];
+    const claimed = [];
     try {
       for (const file of files.map(safeRelative)) {
-        const key = digest(file);
-        const lockPath = path.join(this.lockRoot, `${key}.lock`);
-        const handle = await open(lockPath, "wx").catch((error) => {
-          if (error?.code === "EEXIST") throw new Error(`CONFLICT_QUEUE:${file}`);
-          throw error;
+        const lease = await this.leaseRegistry.claim({
+          file,
+          taskId: String(worktree.taskId),
+          workspaceId: String(worktree.branch),
+          approvalId: this.approval.approvalId
         });
-        await handle.writeFile(`${worktree.taskId}\n${worktree.branch}\n${file}\n${this.approval.approvalId}\n`, "utf8");
-        await handle.close();
-        this.claims.set(lockPath, file);
-        claims.push({ file, lockPath });
+        this.claims.set(file, lease);
+        claimed.push(file);
       }
-      return claims.map(({ file }) => file);
+      return claimed;
     } catch (error) {
       await this.releaseClaims();
       throw error;
     }
+  }
+
+  async heartbeatClaims() {
+    assertWorkerApproval(this.approval, "R2");
+    const heartbeats = [];
+    for (const [file, lease] of this.claims) {
+      const next = await this.leaseRegistry.heartbeat(lease);
+      this.claims.set(file, next);
+      heartbeats.push({ file, leaseId: next.leaseId, state: next.state, heartbeatAt: next.heartbeatAt, expiresAt: next.expiresAt });
+    }
+    return heartbeats;
   }
 
   async diff(worktree) {
@@ -107,7 +118,7 @@ export class GitWorktreeManager {
   }
 
   async releaseClaims() {
-    for (const lockPath of this.claims.keys()) await unlink(lockPath).catch(() => {});
+    for (const lease of this.claims.values()) await this.leaseRegistry.release(lease).catch(() => {});
     this.claims.clear();
   }
 
