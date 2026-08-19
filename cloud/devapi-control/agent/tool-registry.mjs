@@ -77,11 +77,11 @@ const TOOLS = Object.freeze([
   {
     toolId: "git.worktree.create",
     namespace: "git",
-    description: "Task başına gerçek git worktree oluşturma politikası. Worktree manager sonraki lane'de bağlanacak.",
+    description: "Gerçek git worktree oluşturma, branch izolasyonu, diff evidence ve dosya bazlı single-writer conflict queue kaynağı.",
     riskClass: "R2",
     requiresApproval: true,
-    state: "UNAVAILABLE",
-    implementation: null
+    state: "SOURCE_READY",
+    implementation: "git-worktree-manager"
   },
   {
     toolId: "deploy.production",
