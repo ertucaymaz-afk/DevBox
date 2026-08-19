@@ -23,12 +23,13 @@ assert(html.includes("SOURCE_READY · PRODUCTION NOT_RUN"), "DEVAPI_MAIN_TRUTH_H
 assert(html.includes("Bounded Coding Executor"), "DEVAPI_MAIN_CODER_EXPLANATION");
 assert(html.includes("AŞAMA 2"), "DEVAPI_MAIN_MATURITY_STAGE");
 assert(html.includes("Bugünkü gerçek: DevAPI henüz “her işlemde kendi modelini eğiten” bir sistem değil."), "DEVAPI_MAIN_LEARNING_TRUTH");
+assert(html.includes("Bugün için kalıcı self-learning iddiası yok."), "DEVAPI_MAIN_LEARNING_FAQ_TRUTH");
 assert(html.includes("Failure Memory") && html.includes("Repository Knowledge Graph") && html.includes("Finding + Candidate Engine"), "DEVAPI_MAIN_EVOLUTION_EXPLANATION");
 assert(html.includes("05e05e5362d23d45e5dbae36a2223f6a1de74876"), "DEVAPI_MAIN_V5_HEAD_EVIDENCE");
 assert(html.includes("32257488498") && html.includes("96082516180") && html.includes("9366878739"), "DEVAPI_MAIN_V5_RUN_EVIDENCE");
 assert(html.includes("13 routes / 21 operations"), "DEVAPI_MAIN_CONTRACT_BASELINE");
 assert(!/production is live|production aktif|canonicalDomainsVerified=true/iu.test(html), "DEVAPI_MAIN_FAKE_PRODUCTION_COPY");
-assert(!/kendi kendine öğreniyor|self-learning verified/iu.test(html), "DEVAPI_MAIN_FAKE_LEARNING_COPY");
+assert(!/self-learning verified|kalıcı self-learning doğrulandı/iu.test(html), "DEVAPI_MAIN_FAKE_LEARNING_COPY");
 
 const sectionIds = ["nedir", "seviye", "akis", "ogrenme", "evrim", "kanit"];
 for (const id of sectionIds) assert(html.includes(`id="${id}"`), `DEVAPI_MAIN_SECTION:${id}`);
