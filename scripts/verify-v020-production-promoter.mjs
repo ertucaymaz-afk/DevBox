@@ -88,9 +88,12 @@ for (const [needle, id] of [
   ["node scripts/v020-vercel-runtime-scan.mjs", "runtime-scan-exec"],
   ["OUT_PUBLIC_STATE_CONTRACT", "workflow-public-state-contract"],
   ["OUT_PUBLIC_STATE_SANITIZATION", "workflow-live-sanitization-output"],
+  ["OUT_IDLE_ISOLATION", "workflow-idle-isolation-output"],
   ["OUT_COMMAND_IDEMPOTENCY", "workflow-idempotency-output"],
   ["OUT_RUNTIME_ERROR_SCAN", "workflow-runtime-output"],
   ["deploymentContract", "evidence-contract-section"],
+  ["idleIsolation: process.env.OUT_IDLE_ISOLATION", "evidence-idle-isolation-field"],
+  ["desktopIdleIsolation: process.env.OUT_IDLE_ISOLATION", "evidence-idle-isolation-proof"],
   ["PASS_RELEASE_EVIDENCE_CANDIDATE", "release-evidence-pass-state"],
   ["BLOCKED_CANARY_OR_RUNTIME", "release-evidence-blocked-state"],
   ["cloudCommandIdempotencyFaultInjection: 'PASS'", "evidence-static-idempotency-proof"],
@@ -128,9 +131,12 @@ if (!(secretGateIndex < installIndex && installIndex < sourceVerifyIndex && sour
 
 const canaryBlock = workflow.slice(canaryIndex, runtimeIndex);
 const runtimeBlock = workflow.slice(runtimeIndex, evidenceIndex);
+const finalGateBlock = workflow.slice(finalGateIndex);
 need(canaryBlock, "continue-on-error: true", "canary-evidence-preservation");
 need(runtimeBlock, "continue-on-error: true", "runtime-evidence-preservation");
-need(workflow.slice(finalGateIndex), '[[ "$CANARY_OUTCOME" == success ]]', "final-canary-outcome-gate");
-need(workflow.slice(finalGateIndex), '[[ "$RUNTIME_OUTCOME" == success ]]', "final-runtime-outcome-gate");
+need(finalGateBlock, '[[ "$CANARY_OUTCOME" == success ]]', "final-canary-outcome-gate");
+need(finalGateBlock, '[[ "$RUNTIME_OUTCOME" == success ]]', "final-runtime-outcome-gate");
+need(finalGateBlock, 'IDLE_ISOLATION: ${{ steps.canary.outputs.idle_isolation }}', "final-idle-isolation-env");
+need(finalGateBlock, '"$IDLE_ISOLATION"', "final-idle-isolation-pass-loop");
 
-console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean lineEndings=portable stagedSmokePromote=required rollback=verified-baseline publicStateContract=pass desktopCanary=live-ack runtimeScan=deployment-scoped idempotency=fault-injected evidenceArtifact=combined-secret-free finalGate=fail-closed");
+console.log("V020_PROMOTER_VERIFY_PASS projectCreate=rest secrets=sensitive-env jobSecrets=isolated processArgs=clean lineEndings=portable stagedSmokePromote=required rollback=verified-baseline publicStateContract=pass desktopCanary=live-ack idleIsolation=required runtimeScan=deployment-scoped idempotency=fault-injected evidenceArtifact=combined-secret-free finalGate=fail-closed");
