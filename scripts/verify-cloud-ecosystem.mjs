@@ -93,6 +93,10 @@ forbidText("devapiApp", 'sessionStorage.setItem("devbox.adminToken"', "devapi-ad
 requireText("devapiApp", 'token: ""', "devapi-admin-token-memory-only-state");
 requireText("devapiApp", "STAGE_LABELS", "devapi-human-stage-labels");
 requireText("devapiApp", "syncSnapshotFreshness", "devapi-snapshot-freshness-ui");
+requireText("devapiApp", "clearSnapshotView", "devapi-stale-snapshot-clear");
+requireText("devapiApp", "refreshGeneration", "devapi-refresh-generation-guard");
+requireText("devapiApp", "generation !== refreshGeneration", "devapi-refresh-race-reject");
+requireText("devapiApp", "clearSnapshotView({ clearCollections: true })", "devapi-error-collection-clear");
 requireText("devapiExperienceJs", 'ensureStylesheet("/experience-v2.css")', "devapi-experience-css-loader");
 requireText("devapiExperienceJs", "IntersectionObserver", "devapi-experience-bounded-observer");
 requireText("devapiExperienceJs", "prefers-reduced-motion", "devapi-experience-reduced-motion-js");

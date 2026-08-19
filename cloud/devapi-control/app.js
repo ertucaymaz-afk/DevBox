@@ -9,6 +9,7 @@ const state = {
   projects: [],
   timer: null
 };
+let refreshGeneration = 0;
 $("projectId").value = state.projectId;
 $("adminToken").value = "";
 
@@ -47,6 +48,32 @@ function setEmpty(id, message) {
   node.className = "empty";
   node.textContent = message;
   $(id).replaceChildren(node);
+}
+function clearSnapshotView({ clearCollections = false } = {}) {
+  state.current = null;
+  document.body.classList.remove("runtime-connected");
+  document.body.classList.add("runtime-stale");
+  setText("level", "—");
+  setText("stage", "Bağlantı bekleniyor");
+  setText("score", "—");
+  setText("coreProgress", "—");
+  setText("coreDetail", "22 faz / 3362 görev");
+  setText("openFindings", "—");
+  setText("blockingFindings", "blocking: —");
+  setText("gateState", "—");
+  setText("gateTime", "kanıt bekleniyor");
+  setText("heartbeat", "—");
+  setText("instance", "instance: —");
+  setText("enabledText", "state bekleniyor");
+  renderDomains({});
+  renderRuntime({});
+  renderFindings({});
+  renderGate(null);
+  renderLearnings([]);
+  if (clearCollections) {
+    renderCommands([]);
+    renderHistory([]);
+  }
 }
 
 async function api(path, options = {}) {
@@ -218,6 +245,7 @@ function render(data) {
   renderCommands(data.commands);
   renderHistory(data.history);
   if (!row) {
+    clearSnapshotView();
     showNotice("Bu projectId için cloud snapshot bulunamadı. DevBox masaüstü aynı control-plane endpoint ve token ile en az bir kez senkron olmalı.");
     return;
   }
@@ -249,9 +277,22 @@ function render(data) {
 
 async function refresh() {
   syncCredentials();
-  if (state.projectId.length < 8 || state.token.length < 32) return showNotice("Geçerli projectId ve en az 32 karakterlik admin token gerekli.");
-  try { render(await api(`/api/v1/state?projectId=${encodeURIComponent(state.projectId)}`)); }
-  catch (error) { showNotice(`Cloud state okunamadı: ${error instanceof Error ? error.message : String(error)}`); }
+  const projectId = state.projectId;
+  const token = state.token;
+  const generation = ++refreshGeneration;
+  if (projectId.length < 8 || token.length < 32) {
+    clearSnapshotView({ clearCollections: true });
+    return showNotice("Geçerli projectId ve en az 32 karakterlik admin token gerekli.");
+  }
+  try {
+    const data = await api(`/api/v1/state?projectId=${encodeURIComponent(projectId)}`);
+    if (generation !== refreshGeneration || state.projectId !== projectId || state.token !== token) return;
+    render(data);
+  } catch (error) {
+    if (generation !== refreshGeneration || state.projectId !== projectId || state.token !== token) return;
+    clearSnapshotView({ clearCollections: true });
+    showNotice(`Cloud state okunamadı: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 async function command(kind,payload={}) {
   syncCredentials();
@@ -278,6 +319,12 @@ function stopRefresh() {
   state.timer = null;
 }
 
+for (const id of ["projectId", "adminToken"]) {
+  $(id).addEventListener("input", () => {
+    refreshGeneration += 1;
+    clearSnapshotView({ clearCollections: true });
+  });
+}
 $("connect").addEventListener("click",()=>void refresh());
 $("refresh").addEventListener("click",()=>void refresh());
 $("discover").addEventListener("click",()=>void discoverProjects());
