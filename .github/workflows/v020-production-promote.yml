@@ -8,11 +8,15 @@ on:
     paths:
       - .github/workflows/v020-production-promote.yml
       - scripts/v020-production-promote.mjs
+      - scripts/verify-v020-production-promoter.mjs
+      - package.json
   pull_request:
     branches: [main]
     paths:
       - .github/workflows/v020-production-promote.yml
       - scripts/v020-production-promote.mjs
+      - scripts/verify-v020-production-promoter.mjs
+      - package.json
 
 permissions:
   contents: read
@@ -87,11 +91,12 @@ jobs:
       - name: Kilitli bağımlılıkları kur
         run: pnpm install --frozen-lockfile
 
-      - name: Source ve cloud kontratını tekrar doğrula
+      - name: Source ve production promoter kontratını tekrar doğrula
         run: |
           pnpm spec:verify
           pnpm evolution:verify
           pnpm cloud:verify
+          pnpm production:promoter:verify
           pnpm typecheck
           node --check scripts/v020-production-promote.mjs
 
@@ -109,7 +114,10 @@ jobs:
             echo "- Source SHA: \`${GITHUB_SHA}\`"
             echo "- DevAPI deployment: \`${{ steps.promote.outputs.devapi_deployment_url || 'BLOCKED' }}\`"
             echo "- DevAPI public-state HTTP: \`${{ steps.promote.outputs.devapi_public_state_status || 'BLOCKED' }}\`"
+            echo "- DevBox project: \`${{ steps.promote.outputs.devbox_project_id || 'BLOCKED' }}\`"
             echo "- DevBox deployment: \`${{ steps.promote.outputs.devbox_deployment_url || 'BLOCKED' }}\`"
+            echo "- DevBox verified product URL: \`${{ steps.promote.outputs.devbox_product_url || 'BLOCKED' }}\`"
             echo "- DevBox public-state proxy HTTP: \`${{ steps.promote.outputs.devbox_public_state_status || 'BLOCKED' }}\`"
+            echo "- Cross-site links: \`${{ steps.promote.outputs.cross_site_links || 'BLOCKED' }}\`"
             echo '- Production evidence yalnız desktop snapshot + ACK canary gerçek PASS olduktan sonra PASS yapılacaktır.'
           } >> "$GITHUB_STEP_SUMMARY"
