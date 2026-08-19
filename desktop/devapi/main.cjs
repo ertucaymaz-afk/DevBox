@@ -39,8 +39,8 @@ function manifestSnapshot() {
       path: manifestPath,
       deploymentState: parsed.deploymentState ?? 'NOT_RUN',
       canonicalDomainsVerified: parsed.canonicalDomainsVerified === true,
-      requiredSuffix: parsed.requiredSuffix ?? '.vercel.app',
-      sites: Array.isArray(parsed.sites) ? parsed.sites : []
+      requiredSuffix: parsed.domainPolicy?.requiredSuffix ?? '.vercel.app',
+      sites: Array.isArray(parsed.projects) ? parsed.projects : []
     };
   } catch (error) {
     return {
