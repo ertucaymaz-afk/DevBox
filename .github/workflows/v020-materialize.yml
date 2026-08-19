@@ -42,8 +42,14 @@ jobs:
       - name: Kilitli bağımlılıkları kur
         run: pnpm install --frozen-lockfile
 
-      - name: v0.1.20 ürün kaynaklarını fail-closed materialize et
-        run: node scripts/apply-v020-source-bundle.mjs
+      - name: Adaptif evolution track ve DB timing hardening uygula
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/apply-v020-evolution-tracks.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V020_EVOLUTION_TRACK_PATCH_FAILED' }
+          node scripts/apply-v020-db-test-timeout.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V020_DB_TEST_PATCH_FAILED' }
 
       - name: Diff bütünlüğünü doğrula
         shell: pwsh
@@ -67,21 +73,20 @@ jobs:
           $output | ForEach-Object { Write-Host $_ }
           if ($code -eq 0) { throw 'V020_PRODUCTION_GATE_FALSE_PASS' }
           $text = $output -join "`n"
-          if ($text -notmatch 'PRODUCTION_EVIDENCE_V13_FAIL') { throw 'V020_PRODUCTION_GATE_UNEXPECTED_FAILURE' }
+          if ($text -notmatch 'DEVBOX_PRODUCTION_V13_FAIL') { throw 'V020_PRODUCTION_GATE_UNEXPECTED_FAILURE' }
           if ($text -notmatch 'BLOCKED') { throw 'V020_PRODUCTION_GATE_BLOCKER_NOT_REPORTED' }
           Write-Host 'V020_PRODUCTION_GATE_EXPECTED_BLOCKED PASS'
 
-      - name: Doğrulanmış ürün kaynaklarını branch'e yaz
+      - name: Doğrulanmış structural ürün kaynaklarını branch'e yaz
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           git config user.name 'devbox-v020-materializer'
           git config user.email 'actions@users.noreply.github.com'
-          git add README.md package.json cloud docs scripts/verify-cloud-ecosystem.mjs scripts/verify-api-evolution-v12.mjs scripts/verify-api-evolution-v13.mjs scripts/verify-production-evidence-v13.mjs src/shared/contracts.ts src/main/services/api-evolution-service.ts src/main/services/api-evolution-v13-tracks.test.ts src/main/services/database.test.ts
-          git reset -- scripts/apply-v020-source-bundle.mjs scripts/apply-v020-evolution-tracks.mjs .github/workflows/v020-materialize.yml 2>$null
+          git add src/shared/contracts.ts src/main/services/api-evolution-service.ts src/main/services/database.test.ts
           if (-not (git diff --cached --quiet)) {
-            git commit -m 'DevBox v0.1.20 source, sites, v13 and evidence contract'
+            git commit -m 'v0.1.20 adaptive evolution tracks and deterministic DB test budget'
             git push origin HEAD:codex/v0.1.20-vercel-production-modernization
           } else {
-            Write-Host 'V020_PRODUCT_ALREADY_MATERIALIZED'
+            Write-Host 'V020_STRUCTURAL_PRODUCT_ALREADY_MATERIALIZED'
           }
