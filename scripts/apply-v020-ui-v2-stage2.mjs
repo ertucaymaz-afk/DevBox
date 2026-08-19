@@ -38,12 +38,7 @@ await replaceExact(
   `    IDLE: "BEKLİYOR",\n    ONLINE: "ÇEVRİM İÇİ",`,
   `    IDLE: "BEKLİYOR",\n    QUEUEING: "KUYRUĞA ALINIYOR",\n    PREPARING: "HAZIRLANIYOR",\n    PROVIDER_CHECK: "SAĞLAYICI DOĞRULANIYOR",\n    AUTH_CHECK: "OTURUM DOĞRULANIYOR",\n    MODEL_ATTEMPT: "MODEL HAZIRLANIYOR",\n    PLANNING: "PLANLANIYOR",\n    INSPECTING: "KAYNAK İNCELENİYOR",\n    EDITING: "KODLANIYOR",\n    RUNNING_COMMAND: "KOMUT YÜRÜTÜLÜYOR",\n    TESTING: "TEST EDİLİYOR",\n    VERIFYING: "DOĞRULANIYOR",\n    REVIEWING: "KANIT İNCELENİYOR",\n    WAITING: "BEKLİYOR",\n    SETTLING: "SONUÇLANDIRILIYOR",\n    ONLINE: "ÇEVRİM İÇİ",`
 );
-await replaceExact(
-  "src/renderer/AdvancedViews.tsx",
-  "phase-progress-human-stage",
-  `? \`${campaign.spec.currentPhaseId}/22 · G\${campaign.spec.currentTaskIndex ?? "—"}/\${campaign.spec.currentPhaseTaskCount ?? "—"} · \${campaign.runtime.stage}\``,
-  `? \`${campaign.spec.currentPhaseId}/22 · G\${campaign.spec.currentTaskIndex ?? "—"}/\${campaign.spec.currentPhaseTaskCount ?? "—"} · \${evolutionStageLabel(campaign.runtime.stage)}\``
-);
+await replaceExact("src/renderer/AdvancedViews.tsx", "phase-progress-human-stage", '${campaign.runtime.stage}`', '${evolutionStageLabel(campaign.runtime.stage)}`');
 await replaceExact("src/renderer/AdvancedViews.tsx", "evolution-version-copy", `KALICI GELİŞİM KONTROL DÜZLEMİ · V9 ADAPTIVE`, `KALICI GELİŞİM KONTROL DÜZLEMİ · ADAPTİF`);
 
 await replaceExact(
