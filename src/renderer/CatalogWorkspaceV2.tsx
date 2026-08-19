@@ -14,25 +14,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CatalogItem, CatalogSnapshot } from "../shared/contracts";
+import { catalogCanRunTools, catalogHasFailure, catalogRuntimeClass, catalogRuntimeLabel, catalogSourceVerified, catalogTrustClass } from "./catalog-view-state";
 
 function failure(error: unknown): string {
   if (error instanceof Error) return error.message.replace(/^Error invoking remote method '[^']+':\s*/iu, "");
   return String(error);
-}
-
-function runtimeLabel(item: CatalogItem): string {
-  if (item.runtimeState === "RUNNING") return "Çalışıyor";
-  if (item.runtimeState === "INSTALLED") return "Kurulu";
-  if (item.runtimeState === "FAILED") return "Çalışma hatası";
-  if (item.runtimeState === "SOURCE_ONLY") return "Kaynak hazır";
-  return "Kurulu değil";
-}
-
-function runtimeClass(item: CatalogItem): string {
-  if (item.runtimeState === "RUNNING") return "ready";
-  if (item.runtimeState === "INSTALLED") return "installed";
-  if (item.runtimeState === "FAILED" || item.sourceState === "HASH_FAILED" || item.doctorState === "FAILED") return "failed";
-  return "source";
 }
 
 function trustLabel(item: CatalogItem): string {
@@ -40,12 +26,6 @@ function trustLabel(item: CatalogItem): string {
   if (item.trustClass === "LOCAL_HASH_VERIFIED") return "SHA-256 doğrulanmış yerel kaynak";
   if (item.trustClass === "LOCAL_SIDELOAD") return "Yerel sideload";
   return "Dağıtıma kapalı özel kaynak";
-}
-
-function trustClass(item: CatalogItem): string {
-  if (["MANAGED_SIGNED_CATALOG", "LOCAL_HASH_VERIFIED"].includes(item.trustClass) && item.sourceState !== "HASH_FAILED") return "verified";
-  if (item.sourceState === "HASH_FAILED" || item.doctorState === "FAILED" || item.runtimeState === "FAILED") return "blocked";
-  return "source";
 }
 
 function doctorLabel(item: CatalogItem): string {
@@ -102,9 +82,9 @@ export function CatalogWorkspaceV2(): ReactNode {
     });
   }, [catalog?.items, query, section]);
 
-  const verifiedPlugins = catalog?.items.some((item) => item.kind === "plugin" && ["HASH_VERIFIED", "BUNDLE_VERIFIED"].includes(item.sourceState)) ?? false;
-  const installedPlugins = catalog?.items.filter((item) => item.kind === "plugin" && ["INSTALLED", "RUNNING"].includes(item.runtimeState)).length ?? 0;
-  const runningPlugins = catalog?.items.filter((item) => item.kind === "plugin" && item.runtimeState === "RUNNING").length ?? 0;
+  const verifiedPlugins = catalog?.items.some((item) => item.kind === "plugin" && catalogSourceVerified(item) && !catalogHasFailure(item)) ?? false;
+  const installedPlugins = catalog?.items.filter((item) => item.kind === "plugin" && !catalogHasFailure(item) && ["INSTALLED", "RUNNING"].includes(item.runtimeState)).length ?? 0;
+  const runningPlugins = catalog?.items.filter((item) => item.kind === "plugin" && catalogCanRunTools(item)).length ?? 0;
   const currentRoot = section === "skill" ? catalog?.skillRoot : catalog?.pluginRoot;
 
   return <section className="advanced-page catalog-workspace catalog-workspace-v2">
@@ -114,7 +94,7 @@ export function CatalogWorkspaceV2(): ReactNode {
         <h1>Doğrulanmış araç merkezi</h1>
         <p>Kaynağı, lisansı, bütünlüğü, izinleri ve çalışma sağlığı gerçek runtime verisinden gösterir. Teknik kanıt ayrıntıda kalır; ana yüzey yalnız karar vermek için gereken bilgiyi öne çıkarır.</p>
       </div>
-      <button onClick={() => void reload()} disabled={Boolean(busy)}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yeniden denetle</button>
+      <button onClick={() => void runCatalogAction("reload", () => window.devbox.inspectCatalog())} disabled={Boolean(busy)}><RefreshCw className={busy === "reload" ? "spin" : ""} size={14} /> Yeniden denetle</button>
     </div>
 
     <div className="catalog-v2-overview" aria-label="Katalog özeti">
@@ -153,17 +133,17 @@ export function CatalogWorkspaceV2(): ReactNode {
 }
 
 function CatalogCard({ item }: { item: CatalogItem }): ReactNode {
-  return <article className={`catalog-v2-card ${runtimeClass(item)}`}>
+  return <article className={`catalog-v2-card ${catalogRuntimeClass(item)}`}>
     <header className="catalog-v2-card-head">
       <div className="catalog-v2-icon">{item.kind === "skill" ? <Sparkles size={17} /> : <PlugZap size={17} />}</div>
       <div className="catalog-v2-title"><strong>{item.productName}</strong><span>{item.publisher} · v{item.version}</span></div>
-      <span className={`catalog-state ${runtimeClass(item)}`}>{runtimeLabel(item)}</span>
+      <span className={`catalog-state ${catalogRuntimeClass(item)}`}>{catalogRuntimeLabel(item)}</span>
     </header>
 
     <p className="catalog-v2-description">{item.detail}</p>
 
     <div className="catalog-v2-badges">
-      <span className={`catalog-trust ${trustClass(item)}`}><ShieldCheck size={12} /> {trustLabel(item)}</span>
+      <span className={`catalog-trust ${catalogTrustClass(item)}`}><ShieldCheck size={12} /> {trustLabel(item)}</span>
       <span className={item.doctorState === "PASSED" ? "positive" : item.doctorState === "FAILED" ? "negative" : "neutral"}>{doctorLabel(item)}</span>
     </div>
 
@@ -189,7 +169,7 @@ function CatalogCard({ item }: { item: CatalogItem }): ReactNode {
       {item.evidence.length > 0 && <section><strong>Kanıt</strong><div className="catalog-v2-evidence">{item.evidence.map((line) => <code key={line}>{line}</code>)}</div></section>}
     </details>
 
-    {item.runtimeState === "RUNNING" && item.tools.length > 0 && <CatalogToolRunnerV2 pluginId={item.id} tools={item.tools} />}
+    {catalogCanRunTools(item) && item.tools.length > 0 && <CatalogToolRunnerV2 pluginId={item.id} tools={item.tools} />}
   </article>;
 }
 
