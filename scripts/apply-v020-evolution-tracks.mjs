@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 const contractPath = "src/shared/contracts.ts";
 const servicePath = "src/main/services/api-evolution-service.ts";
 
+function lf(value) { return value.replace(/\r\n/gu, "\n"); }
 function replaceOnce(source, before, after, id) {
   if (source.includes(after)) return source;
   const first = source.indexOf(before);
@@ -11,13 +12,13 @@ function replaceOnce(source, before, after, id) {
   return source.slice(0, first) + after + source.slice(first + before.length);
 }
 
-let contracts = await readFile(contractPath, "utf8");
+let contracts = lf(await readFile(contractPath, "utf8"));
 const oldEnum = 'export const EvolutionTrackSchema = z.enum(["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain"]);';
 const newEnum = 'export const EvolutionTrackSchema = z.enum(["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain", "cloud-continuity", "deployment-safety", "public-api-contract", "command-delivery", "disaster-recovery", "database-performance", "site-performance", "protocol-compatibility", "secret-rotation", "dependency-provenance"]);';
 contracts = replaceOnce(contracts, oldEnum, newEnum, "evolution-track-enum");
 await writeFile(contractPath, contracts, "utf8");
 
-let service = await readFile(servicePath, "utf8");
+let service = lf(await readFile(servicePath, "utf8"));
 const oldTracks = 'const TRACKS: readonly EvolutionTrack[] = ["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain"];';
 const newTracks = 'const TRACKS: readonly EvolutionTrack[] = ["research", "architecture", "api", "coding", "design", "quality", "security", "release", "performance", "observability", "accessibility", "integrations", "documentation", "supply-chain", "cloud-continuity", "deployment-safety", "public-api-contract", "command-delivery", "disaster-recovery", "database-performance", "site-performance", "protocol-compatibility", "secret-rotation", "dependency-provenance"];';
 service = replaceOnce(service, oldTracks, newTracks, "track-score-list");
@@ -39,4 +40,4 @@ const expanded = `  { track: "documentation", title: "Gerçeklik ve işletilebil
 ];`;
 service = replaceOnce(service, marker, expanded, "adaptive-focus-expansion");
 await writeFile(servicePath, service, "utf8");
-console.log("V020_EVOLUTION_TRACKS_PATCH_PASS tracks=24 adaptiveFocus=expanded");
+console.log("V020_EVOLUTION_TRACKS_PATCH_PASS tracks=24 adaptiveFocus=expanded lineEndings=LF");
