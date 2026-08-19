@@ -389,6 +389,7 @@ await waitFor("devbox-canonical-product-links", `${devboxProductOrigin}/api/prod
 });
 const devboxProxyProbe = await waitFor("devbox-canonical-public-state", `${devboxProductOrigin}/api/public-state`, verifyProxyPublicState(publicProbe.status), 12);
 if (devboxProxyProbe.status !== stagedDevboxProxy.status) fail("devbox-proxy-stage-production-drift", `${stagedDevboxProxy.status}!=${devboxProxyProbe.status}`);
+const publicStateSanitizationState = publicProbe.status === 200 ? "PASS" : "PENDING_DESKTOP_SNAPSHOT";
 
 if (githubOutput) {
   await appendFile(githubOutput, [
@@ -403,10 +404,11 @@ if (githubOutput) {
     `devbox_product_url=${devboxProductOrigin}`,
     `devbox_rollback_id=${devboxRollbackCandidateId}`,
     `devbox_public_state_status=${devboxProxyProbe.status}`,
-    `public_state_sanitization=PASS`,
+    `public_state_contract=PASS`,
+    `public_state_sanitization=${publicStateSanitizationState}`,
     `cross_site_links=PASS`,
     `product_version=${version}`
   ].join("\n") + "\n", "utf8");
 }
 
-console.log(`V020_PRODUCTION_PROMOTE_PARTIAL_PASS version=${version} devapi=${devapiStage.id} devapiRollback=${devapiRollbackCandidateId} devbox=${devboxFinal.id} devboxRollback=${devboxRollbackCandidateId} stagedSmoke=pass crossLinks=pass proxy=verified desktopCanary=pending`);
+console.log(`V020_PRODUCTION_PROMOTE_PARTIAL_PASS version=${version} devapi=${devapiStage.id} devapiRollback=${devapiRollbackCandidateId} devbox=${devboxFinal.id} devboxRollback=${devboxRollbackCandidateId} stagedSmoke=pass publicStateContract=pass publicStateSanitization=${publicStateSanitizationState} crossLinks=pass proxy=verified desktopCanary=pending`);
