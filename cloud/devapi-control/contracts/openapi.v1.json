@@ -1,0 +1,53 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DevAPI Control Plane",
+    "version": "0.1.20",
+    "description": "DevAPI mevcut control-plane route'ları ve autonomous-engineering source foundation için truth-first contract baseline."
+  },
+  "servers": [{ "url": "https://devapi-virid.vercel.app" }],
+  "paths": {
+    "/api/v1/agent-capabilities": {
+      "get": {
+        "operationId": "getAgentCapabilities",
+        "summary": "Autonomous engineering capability truth state",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": { "description": "Source/runtime capability states" },
+          "401": { "description": "Unauthorized" },
+          "503": { "description": "Control plane unconfigured" }
+        }
+      }
+    },
+    "/api/v1/commands": {
+      "get": { "operationId": "listDesktopCommands", "summary": "List commands for authenticated desktop", "security": [{ "desktopSignature": [] }], "responses": { "200": { "description": "Commands" }, "401": { "description": "Unauthorized" } } },
+      "post": { "operationId": "createDesktopCommand", "summary": "Create allow-listed command", "security": [{ "adminToken": [] }], "responses": { "201": { "description": "Created" }, "400": { "description": "Invalid command" }, "401": { "description": "Unauthorized" } } },
+      "patch": { "operationId": "ackDesktopCommand", "summary": "Acknowledge command execution", "security": [{ "desktopSignature": [] }], "responses": { "200": { "description": "Acknowledged" }, "400": { "description": "Invalid acknowledgement" }, "401": { "description": "Unauthorized" }, "404": { "description": "Command not found" } } }
+    },
+    "/api/v1/health": {
+      "get": { "operationId": "getHealth", "summary": "Control-plane configuration health", "responses": { "200": { "description": "Configured" }, "503": { "description": "Unconfigured" } } }
+    },
+    "/api/v1/product-links": {
+      "get": { "operationId": "getProductLinks", "summary": "Sanitized public product origins", "responses": { "200": { "description": "Configured public links" }, "503": { "description": "Links unconfigured" } } }
+    },
+    "/api/v1/projects": {
+      "get": { "operationId": "listProjects", "summary": "List control-plane projects", "security": [{ "adminToken": [] }], "responses": { "200": { "description": "Projects" }, "401": { "description": "Unauthorized" }, "503": { "description": "Database unconfigured" } } }
+    },
+    "/api/v1/public-state": {
+      "get": { "operationId": "getPublicState", "summary": "Sanitized project state", "responses": { "200": { "description": "Sanitized state" }, "404": { "description": "Project not found" }, "409": { "description": "Project selection ambiguous" }, "503": { "description": "Control plane unconfigured" } } },
+      "options": { "operationId": "optionsPublicState", "summary": "Public-state CORS preflight", "responses": { "204": { "description": "No content" } } }
+    },
+    "/api/v1/snapshot": {
+      "post": { "operationId": "saveSnapshot", "summary": "Persist authenticated desktop snapshot", "security": [{ "desktopSignature": [] }], "responses": { "202": { "description": "Accepted" }, "400": { "description": "Invalid snapshot" }, "401": { "description": "Unauthorized" }, "503": { "description": "Database/auth unconfigured" } } }
+    },
+    "/api/v1/state": {
+      "get": { "operationId": "getProjectState", "summary": "Read authenticated project state", "security": [{ "adminToken": [] }], "responses": { "200": { "description": "Project state" }, "400": { "description": "Invalid project id" }, "401": { "description": "Unauthorized" }, "503": { "description": "Database unconfigured" } } }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "adminToken": { "type": "apiKey", "in": "header", "name": "authorization" },
+      "desktopSignature": { "type": "apiKey", "in": "header", "name": "x-devbox-signature" }
+    }
+  }
+}
