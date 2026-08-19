@@ -192,9 +192,10 @@ for (const [needle, id] of [
   ['writeFile("cloud/production-evidence.json"', "finalizer-evidence-write"],
   ['writeFile("cloud/product-links.json"', "finalizer-links-write"]
 ]) need(finalizer, needle, id);
-forbid(finalizer, "DEVBOX_CONTROL_PLANE_TOKEN", "finalizer-desktop-secret-forbidden");
-forbid(finalizer, "DEVBOX_CONTROL_ADMIN_TOKEN", "finalizer-admin-secret-forbidden");
-forbid(finalizer, "VERCEL_TOKEN", "finalizer-vercel-secret-forbidden");
+forbid(finalizer, "process.env.DEVBOX_CONTROL_PLANE_TOKEN", "finalizer-desktop-secret-read-forbidden");
+forbid(finalizer, "process.env.DEVBOX_CONTROL_ADMIN_TOKEN", "finalizer-admin-secret-read-forbidden");
+forbid(finalizer, "process.env.VERCEL_TOKEN", "finalizer-vercel-secret-read-forbidden");
+forbid(finalizer, "process.env.DATABASE_URL", "finalizer-database-secret-read-forbidden");
 
 need(productionVerifier, 'promotion.idleIsolation !== "PASS"', "production-verifier-idle-isolation");
 need(productionVerifier, 'neon.runtimeBinding !== "PASS"', "production-verifier-runtime-db-binding");
