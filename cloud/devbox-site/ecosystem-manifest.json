@@ -1,12 +1,13 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "canonicalOrigin": "https://devbox.vercel.app",
   "truthPolicy": {
     "fakeReady": false,
     "productionStateRequiresLiveEvidence": true,
     "sourceAndProductionStatesAreSeparate": true,
     "publicStateHeader": "x-devbox-public-state",
-    "publicStateTrustedValue": "sanitized-proxy"
+    "publicStateTrustedValue": "sanitized-proxy",
+    "visualPassRequiresBrowserEvidence": true
   },
   "products": [
     {
@@ -42,10 +43,12 @@
     { "id": "diagnostics", "path": "/devapi-diagnostics", "title": "Diagnostics", "type": "devapi" }
   ],
   "researchSources": [
-    { "name": "Magic UI", "license": "MIT", "usage": "interaction-pattern-research" },
-    { "name": "shadcn/ui", "license": "MIT", "usage": "component-architecture-research" },
-    { "name": "Lucide", "license": "ISC", "usage": "icon-system-reference" },
-    { "name": "Motion", "license": "MIT", "usage": "animation-performance-reference" },
-    { "name": "Kibo UI", "license": "MIT", "usage": "accessible-composition-reference" }
+    { "name": "Magic UI", "repository": "magicuidesign/magicui", "license": "MIT", "usage": "interaction-pattern-research", "runtimeDependency": false },
+    { "name": "shadcn/ui", "repository": "shadcn-ui/ui", "license": "MIT", "usage": "component-architecture-research", "runtimeDependency": false },
+    { "name": "Lucide", "repository": "lucide-icons/lucide", "license": "ISC; Feather-derived icon subset MIT", "usage": "primary-semantic-icon-reference", "runtimeDependency": false, "note": "Curated SVG use only on the static portal; do not vendor the whole icon set." },
+    { "name": "Tabler Icons", "repository": "tabler/tabler-icons", "license": "MIT", "usage": "secondary-icon-coverage-candidate", "runtimeDependency": false, "note": "Use only selected local SVGs if Lucide coverage is insufficient." },
+    { "name": "Motion", "repository": "motiondivision/motion", "license": "MIT", "usage": "animation-performance-reference", "runtimeDependency": false },
+    { "name": "Kibo UI", "repository": "shadcnblocks/kibo", "license": "MIT", "usage": "accessible-composition-reference", "runtimeDependency": false },
+    { "name": "Microsoft Playwright", "repository": "microsoft/playwright", "license": "Apache-2.0", "usage": "44-case-browser-visual-evidence", "runtimeDependency": false, "ciOnly": true, "exactPackage": "@playwright/test@1.62.1" }
   ]
 }
