@@ -1,19 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="DevAPI">
   <defs>
-    <linearGradient id="bg" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FF7A1A"/>
-      <stop offset="0.52" stop-color="#FF6A00"/>
+    <linearGradient id="orange" x1="180" y1="120" x2="820" y2="890" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF8A2A"/>
+      <stop offset="0.48" stop-color="#FF6A00"/>
       <stop offset="1" stop-color="#E83A00"/>
     </linearGradient>
-    <linearGradient id="glass" x1="256" y1="220" x2="768" y2="804" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFFFFF" stop-opacity="0.98"/>
-      <stop offset="1" stop-color="#FFF4EA" stop-opacity="0.9"/>
-    </linearGradient>
   </defs>
-  <rect x="32" y="32" width="960" height="960" rx="236" fill="#17191D"/>
-  <rect x="74" y="74" width="876" height="876" rx="210" fill="url(#bg)"/>
-  <path d="M260 248h250c152 0 266 102 266 264S662 776 510 776H260V248Zm166 142v244h77c70 0 111-43 111-122s-41-122-111-122h-77Z" fill="url(#glass)"/>
-  <circle cx="773" cy="274" r="48" fill="#17191D"/>
-  <circle cx="773" cy="274" r="20" fill="#FFFFFF"/>
-  <path d="M720 740h112" stroke="#17191D" stroke-width="34" stroke-linecap="round"/>
+  <rect x="44" y="44" width="936" height="936" rx="270" fill="#232322"/>
+  <rect x="104" y="104" width="816" height="816" rx="232" fill="url(#orange)"/>
+  <path d="M260 246h238c154 0 266 101 266 266S652 778 498 778H260V246Zm168 146v240h66c67 0 105-41 105-120s-38-120-105-120h-66Z" fill="#FFFFFF"/>
+  <path d="M704 215 350 812" stroke="#232322" stroke-width="66" stroke-linecap="round" opacity="0.96"/>
+  <path d="M691 243 376 775" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" opacity="0.82"/>
 </svg>
