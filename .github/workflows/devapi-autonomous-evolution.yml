@@ -14,6 +14,7 @@ on:
       - scripts/devapi-provider-smoke.mjs
       - scripts/devapi-reviewer-smoke.mjs
       - scripts/devapi-db-runtime-smoke.mjs
+      - scripts/devapi-vercel-credential-state.mjs
       - scripts/devapi-agents-supply-chain.mjs
       - scripts/verify-devapi-sites-v1.mjs
       - scripts/verify-devapi-autonomous-v1.mjs
@@ -40,12 +41,14 @@ concurrency:
 
 jobs:
   verify:
-    name: dependency + task + worker + worktree + browser + planner + reviewer + db + contract + sites truth gate
+    name: dependency + task + worker + worktree + browser + planner + reviewer + db + sites truth gate
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       DATABASE_URL: ${{ secrets.DEVBOX_DATABASE_URL }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      DEVAPI_VERCEL_SCOPE: ${{ secrets.DEVAPI_VERCEL_SCOPE }}
       DEVAPI_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Exact source checkout
@@ -102,6 +105,7 @@ jobs:
             scripts/devapi-provider-smoke.mjs \
             scripts/devapi-reviewer-smoke.mjs \
             scripts/devapi-db-runtime-smoke.mjs \
+            scripts/devapi-vercel-credential-state.mjs \
             scripts/verify-devapi-sites-v1.mjs \
             scripts/verify-devapi-autonomous-v3.mjs; do node --check "$file"; done
 
@@ -125,6 +129,9 @@ jobs:
 
       - name: Database runtime smoke or explicit external blocker
         run: node scripts/devapi-db-runtime-smoke.mjs
+
+      - name: Vercel production credential truth
+        run: node scripts/devapi-vercel-credential-state.mjs
 
       - name: Worker/browser security gate
         run: node scripts/verify-devapi-worker-security.mjs
@@ -162,6 +169,7 @@ jobs:
             outputs/devapi-provider-smoke.json
             outputs/devapi-reviewer-smoke.json
             outputs/devapi-db-runtime-smoke.json
+            outputs/devapi-vercel-credential-state.json
             outputs/devapi-agents-supply-chain.json
             outputs/devapi-npm-audit.json
             outputs/devapi-npm-ls.txt
