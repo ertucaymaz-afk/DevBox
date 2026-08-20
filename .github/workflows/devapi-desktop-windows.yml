@@ -52,7 +52,7 @@ jobs:
           node --check desktop/devapi/renderer/app.js
           if (-not (Test-Path 'desktop/devapi/build/icon.svg')) { throw 'DEVAPI_DESKTOP_ICON_MISSING' }
           $package = Get-Content desktop/devapi/package.json -Raw | ConvertFrom-Json
-          if ($package.version -ne '0.7.0') { throw "DEVAPI_DESKTOP_VERSION_UNEXPECTED:$($package.version)" }
+          if ($package.version -ne '0.7.1') { throw "DEVAPI_DESKTOP_VERSION_UNEXPECTED:$($package.version)" }
           if ($package.main -ne 'bootstrap.cjs') { throw 'DEVAPI_DESKTOP_BOOTSTRAP_NOT_CANONICAL' }
           $renderer = Get-Content desktop/devapi/renderer/index.html -Raw
           $rendererJs = Get-Content desktop/devapi/renderer/app.js -Raw
@@ -64,14 +64,21 @@ jobs:
           if ($rendererJs -notmatch 'createAgentTask') { throw 'DEVAPI_DESKTOP_AGENT_TASK_UI_MISSING' }
           if ($rendererJs -notmatch 'approveAgentCandidate') { throw 'DEVAPI_DESKTOP_APPROVAL_UI_MISSING' }
           if ($rendererJs -notmatch 'applyAgentTaskToProject') { throw 'DEVAPI_DESKTOP_PROJECT_APPLY_UI_MISSING' }
+          if ($preload -notmatch 'devapi:agent-self-test') { throw 'DEVAPI_DESKTOP_SELFTEST_IPC_MISSING' }
           if ($preload -notmatch 'devapi:agent-test-provider') { throw 'DEVAPI_DESKTOP_PROVIDER_IPC_MISSING' }
           if ($preload -notmatch 'devapi:agent-approve-candidate') { throw 'DEVAPI_DESKTOP_APPROVAL_IPC_MISSING' }
           if ($runtime -notmatch 'node:sqlite') { throw 'DEVAPI_DESKTOP_SQLITE_RUNTIME_MISSING' }
           if ($runtime -notmatch 'safeStorage') { throw 'DEVAPI_DESKTOP_SAFE_STORAGE_MISSING' }
           if ($runtime -notmatch 'https://api.openai.com/v1/responses') { throw 'DEVAPI_DESKTOP_RESPONSES_API_MISSING' }
           if ($runtime -notmatch "type: 'web_search'") { throw 'DEVAPI_DESKTOP_WEB_SEARCH_MISSING' }
+          if ($runtime -notmatch "type: 'json_schema'") { throw 'DEVAPI_DESKTOP_STRUCTURED_OUTPUT_MISSING' }
+          if ($runtime -notmatch 'strict: true') { throw 'DEVAPI_DESKTOP_STRUCTURED_OUTPUT_STRICT_MISSING' }
+          if ($runtime -notmatch 'linkedAbort') { throw 'DEVAPI_DESKTOP_CANCEL_LINK_MISSING' }
           if ($runtime -notmatch "worktree', 'add'") { throw 'DEVAPI_DESKTOP_WORKTREE_MISSING' }
+          if ($runtime -notmatch "worktree', 'remove'") { throw 'DEVAPI_DESKTOP_WORKTREE_CLEANUP_MISSING' }
           if ($runtime -notmatch 'beforeSha256') { throw 'DEVAPI_DESKTOP_SHA_GUARD_MISSING' }
+          if ($runtime -notmatch 'PROJECT_TEMP_SHA_FAILED') { throw 'DEVAPI_DESKTOP_ATOMIC_APPLY_TEMP_GUARD_MISSING' }
+          if ($runtime -notmatch 'automatic: true') { throw 'DEVAPI_DESKTOP_AUTO_ROLLBACK_MISSING' }
           if ($runtime -notmatch 'Independent Reviewer') { throw 'DEVAPI_DESKTOP_INDEPENDENT_REVIEWER_MISSING' }
           if ($runtime -match "spawnCapture\('git',\s*\['push'") { throw 'DEVAPI_DESKTOP_GIT_PUSH_EXECUTION_PRESENT' }
           if ($runtime -match "spawnCapture\('npm',\s*\['publish'") { throw 'DEVAPI_DESKTOP_NPM_PUBLISH_EXECUTION_PRESENT' }
@@ -80,7 +87,7 @@ jobs:
           if ($manifest.domainPolicy.customComDomains -ne $false) { throw 'DEVAPI_DESKTOP_CUSTOM_DOMAIN_POLICY_INVALID' }
           if ($manifest.canonicalDomainsVerified -ne $false) { throw 'DEVAPI_DESKTOP_CANONICAL_TRUTH_DRIFT' }
           if (@($manifest.projects).Count -ne 5) { throw 'DEVAPI_DESKTOP_SURFACE_MANIFEST_COUNT_INVALID' }
-          Write-Host 'DEVAPI_DESKTOP_SOURCE_PASS version=0.7.0 surfaces=5 agentRuntime=responses sqlite=node:sqlite secretStore=safeStorage projectPicker=real approval=human worktree=isolated reviewer=independent rollback=sha-guarded productionWrite=denied truth=fail-closed'
+          Write-Host 'DEVAPI_DESKTOP_SOURCE_PASS version=0.7.1 surfaces=5 responses=structured-json-schema webSearch=source-ready sqlite=node:sqlite secretStore=safeStorage cancellation=linked worktree=isolated-cleanup reviewer=independent apply=atomic-sha rollback=automatic+manual productionWrite=denied truth=fail-closed'
 
       - name: Stage five bundled DevAPI surfaces
         shell: pwsh
@@ -128,7 +135,7 @@ jobs:
           Push-Location desktop/devapi
           try { npx --yes electron-builder@26.15.3 --config electron-builder.yml --win nsis --x64 } finally { Pop-Location }
 
-      - name: Packaged app and local agent runtime health smoke
+      - name: Packaged app and functional local agent runtime smoke
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -141,7 +148,7 @@ jobs:
           $env:DEVAPI_AGENT_SMOKE_OUTPUT = $agentSmoke
           $process = Start-Process -FilePath $app -ArgumentList '--disable-gpu' -PassThru
           try {
-            for ($i=0; $i -lt 40 -and (-not (Test-Path $smoke) -or -not (Test-Path $agentSmoke)); $i++) { Start-Sleep -Milliseconds 500 }
+            for ($i=0; $i -lt 50 -and (-not (Test-Path $smoke) -or -not (Test-Path $agentSmoke)); $i++) { Start-Sleep -Milliseconds 500 }
             if ($process.HasExited) { throw "DEVAPI_DESKTOP_LAUNCH_FAILED exit=$($process.ExitCode)" }
             if (-not (Test-Path $smoke)) { throw 'DEVAPI_DESKTOP_HEALTH_EVIDENCE_MISSING' }
             if (-not (Test-Path $agentSmoke)) { throw 'DEVAPI_AGENT_RUNTIME_HEALTH_EVIDENCE_MISSING' }
@@ -151,8 +158,10 @@ jobs:
             if ($health.health.integrity.state -ne 'VERIFIED') { throw 'DEVAPI_DESKTOP_INTEGRITY_RUNTIME_FAILED' }
             if ($agent.state -ne 'AGENT_LOCAL_RUNTIME_VERIFIED') { throw "DEVAPI_AGENT_LOCAL_RUNTIME_FAILED:$($agent.state)" }
             if ($agent.health.sqlite -ne 'RUNTIME_VERIFIED') { throw 'DEVAPI_AGENT_SQLITE_RUNTIME_FAILED' }
+            if ($agent.selfTest.state -ne 'RUNTIME_VERIFIED') { throw 'DEVAPI_AGENT_SELFTEST_FAILED' }
+            foreach ($check in @($agent.selfTest.checks)) { if ($check.state -ne 'PASS') { throw "DEVAPI_AGENT_SELFTEST_CHECK_FAILED:$($check.id)" } }
             if ($agent.health.provider.state -ne 'UNCONFIGURED') { throw "DEVAPI_AGENT_PROVIDER_CI_TRUTH_INVALID:$($agent.health.provider.state)" }
-            Write-Host "DEVAPI_DESKTOP_PACKAGED_HEALTH_PASS checks=$(@($health.health.checks).Count) integrity=$($health.health.integrity.verified)/$($health.health.integrity.entries) sqlite=$($agent.health.sqlite) provider=$($agent.health.provider.state)"
+            Write-Host "DEVAPI_DESKTOP_PACKAGED_HEALTH_PASS checks=$(@($health.health.checks).Count) integrity=$($health.health.integrity.verified)/$($health.health.integrity.entries) sqlite=$($agent.health.sqlite) selfTest=$($agent.selfTest.state) provider=$($agent.health.provider.state)"
           } finally {
             Remove-Item Env:DEVAPI_SMOKE_OUTPUT,Env:DEVAPI_AGENT_SMOKE_OUTPUT -ErrorAction SilentlyContinue
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
@@ -176,12 +185,13 @@ jobs:
           $env:DEVAPI_AGENT_SMOKE_OUTPUT = $agentSmoke
           $process = Start-Process -FilePath $installedApp -ArgumentList '--disable-gpu' -PassThru
           try {
-            for ($i=0; $i -lt 40 -and (-not (Test-Path $smoke) -or -not (Test-Path $agentSmoke)); $i++) { Start-Sleep -Milliseconds 500 }
+            for ($i=0; $i -lt 50 -and (-not (Test-Path $smoke) -or -not (Test-Path $agentSmoke)); $i++) { Start-Sleep -Milliseconds 500 }
             if ($process.HasExited) { throw "DEVAPI_DESKTOP_INSTALLED_LAUNCH_FAILED:$($process.ExitCode)" }
+            if (-not (Test-Path $smoke) -or -not (Test-Path $agentSmoke)) { throw 'DEVAPI_DESKTOP_INSTALLED_EVIDENCE_MISSING' }
             $health = Get-Content $smoke -Raw | ConvertFrom-Json
             $agent = Get-Content $agentSmoke -Raw | ConvertFrom-Json
             if ($health.state -ne 'PACKAGED_RUNTIME_VERIFIED' -or $health.health.state -ne 'HEALTHY') { throw 'DEVAPI_DESKTOP_INSTALLED_HEALTH_FAILED' }
-            if ($agent.state -ne 'AGENT_LOCAL_RUNTIME_VERIFIED' -or $agent.health.sqlite -ne 'RUNTIME_VERIFIED') { throw 'DEVAPI_DESKTOP_INSTALLED_AGENT_RUNTIME_FAILED' }
+            if ($agent.state -ne 'AGENT_LOCAL_RUNTIME_VERIFIED' -or $agent.health.sqlite -ne 'RUNTIME_VERIFIED' -or $agent.selfTest.state -ne 'RUNTIME_VERIFIED') { throw 'DEVAPI_DESKTOP_INSTALLED_AGENT_RUNTIME_FAILED' }
           } finally {
             Remove-Item Env:DEVAPI_SMOKE_OUTPUT,Env:DEVAPI_AGENT_SMOKE_OUTPUT -ErrorAction SilentlyContinue
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
@@ -190,7 +200,7 @@ jobs:
           if (-not $uninstaller) { throw 'DEVAPI_DESKTOP_UNINSTALLER_MISSING' }
           $uninstall = Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw "DEVAPI_DESKTOP_SILENT_UNINSTALL_FAILED:$($uninstall.ExitCode)" }
-          Write-Host 'DEVAPI_DESKTOP_INSTALL_CYCLE_PASS install=pass launch=pass desktopHealth=pass sqliteAgentRuntime=pass uninstall=pass'
+          Write-Host 'DEVAPI_DESKTOP_INSTALL_CYCLE_PASS install=pass launch=pass desktopHealth=pass sqliteAgentRuntime=pass functionalSelfTest=pass uninstall=pass'
 
       - name: Installer integrity evidence
         shell: pwsh
@@ -208,16 +218,16 @@ jobs:
           $agentHealth = Get-Content outputs/devapi-agent-runtime-health.json -Raw | ConvertFrom-Json
           $installedHealth = Get-Content outputs/devapi-installed-health.json -Raw | ConvertFrom-Json
           $evidence = [ordered]@{
-            schemaVersion=4; state='PACKAGED_VERIFIED'; product='DevAPI'; version='0.7.0'; platform='windows'; arch='x64'; installer=$exe.Name; bytes=$exe.Length; sha256=$sha; peHeader='MZ';
+            schemaVersion=5; state='PACKAGED_VERIFIED'; product='DevAPI'; version='0.7.1'; platform='windows'; arch='x64'; installer=$exe.Name; bytes=$exe.Length; sha256=$sha; peHeader='MZ';
             authenticodeStatus=$signature.Status.ToString(); signed=($signature.Status.ToString() -eq 'Valid'); sourceSha=$sourceSha; electron='43.4.0'; electronBuilder='26.15.3';
-            workspaceUi='autonomous-agent-task'; projectPicker='real-directory-dialog'; localPersistence='RUNTIME_VERIFIED_SQLITE'; secureSecretStore='Electron-safeStorage'; modelProvider='OpenAI-Responses'; modelRuntime='UNCONFIGURED_IN_CI'; webSearch='SOURCE_READY';
-            isolatedWorktree='SOURCE_READY'; humanApproval='SOURCE_READY'; independentReviewer='SOURCE_READY'; shaGuardedProjectApply='SOURCE_READY'; rollback='SOURCE_READY'; gitPush='DENIED'; productionDeploy='DENIED_DESKTOP_AGENT';
+            workspaceUi='autonomous-agent-task'; projectPicker='real-directory-dialog'; localPersistence='RUNTIME_VERIFIED_SQLITE'; localFunctionalSelfTest=$agentHealth.selfTest.state; secureSecretStore='Electron-safeStorage'; modelProvider='OpenAI-Responses'; modelRuntime='UNCONFIGURED_IN_CI'; structuredOutputs='SOURCE_READY_JSON_SCHEMA_STRICT'; webSearch='SOURCE_READY';
+            cancellation='SOURCE_READY_LINKED_ABORT_AND_CHILD_KILL'; isolatedWorktree='SOURCE_READY_CLEANUP'; humanApproval='SOURCE_READY'; independentReviewer='SOURCE_READY'; atomicProjectApply='SOURCE_READY_SHA_GUARDED'; rollback='SOURCE_READY_AUTO_AND_MANUAL'; gitPush='DENIED'; productionDeploy='DENIED_DESKTOP_AGENT';
             surfaces=5; packageHealth=$packagedHealth.state; agentRuntimeHealth=$agentHealth.state; sqliteRuntime=$agentHealth.health.sqlite; installedHealth=$installedHealth.state; integrityEntries=[int]$packagedHealth.health.integrity.entries; integrityVerified=[int]$packagedHealth.health.integrity.verified;
             silentInstall='PASS'; installedLaunch='PASS'; silentUninstall='PASS'; cloudProduction='BLOCKED_EXTERNAL'; generatedAt=(Get-Date).ToUniversalTime().ToString('o')
           }
-          $evidence | ConvertTo-Json -Depth 6 | Set-Content outputs/devapi-desktop-windows.json -Encoding utf8
+          $evidence | ConvertTo-Json -Depth 7 | Set-Content outputs/devapi-desktop-windows.json -Encoding utf8
           Copy-Item $exe.FullName "outputs/$($exe.Name)"
-          Write-Host "DEVAPI_DESKTOP_WINDOWS_AGENT_PASS installer=$($exe.Name) bytes=$($exe.Length) sha256=$sha pe=MZ auth=$($signature.Status) sqlite=$($agentHealth.health.sqlite) provider=$($agentHealth.health.provider.state) health=pass installCycle=pass integrity=$($evidence.integrityVerified)/$($evidence.integrityEntries)"
+          Write-Host "DEVAPI_DESKTOP_WINDOWS_AGENT_PASS installer=$($exe.Name) bytes=$($exe.Length) sha256=$sha pe=MZ auth=$($signature.Status) sqlite=$($agentHealth.health.sqlite) selfTest=$($agentHealth.selfTest.state) provider=$($agentHealth.health.provider.state) health=pass installCycle=pass integrity=$($evidence.integrityVerified)/$($evidence.integrityEntries)"
 
       - name: Upload DevAPI Windows installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
