@@ -12,6 +12,7 @@ files:
   - bootstrap.cjs
   - main.cjs
   - agent-runtime.cjs
+  - self-test.cjs
   - preload.cjs
   - renderer/**/*
   - build/icon.svg
