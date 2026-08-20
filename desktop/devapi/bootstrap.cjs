@@ -7,6 +7,9 @@ function trustedSender(event) {
   const senderUrl = String(event?.senderFrame?.url ?? '');
   if (!senderUrl.startsWith('devapi://desktop/')) throw new Error('DEVAPI_IPC_UNTRUSTED_SENDER');
 }
+function safeError(error) {
+  return String(error?.message ?? error ?? 'UNKNOWN').replace(/sk-[A-Za-z0-9_-]{16,}/g, '[REDACTED]');
+}
 
 const runtime = new DevApiAgentRuntime({ app, ipcMain, safeStorage, dialog: require('electron').dialog });
 
@@ -16,11 +19,22 @@ app.whenReady().then(async () => {
   const smokePath = process.env.DEVAPI_AGENT_SMOKE_OUTPUT;
   if (smokePath) {
     const health = runtime.runtimeHealth();
-    const selfTest = await runtime.selfTest();
+    let selfTest;
+    try { selfTest = await runtime.selfTest(); }
+    catch (error) { selfTest = { state: 'FAILED', checks: [{ id: 'uncaught-selftest', state: 'FAILED', detail: safeError(error) }], checkedAt: new Date().toISOString() }; }
     const state = health.state === 'HEALTHY' && selfTest.state === 'RUNTIME_VERIFIED' ? 'AGENT_LOCAL_RUNTIME_VERIFIED' : 'FAILED';
     fs.mkdirSync(path.dirname(smokePath), { recursive: true });
     fs.writeFileSync(smokePath, JSON.stringify({ schemaVersion: 2, state, health, selfTest }, null, 2), 'utf8');
   }
-}).catch(() => { app.exit(1); });
+}).catch((error) => {
+  try {
+    const smokePath = process.env.DEVAPI_AGENT_SMOKE_OUTPUT;
+    if (smokePath) {
+      fs.mkdirSync(path.dirname(smokePath), { recursive: true });
+      fs.writeFileSync(smokePath, JSON.stringify({ schemaVersion: 2, state: 'FAILED', bootstrapError: safeError(error), checkedAt: new Date().toISOString() }, null, 2), 'utf8');
+    }
+  } catch {}
+  app.exit(1);
+});
 
 require('./main.cjs');
