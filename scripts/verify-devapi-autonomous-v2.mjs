@@ -12,7 +12,10 @@ assert(manifest.runtime.version === "0.14.3", "DEVAPI_AGENTS_VERSION_PIN_REVIEW"
 assert(manifest.runtime.tag === "v0.14.3", "DEVAPI_AGENTS_TAG_PIN_REVIEW");
 assert(manifest.runtime.releaseCommit === "94a3edc3e5318fdbc4ceb045df4dad934ca4ab2b", "DEVAPI_AGENTS_RELEASE_SHA");
 assert(manifest.runtime.license === "MIT", "DEVAPI_AGENTS_LICENSE");
-assert(["GENERATION_PENDING_CI", "LOCKED"].includes(manifest.runtime.transitiveLockState), "DEVAPI_AGENTS_LOCK_TRUTH");
+assert(manifest.runtime.transitiveLockState === "LOCKED", "DEVAPI_AGENTS_LOCK_TRUTH");
+assert(manifest.runtime.installState === "INTEGRATED", "DEVAPI_AGENTS_INTEGRATION_TRUTH");
+assert(manifest.truth.supplyChainVerified === true, "DEVAPI_AGENTS_SUPPLY_CHAIN_TRUTH");
+assert(manifest.truth.lockCommitted === true, "DEVAPI_AGENTS_LOCK_COMMIT_TRUTH");
 assert(manifest.truth.runtimeVerified === false, "DEVAPI_AGENTS_NO_FAKE_RUNTIME");
 assert(manifest.schemaRuntime.version === "4.4.3", "DEVAPI_ZOD_VERSION_REVIEW");
 assert(manifest.schemaRuntime.releaseCommit === "1fb56a5c18c27102dbc92260a4007c7732a0ccca", "DEVAPI_ZOD_RELEASE_SHA");
@@ -20,7 +23,6 @@ assert(manifest.schemaRuntime.releaseCommit === "1fb56a5c18c27102dbc92260a4007c7
 const packageJson = JSON.parse(await readFile("cloud/devapi-control/package.json", "utf8"));
 assert(packageJson.dependencies?.["@openai/agents"] === "0.14.3", "DEVAPI_AGENTS_EXACT_PIN");
 assert(packageJson.dependencies?.zod === "4.4.3", "DEVAPI_ZOD_EXACT_PIN");
-if (manifest.truth.supplyChainVerified === false) assert(manifest.runtime.installState === "PIN_CANDIDATE", "DEVAPI_AGENTS_PRELOCK_STATE");
 
 assert(TASK_STATES.includes("CREATED") && TASK_STATES.includes("SOURCE_VERIFIED") && TASK_STATES.includes("ROLLED_BACK"), "DEVAPI_TASK_STATES_INCOMPLETE");
 assertTaskTransition("CREATED", "TRIAGED");
@@ -55,6 +57,7 @@ for (const id of ["agent.runtime", "workspace.create", "shell.exec", "fs.patch",
 
 const runtime = await agentRuntimeConfiguration();
 assert(runtime.provider === "openai-agents-sdk" && runtime.sourceState === "SOURCE_READY", "DEVAPI_AGENT_RUNTIME_SOURCE");
+assert(runtime.sdkInstalled === true, "DEVAPI_AGENT_SDK_RUNTIME_IMPORT_FAILED");
 assert(runtime.runtimeState !== "RUNTIME_VERIFIED", "DEVAPI_AGENT_RUNTIME_FAKE_VERIFIED");
 
 const smoke = JSON.parse(await readFile("outputs/devapi-worker-smoke.json", "utf8"));
@@ -115,4 +118,4 @@ for (const file of [
   assert(!/HotAPI/iu.test(text), `DEVAPI_SCOPE_LEAK:${file}`);
 }
 
-console.log(`DEVAPI_AUTONOMOUS_V2_VERIFY_PASS tools=${tools.length} routes=${sourceRoutes.length} operations=${operationCount} taskState=verified persistence=8-tables workerRuntime=verified worktreeRuntime=verified conflictQueue=verified browserRuntime=verified-readonly modelRuntime=not-verified agentsSdk=pin-candidate-lock-pending`);
+console.log(`DEVAPI_AUTONOMOUS_V2_VERIFY_PASS tools=${tools.length} routes=${sourceRoutes.length} operations=${operationCount} taskState=verified persistence=8-tables workerRuntime=verified worktreeRuntime=verified conflictQueue=verified browserRuntime=verified-readonly modelRuntime=not-verified agentsSdk=locked-integrated`);
