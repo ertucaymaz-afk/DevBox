@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('devapiDesktop', Object.freeze({
   openExternal: (url) => ipcRenderer.invoke('devapi:open-external', url),
 
   getAgentHealth: () => ipcRenderer.invoke('devapi:agent-health'),
+  runAgentSelfTest: () => ipcRenderer.invoke('devapi:agent-self-test'),
   getAgentSettings: () => ipcRenderer.invoke('devapi:agent-settings'),
   saveAgentApiKey: (key) => ipcRenderer.invoke('devapi:agent-save-key', key),
   clearAgentApiKey: () => ipcRenderer.invoke('devapi:agent-clear-key'),
