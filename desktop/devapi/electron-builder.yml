@@ -1,0 +1,43 @@
+appId: com.yaaertu.devapi
+productName: DevAPI
+executableName: DevAPI
+artifactName: DevAPI-Setup-${version}-${arch}.${ext}
+electronVersion: 43.4.0
+npmRebuild: false
+asar: true
+directories:
+  output: ../../release-devapi
+  buildResources: build
+files:
+  - bootstrap.cjs
+  - main.cjs
+  - agent-runtime.cjs
+  - self-test.cjs
+  - preload.cjs
+  - renderer/**/*
+  - build/icon.svg
+  - package.json
+extraResources:
+  - from: resources/devapi-sites
+    to: devapi-sites
+    filter:
+      - '**/*'
+  - from: resources/integrity.json
+    to: integrity.json
+win:
+  icon: build/icon.svg
+  target:
+    - target: nsis
+      arch:
+        - x64
+  requestedExecutionLevel: asInvoker
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: DevAPI
+  uninstallDisplayName: DevAPI
+  deleteAppDataOnUninstall: false

@@ -1,0 +1,74 @@
+name: DevAPI Agents SDK lock finalization
+
+on:
+  push:
+    branches:
+      - codex/devapi-autonomous-evolution-v1
+    paths:
+      - cloud/devapi-control/package.json
+      - cloud/devapi-control/package-lock.json
+      - cloud/devapi-control/agent/dependency-manifest.json
+      - scripts/devapi-agents-supply-chain.mjs
+      - scripts/finalize-devapi-agents-lock.mjs
+      - .github/workflows/devapi-agents-lock.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: devapi-agents-lock-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  finalize-lock:
+    if: github.event_name == 'push' && github.repository == 'ertucaymaz-afk/DevBox'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout trusted branch head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: codex/devapi-autonomous-evolution-v1
+          fetch-depth: 0
+
+      - name: Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Generate exact npm lock without lifecycle scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p outputs
+          cd cloud/devapi-control
+          npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+          npm audit --json > ../../outputs/devapi-npm-audit.json || true
+          cd ../..
+          node scripts/devapi-agents-supply-chain.mjs
+
+      - name: Clean install from generated lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd cloud/devapi-control
+          rm -rf node_modules
+          npm ci --ignore-scripts --no-fund --no-audit
+          npm ls --all > ../../outputs/devapi-npm-ls.txt
+          cd ../..
+          node scripts/finalize-devapi-agents-lock.mjs
+          git diff --check
+
+      - name: Commit verified lock and manifest only when changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add cloud/devapi-control/package-lock.json cloud/devapi-control/agent/dependency-manifest.json
+          if git diff --cached --quiet; then
+            echo 'DEVAPI_AGENTS_LOCK_ALREADY_CURRENT'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'build(devapi): lock verified agents sdk dependency graph'
+          git push origin HEAD:codex/devapi-autonomous-evolution-v1

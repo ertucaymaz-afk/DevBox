@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "product": "DevAPI",
+  "capturedAt": "2026-08-19T10:30:00.000Z",
+  "policy": {
+    "discoveredIsIntegrated": false,
+    "exactVersionRequiredBeforeInstall": true,
+    "licenseReviewRequired": true,
+    "securityReviewRequired": true
+  },
+  "items": [
+    {
+      "name": "OpenAI Agents SDK for TypeScript",
+      "source": "https://github.com/openai/openai-agents-js",
+      "sourceType": "official-repo",
+      "observedRelease": "v0.11.6",
+      "license": "MIT",
+      "capabilities": ["agent-loop", "tools", "handoffs", "guardrails", "sessions", "tracing", "sandbox-agents"],
+      "decision": "PRIMARY_CANDIDATE",
+      "integrationState": "DISCOVERED",
+      "note": "Install edilmedi; exact tag/SHA ve package provenance entegrasyon turunda yeniden doğrulanacak."
+    },
+    {
+      "name": "Spectral",
+      "source": "https://github.com/stoplightio/spectral",
+      "sourceType": "official-repo",
+      "observedRelease": "v6.16.2",
+      "license": "Apache-2.0",
+      "capabilities": ["openapi-lint", "custom-rules", "sarif"],
+      "decision": "PRIMARY_API_GATE",
+      "integrationState": "DISCOVERED"
+    },
+    {
+      "name": "oasdiff",
+      "source": "https://github.com/oasdiff/oasdiff",
+      "sourceType": "official-repo",
+      "observedRelease": "v1.26.1",
+      "observedCommit": "47e76df",
+      "license": "Apache-2.0",
+      "securityNote": "v1.26.1 is a security patch for untrusted git revision option parsing.",
+      "capabilities": ["openapi-diff", "breaking-changes", "changelog"],
+      "decision": "PRIMARY_API_GATE",
+      "integrationState": "DISCOVERED"
+    },
+    {
+      "name": "Schemathesis",
+      "source": "https://github.com/schemathesis/schemathesis",
+      "sourceType": "official-repo",
+      "observedRelease": "v4.24.3",
+      "observedCommit": "613ce31",
+      "capabilities": ["property-testing", "negative-testing", "fuzzing", "stateful-api-testing"],
+      "decision": "PRIMARY_API_GATE",
+      "integrationState": "DISCOVERED"
+    }
+  ]
+}

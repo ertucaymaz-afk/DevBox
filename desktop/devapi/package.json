@@ -1,0 +1,12 @@
+{
+  "name": "devapi-desktop",
+  "version": "0.7.1",
+  "private": true,
+  "description": "DevAPI autonomous engineering desktop agent workspace for Windows",
+  "author": "Yaaertu",
+  "license": "Apache-2.0",
+  "main": "bootstrap.cjs",
+  "engines": {
+    "node": ">=24"
+  }
+}

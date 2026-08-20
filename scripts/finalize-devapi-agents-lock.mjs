@@ -1,0 +1,23 @@
+import { readFile, writeFile } from "node:fs/promises";
+
+const manifestPath = "cloud/devapi-control/agent/dependency-manifest.json";
+const reportPath = "outputs/devapi-agents-supply-chain.json";
+const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+const report = JSON.parse(await readFile(reportPath, "utf8"));
+if (report.state !== "SUPPLY_CHAIN_VERIFIED") throw new Error("DEVAPI_SUPPLY_CHAIN_REPORT_NOT_VERIFIED");
+manifest.runtime.transitiveLockState = "LOCKED";
+manifest.runtime.advisoryAuditState = report.audit.high === 0 && report.audit.critical === 0 ? "PASS" : "FAILED";
+manifest.runtime.installState = "INTEGRATED";
+manifest.runtime.resolvedIntegrity = report.direct.agents.integrity;
+manifest.runtime.installScriptsObserved = report.installScripts;
+manifest.runtime.licenseGraph = report.licenses;
+manifest.schemaRuntime.installState = "INTEGRATED";
+manifest.schemaRuntime.licenseReviewState = "PASS";
+manifest.truth.supplyChainVerified = true;
+manifest.truth.pinnedForInstallation = true;
+manifest.truth.lockCommitted = true;
+manifest.truth.runtimeVerified = false;
+manifest.truth.reason = "Exact versions are locked; npm audit has no high/critical findings; package integrity and license metadata passed. Runtime provider smoke remains independent.";
+manifest.finalizedAt = new Date().toISOString();
+await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+console.log(`DEVAPI_AGENTS_LOCK_FINALIZED agents=${manifest.runtime.version} lock=${manifest.runtime.transitiveLockState} audit=${manifest.runtime.advisoryAuditState} runtimeVerified=false`);

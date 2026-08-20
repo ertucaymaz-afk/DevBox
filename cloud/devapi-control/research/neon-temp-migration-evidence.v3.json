@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "product": "DevAPI",
+  "scope": "temporary-neon-branch-only",
+  "projectId": "delicate-heart-48380148",
+  "database": "neondb",
+  "migrationId": "72e854f4-13ef-44a6-bd2b-fa9c5718e5d8",
+  "temporaryBranch": {
+    "name": "mcp-migration-2026-08-19T12-02-38",
+    "id": "br-lucky-pond-au1j8c60",
+    "parentBranchId": "br-broad-frog-aua7edwl"
+  },
+  "verification": {
+    "tablesPresent": 9,
+    "tables": [
+      "agent_approvals",
+      "agent_artifacts",
+      "agent_evidence",
+      "agent_sessions",
+      "agent_task_events",
+      "agent_tasks",
+      "agent_tool_calls",
+      "agent_workspaces",
+      "devapi_schema_migrations"
+    ],
+    "fixture": {
+      "taskState": "CREATED",
+      "riskClass": "R2",
+      "eventCount": 1,
+      "approvalCount": 1,
+      "approvalState": "APPROVED",
+      "evidenceCount": 1,
+      "evidenceState": "RUNTIME_VERIFIED"
+    },
+    "cleanup": {
+      "taskRows": 0,
+      "eventRows": 0,
+      "approvalRows": 0,
+      "evidenceRows": 0,
+      "cascadeVerified": true
+    }
+  },
+  "truth": {
+    "temporaryBranchRuntimeVerified": true,
+    "parentBranchModified": false,
+    "productionDatabaseVerified": false,
+    "mainMigrationRequiresExplicitApproval": true
+  }
+}
