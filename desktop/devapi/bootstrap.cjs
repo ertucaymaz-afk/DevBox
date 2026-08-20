@@ -10,14 +10,16 @@ function trustedSender(event) {
 
 const runtime = new DevApiAgentRuntime({ app, ipcMain, safeStorage, dialog: require('electron').dialog });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   runtime.register(trustedSender);
   runtime.openDb();
   const smokePath = process.env.DEVAPI_AGENT_SMOKE_OUTPUT;
   if (smokePath) {
     const health = runtime.runtimeHealth();
+    const selfTest = await runtime.selfTest();
+    const state = health.state === 'HEALTHY' && selfTest.state === 'RUNTIME_VERIFIED' ? 'AGENT_LOCAL_RUNTIME_VERIFIED' : 'FAILED';
     fs.mkdirSync(path.dirname(smokePath), { recursive: true });
-    fs.writeFileSync(smokePath, JSON.stringify({ schemaVersion: 1, state: health.state === 'HEALTHY' ? 'AGENT_LOCAL_RUNTIME_VERIFIED' : 'FAILED', health }, null, 2), 'utf8');
+    fs.writeFileSync(smokePath, JSON.stringify({ schemaVersion: 2, state, health, selfTest }, null, 2), 'utf8');
   }
 }).catch(() => { app.exit(1); });
 
