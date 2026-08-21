@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
 
       - name: pnpm 11.19.0 kur
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.19.0
           run_install: false
@@ -63,7 +63,7 @@ jobs:
           persist-credentials: false
 
       - name: pnpm 11.19.0 kur
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.19.0
           run_install: false
